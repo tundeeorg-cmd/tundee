@@ -4,9 +4,15 @@ import type { Scholarship, ChecklistStep } from './types';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Guard against missing env vars during build-time static generation
+const isConfigured = supabaseUrl.startsWith('https://') && supabaseAnonKey.length > 0;
+
+export const supabase = isConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createClient('https://placeholder.supabase.co', 'placeholder');
 
 export async function getScholarships(): Promise<Scholarship[]> {
+  if (!isConfigured) return [];
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
@@ -21,6 +27,7 @@ export async function getScholarships(): Promise<Scholarship[]> {
 }
 
 export async function getScholarshipById(id: string): Promise<Scholarship | null> {
+  if (!isConfigured) return null;
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
@@ -36,6 +43,7 @@ export async function getScholarshipById(id: string): Promise<Scholarship | null
 }
 
 export async function getChecklistSteps(): Promise<ChecklistStep[]> {
+  if (!isConfigured) return [];
   const { data, error } = await supabase
     .from('scholarship_checklist_steps')
     .select('*')

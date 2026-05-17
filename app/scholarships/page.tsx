@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState, useMemo } from 'react';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import ScholarshipFilters from '@/components/ScholarshipFilters';
