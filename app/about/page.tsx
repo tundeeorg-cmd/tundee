@@ -1,0 +1,204 @@
+'use client';
+
+import { useLanguage } from '@/components/LanguageToggle';
+import { translations } from '@/lib/translations';
+
+const TEAM = [
+  {
+    initial: 'ต',
+    name_th: 'ตั้ม — ผู้ก่อตั้ง',
+    name_en: 'Tam — Founder',
+    role_th: 'อดีตนักเรียนทุน กสศ. จ.ขอนแก่น ปัจจุบันเรียนวิศวกรรมฯ จุฬา',
+    role_en: 'Former EEF scholar from Khon Kaen, now studying engineering at Chulalongkorn University',
+    color: '#F0A500',
+  },
+  {
+    initial: 'พ',
+    name_th: 'พิม — ด้านเนื้อหา',
+    name_en: 'Pim — Content',
+    role_th: 'นักวิจัยนโยบายการศึกษา มีประสบการณ์ทำงานกับ กสศ. และสำนักงาน ก.พ.',
+    role_en: 'Education policy researcher with experience at EEF and OCSC',
+    color: '#4A90D9',
+  },
+  {
+    initial: 'ก',
+    name_th: 'กอล์ฟ — ด้านเทคโนโลยี',
+    name_en: 'Golf — Technology',
+    role_th: 'Software engineer ด้าน EdTech มีประสบการณ์ 5 ปีในการสร้างแพลตฟอร์มการเรียนรู้',
+    role_en: '5-year EdTech software engineer, specialising in learning platforms',
+    color: '#34A853',
+  },
+];
+
+export default function AboutPage() {
+  const [lang] = useLanguage();
+  const a = translations.about;
+
+  return (
+    <div className="bg-white min-h-screen">
+      {/* Header */}
+      <div className="bg-[#F5F5F7] border-b border-[#E5E5EA]">
+        <div className="max-w-[1200px] mx-auto px-6 py-16">
+          <h1
+            className="text-3xl md:text-5xl text-[#1D1D1F] mb-4"
+            style={{
+              fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif',
+              fontWeight: 300,
+            }}
+          >
+            {a.title[lang]}
+          </h1>
+        </div>
+      </div>
+
+      <div className="max-w-[1200px] mx-auto px-6 py-16 space-y-20">
+        {/* Mission */}
+        <section className="max-w-2xl">
+          <h2 className="text-xs font-semibold text-[#F0A500] uppercase tracking-widest mb-4">
+            {a.mission_label[lang]}
+          </h2>
+          <p
+            className="text-xl md:text-2xl text-[#1D1D1F] leading-relaxed"
+            style={{
+              fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif',
+              fontWeight: 300,
+            }}
+          >
+            {a.mission[lang]}
+          </p>
+        </section>
+
+        {/* Problem */}
+        <section>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
+            <div>
+              <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-4">
+                {a.problem_label[lang]}
+              </h2>
+              <p
+                className="text-base text-[#1D1D1F] leading-relaxed"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {a.problem[lang]}
+              </p>
+            </div>
+            <div>
+              <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-4">
+                {a.solution_label[lang]}
+              </h2>
+              <p
+                className="text-base text-[#1D1D1F] leading-relaxed"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {a.solution[lang]}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Stats banner */}
+        <section className="bg-[#FFF8E7] border border-[#F0A500]/20 rounded-[12px] p-8 md:p-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+            {[
+              { value: '3,000+', label_th: 'ทุนในฐานข้อมูล', label_en: 'Scholarships in database' },
+              { value: '77', label_th: 'จังหวัดครอบคลุม', label_en: 'Provinces covered' },
+              { value: '฿0', label_th: 'ค่าใช้จ่ายสำหรับผู้ใช้', label_en: 'Cost to students' },
+            ].map((stat, i) => (
+              <div key={i}>
+                <div
+                  className="text-4xl font-semibold text-[#F0A500] mb-2"
+                  style={{ fontFamily: 'DM Sans, sans-serif' }}
+                >
+                  {stat.value}
+                </div>
+                <div className="text-sm text-[#6E6E73]">
+                  {lang === 'th' ? stat.label_th : stat.label_en}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Team */}
+        <section>
+          <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-8">
+            {a.team_label[lang]}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {TEAM.map((member) => (
+              <div
+                key={member.initial}
+                className="bg-white border border-[#E5E5EA] rounded-[12px] p-6 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-shadow"
+              >
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-4"
+                  style={{ background: member.color }}
+                >
+                  {member.initial}
+                </div>
+                <h3
+                  className="font-semibold text-[#1D1D1F] mb-2"
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                >
+                  {lang === 'th' ? member.name_th : member.name_en}
+                </h3>
+                <p className="text-sm text-[#6E6E73] leading-relaxed">
+                  {lang === 'th' ? member.role_th : member.role_en}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Roadmap */}
+        <section>
+          <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-8">
+            {a.roadmap_label[lang]}
+          </h2>
+          <div className="relative">
+            {/* Vertical line */}
+            <div className="absolute left-4 top-0 bottom-0 w-px bg-[#E5E5EA]" />
+            <ol className="space-y-6">
+              {a.roadmap.map((item, i) => (
+                <li key={i} className="pl-12 relative">
+                  <div
+                    className={`absolute left-0 top-1 w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
+                      i === 0
+                        ? 'bg-[#F0A500] border-[#F0A500] text-white'
+                        : 'bg-white border-[#E5E5EA] text-[#6E6E73]'
+                    }`}
+                  >
+                    {i + 1}
+                  </div>
+                  <p
+                    className={`text-sm leading-relaxed ${i === 0 ? 'text-[#1D1D1F] font-medium' : 'text-[#6E6E73]'}`}
+                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  >
+                    {lang === 'th' ? item.th : item.en}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="bg-[#F5F5F7] rounded-[12px] p-8 md:p-12 text-center">
+          <h2
+            className="text-xl md:text-2xl text-[#1D1D1F] mb-4"
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
+          >
+            {lang === 'th' ? 'มาค้นหาทุนที่ใช่ด้วยกัน' : 'Let\'s find the right scholarship together'}
+          </h2>
+          <a
+            href="/scholarships"
+            className="inline-flex items-center bg-[#F0A500] text-white font-semibold px-8 py-4 rounded-full hover:bg-[#D4920A] transition-colors duration-200 text-sm"
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+          >
+            {lang === 'th' ? 'ค้นหาทุนของคุณ →' : 'Browse Scholarships →'}
+          </a>
+        </section>
+      </div>
+    </div>
+  );
+}
