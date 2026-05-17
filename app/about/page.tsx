@@ -7,8 +7,8 @@ const FOUNDER = {
   initial: 'J',
   name_th: 'เจนิสาศ์ วิเชียรสินธุ์ — ผู้ก่อตั้ง',
   name_en: 'Jenissa Vichiansin — Founder',
-  role_th: 'นักเรียนชั้นมัธยมศึกษาปีที่ 5 โรงเรียนนานาชาติกรุงเทพ (ISB) มีความหลงใหลในไวโอลิน การทำอาหาร เทนนิส และวิทยาศาสตร์ข้อมูล สร้างทุนดีเพื่อให้นักเรียนไทยทุกคนได้รับโอกาสที่ดีที่สุด',
-  role_en: 'Grade 11 at International School Bangkok (ISB). Passionate about violin, competitive cooking, tennis, and data science. Building TunDee to give every Thai student the scholarship navigator she never had.',
+  role_th: 'นักเรียนชั้นมัธยมศึกษาปีที่ 4 โรงเรียนนานาชาติกรุงเทพ (ISB) มุ่งมั่นสนับสนุนให้นักเรียนไทยทุกคนได้รับโอกาสทางทุนการศึกษามากขึ้น',
+  role_en: 'Grade 10 studying at the International School Bangkok, passionate about supporting Thai students in accessing more scholarship opportunities.',
   color: '#F0A500',
 };
 
@@ -127,38 +127,6 @@ export default function AboutPage() {
                 {lang === 'th' ? FOUNDER.role_th : FOUNDER.role_en}
               </p>
             </div>
-          </div>
-        </section>
-
-        {/* Roadmap */}
-        <section>
-          <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-8">
-            {a.roadmap_label[lang]}
-          </h2>
-          <div className="relative">
-            {/* Vertical line */}
-            <div className="absolute left-4 top-0 bottom-0 w-px bg-[#E5E5EA]" />
-            <ol className="space-y-6">
-              {a.roadmap.map((item, i) => (
-                <li key={i} className="pl-12 relative">
-                  <div
-                    className={`absolute left-0 top-1 w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                      i === 0
-                        ? 'bg-[#F0A500] border-[#F0A500] text-white'
-                        : 'bg-white border-[#E5E5EA] text-[#6E6E73]'
-                    }`}
-                  >
-                    {i + 1}
-                  </div>
-                  <p
-                    className={`text-sm leading-relaxed ${i === 0 ? 'text-[#1D1D1F] font-medium' : 'text-[#6E6E73]'}`}
-                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-                  >
-                    {lang === 'th' ? item.th : item.en}
-                  </p>
-                </li>
-              ))}
-            </ol>
           </div>
         </section>
 
