@@ -3,32 +3,14 @@
 import { useLanguage } from '@/components/LanguageToggle';
 import { translations } from '@/lib/translations';
 
-const TEAM = [
-  {
-    initial: 'ต',
-    name_th: 'ตั้ม — ผู้ก่อตั้ง',
-    name_en: 'Tam — Founder',
-    role_th: 'อดีตนักเรียนทุน กสศ. จ.ขอนแก่น ปัจจุบันเรียนวิศวกรรมฯ จุฬา',
-    role_en: 'Former EEF scholar from Khon Kaen, now studying engineering at Chulalongkorn University',
-    color: '#F0A500',
-  },
-  {
-    initial: 'พ',
-    name_th: 'พิม — ด้านเนื้อหา',
-    name_en: 'Pim — Content',
-    role_th: 'นักวิจัยนโยบายการศึกษา มีประสบการณ์ทำงานกับ กสศ. และสำนักงาน ก.พ.',
-    role_en: 'Education policy researcher with experience at EEF and OCSC',
-    color: '#4A90D9',
-  },
-  {
-    initial: 'ก',
-    name_th: 'กอล์ฟ — ด้านเทคโนโลยี',
-    name_en: 'Golf — Technology',
-    role_th: 'Software engineer ด้าน EdTech มีประสบการณ์ 5 ปีในการสร้างแพลตฟอร์มการเรียนรู้',
-    role_en: '5-year EdTech software engineer, specialising in learning platforms',
-    color: '#34A853',
-  },
-];
+const FOUNDER = {
+  initial: 'J',
+  name_th: 'เจนิสาศ์ วิเชียรสินธุ์ — ผู้ก่อตั้ง',
+  name_en: 'Jenissa Vichiansin — Founder',
+  role_th: 'นักเรียนชั้นมัธยมศึกษาปีที่ 5 โรงเรียนนานาชาติกรุงเทพ (ISB) มีความหลงใหลในไวโอลิน การทำอาหาร เทนนิส และวิทยาศาสตร์ข้อมูล สร้างทุนดีเพื่อให้นักเรียนไทยทุกคนได้รับโอกาสที่ดีที่สุด',
+  role_en: 'Grade 11 at International School Bangkok (ISB). Passionate about violin, competitive cooking, tennis, and data science. Building TunDee to give every Thai student the scholarship navigator she never had.',
+  color: '#F0A500',
+};
 
 export default function AboutPage() {
   const [lang] = useLanguage();
@@ -124,29 +106,27 @@ export default function AboutPage() {
           <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-8">
             {a.team_label[lang]}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TEAM.map((member) => (
+          <div className="max-w-sm mx-auto">
+            <div className="bg-white border border-[#E5E5EA] rounded-[12px] p-8 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-shadow">
               <div
-                key={member.initial}
-                className="bg-white border border-[#E5E5EA] rounded-[12px] p-6 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-shadow"
+                className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-semibold mb-5"
+                style={{ background: FOUNDER.color }}
               >
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-4"
-                  style={{ background: member.color }}
-                >
-                  {member.initial}
-                </div>
-                <h3
-                  className="font-semibold text-[#1D1D1F] mb-2"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-                >
-                  {lang === 'th' ? member.name_th : member.name_en}
-                </h3>
-                <p className="text-sm text-[#6E6E73] leading-relaxed">
-                  {lang === 'th' ? member.role_th : member.role_en}
-                </p>
+                {FOUNDER.initial}
               </div>
-            ))}
+              <h3
+                className="font-semibold text-[#1D1D1F] mb-3"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {lang === 'th' ? FOUNDER.name_th : FOUNDER.name_en}
+              </h3>
+              <p
+                className="text-sm text-[#6E6E73] leading-relaxed"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {lang === 'th' ? FOUNDER.role_th : FOUNDER.role_en}
+              </p>
+            </div>
           </div>
         </section>
 
