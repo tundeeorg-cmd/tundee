@@ -13,6 +13,7 @@ export const translations = {
     sub_th: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 3,000 ทุน ให้คุณค้นหาได้ฟรี ตรงเป้า และง่ายดาย',
     sub_en: 'TunDee aggregates 3,000+ Thai scholarships so you can find the right one — free, targeted, and simple.',
     cta: { th: 'ค้นหาทุนของคุณ →', en: 'Find Your Scholarship →' },
+    eyebrow: { th: 'ค้นหาทุนการศึกษาฟรี', en: 'Free Scholarship Discovery' },
   },
   stats: {
     scholarships: { th: '3,000+ ทุน', en: '3,000+ Scholarships' },
@@ -104,6 +105,9 @@ export const translations = {
       en: 'Follow these steps to maximise your chances of success',
     },
     noDeadline: { th: 'ติดต่อผู้ให้ทุนโดยตรง', en: 'Contact funder directly' },
+    welfareCardPill: { th: 'บัตรสวัสดิการแห่งรัฐ', en: 'Welfare Card Priority' },
+    incomeUnit: { th: 'บาท/ปี', en: 'THB/year' },
+    contactFunderInline: { th: 'ติดต่อโดยตรง', en: 'Contact directly' },
     perYear: { th: 'บาท / ปี', en: 'THB / year' },
     perMonth: { th: 'บาท / เดือน', en: 'THB / month' },
     oneTime: { th: 'บาท (ครั้งเดียว)', en: 'THB (one-time)' },
@@ -119,6 +123,12 @@ export const translations = {
   about: {
     title: { th: 'เกี่ยวกับทุนดี', en: 'About TunDee' },
     mission_label: { th: 'พันธกิจ', en: 'Mission' },
+    founder_title: { th: 'ผู้ก่อตั้ง', en: 'Founder' },
+    cta_heading: { th: 'มาค้นหาทุนที่ใช่ด้วยกัน', en: "Let's find the right scholarship together" },
+    cta_button: { th: 'ค้นหาทุนของคุณ →', en: 'Browse Scholarships →' },
+    stats_scholarships: { th: 'ทุนในฐานข้อมูล', en: 'Scholarships in database' },
+    stats_provinces: { th: 'จังหวัดครอบคลุม', en: 'Provinces covered' },
+    stats_cost: { th: 'ค่าใช้จ่ายสำหรับผู้ใช้', en: 'Cost to students' },
     mission: {
       th: 'ทุนดีเชื่อว่าทุกคนสมควรได้รับโอกาสทางการศึกษา ไม่ว่าจะเกิดมาในครอบครัวไหน จังหวัดไหน หรือฐานะอะไร',
       en: 'TunDee believes everyone deserves access to education regardless of family background, province, or financial status.',
@@ -146,6 +156,7 @@ export const translations = {
     tagline: { th: 'ทุกทุน ทุกโอกาส ในที่เดียว', en: 'Every scholarship. Every opportunity. In one place.' },
     copyright: { th: '© 2025 ทุนดี (TunDee) · tundee.org', en: '© 2025 TunDee · tundee.org' },
     links_title: { th: 'ลิงก์', en: 'Links' },
+    contact_title: { th: 'ติดต่อ', en: 'Contact' },
   },
   common: {
     loading: { th: 'กำลังโหลด...', en: 'Loading...' },

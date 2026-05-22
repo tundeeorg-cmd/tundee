@@ -1,19 +1,13 @@
 'use client';
 
-import { useLanguage } from '@/components/LanguageToggle';
+import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
 
-const FOUNDER = {
-  initial: 'J',
-  name_th: 'เจนิสาศ์ วิเชียรสินธุ์ — ผู้ก่อตั้ง',
-  name_en: 'Jenissa Vichiansin — Founder',
-  role_th: 'นักเรียนชั้นมัธยมศึกษาปีที่ 4 โรงเรียนนานาชาติกรุงเทพ (ISB) มุ่งมั่นสนับสนุนให้นักเรียนไทยทุกคนได้รับโอกาสทางทุนการศึกษามากขึ้น',
-  role_en: 'Grade 10 studying at the International School Bangkok, passionate about supporting Thai students in accessing more scholarship opportunities.',
-  color: '#F0A500',
-};
+const FOUNDER_INITIAL = 'J';
+const FOUNDER_COLOR = '#F0A500';
 
 export default function AboutPage() {
-  const [lang] = useLanguage();
+  const { lang } = useLang();
   const a = translations.about;
 
   return (
@@ -50,7 +44,7 @@ export default function AboutPage() {
           </p>
         </section>
 
-        {/* Problem */}
+        {/* Problem / Solution */}
         <section>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
             <div>
@@ -82,9 +76,9 @@ export default function AboutPage() {
         <section className="bg-[#FFF8E7] border border-[#F0A500]/20 rounded-[12px] p-8 md:p-12">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             {[
-              { value: '3,000+', label_th: 'ทุนในฐานข้อมูล', label_en: 'Scholarships in database' },
-              { value: '77', label_th: 'จังหวัดครอบคลุม', label_en: 'Provinces covered' },
-              { value: '฿0', label_th: 'ค่าใช้จ่ายสำหรับผู้ใช้', label_en: 'Cost to students' },
+              { value: '3,000+', label: a.stats_scholarships[lang] },
+              { value: '77', label: a.stats_provinces[lang] },
+              { value: '฿0', label: a.stats_cost[lang] },
             ].map((stat, i) => (
               <div key={i}>
                 <div
@@ -93,38 +87,30 @@ export default function AboutPage() {
                 >
                   {stat.value}
                 </div>
-                <div className="text-sm text-[#6E6E73]">
-                  {lang === 'th' ? stat.label_th : stat.label_en}
-                </div>
+                <div className="text-sm text-[#6E6E73]">{stat.label}</div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Team */}
+        {/* Team — founder only */}
         <section>
           <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-widest mb-8">
             {a.team_label[lang]}
           </h2>
           <div className="max-w-sm mx-auto">
-            <div className="bg-white border border-[#E5E5EA] rounded-[12px] p-8 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-shadow">
+            <div className="bg-white border border-[#E5E5EA] rounded-[12px] p-8 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-shadow flex flex-col items-center text-center">
               <div
-                className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-semibold mb-5"
-                style={{ background: FOUNDER.color }}
+                className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-semibold mb-4"
+                style={{ background: FOUNDER_COLOR }}
               >
-                {FOUNDER.initial}
+                {FOUNDER_INITIAL}
               </div>
-              <h3
-                className="font-semibold text-[#1D1D1F] mb-3"
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-              >
-                {lang === 'th' ? FOUNDER.name_th : FOUNDER.name_en}
-              </h3>
               <p
-                className="text-sm text-[#6E6E73] leading-relaxed"
+                className="text-sm font-medium text-[#6E6E73]"
                 style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
               >
-                {lang === 'th' ? FOUNDER.role_th : FOUNDER.role_en}
+                {a.founder_title[lang]}
               </p>
             </div>
           </div>
@@ -136,14 +122,14 @@ export default function AboutPage() {
             className="text-xl md:text-2xl text-[#1D1D1F] mb-4"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
           >
-            {lang === 'th' ? 'มาค้นหาทุนที่ใช่ด้วยกัน' : 'Let\'s find the right scholarship together'}
+            {a.cta_heading[lang]}
           </h2>
           <a
             href="/scholarships"
             className="inline-flex items-center bg-[#F0A500] text-white font-semibold px-8 py-4 rounded-full hover:bg-[#D4920A] transition-colors duration-200 text-sm"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
           >
-            {lang === 'th' ? 'ค้นหาทุนของคุณ →' : 'Browse Scholarships →'}
+            {a.cta_button[lang]}
           </a>
         </section>
       </div>

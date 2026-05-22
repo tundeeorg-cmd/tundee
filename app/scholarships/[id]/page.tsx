@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ChecklistUI from '@/components/ChecklistUI';
-import { useLanguage } from '@/components/LanguageToggle';
+import { useLang } from '@/lib/LanguageContext';
 import { getScholarshipById, getChecklistSteps } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
 import type { ChecklistStep, Scholarship } from '@/lib/types';
@@ -39,7 +39,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 export default function ScholarshipDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [lang] = useLanguage();
+  const { lang } = useLang();
   const [scholarship, setScholarship] = useState<Scholarship | null>(null);
   const [steps, setSteps] = useState<ChecklistStep[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +126,7 @@ export default function ScholarshipDetailPage() {
                 )}
                 {s.welfare_card_priority && (
                   <Pill className="bg-[#FFF8E7] text-[#B8860B] border-[#F0A500]/40">
-                    {lang === 'th' ? 'บัตรสวัสดิการแห่งรัฐ' : 'Welfare Card Priority'}
+                    {d.welfareCardPill[lang]}
                   </Pill>
                 )}
               </div>
@@ -203,7 +203,7 @@ export default function ScholarshipDetailPage() {
                   label={d.maxIncome[lang]}
                   value={
                     s.max_income_thb
-                      ? `${s.max_income_thb.toLocaleString('th-TH')} ${lang === 'th' ? 'บาท/ปี' : 'THB/year'}`
+                      ? `${s.max_income_thb.toLocaleString('th-TH')} ${d.incomeUnit[lang]}`
                       : d.incomeAny[lang]
                   }
                 />
@@ -254,7 +254,7 @@ export default function ScholarshipDetailPage() {
 
             {/* Checklist */}
             <div ref={checklistRef}>
-              {showChecklist && <ChecklistUI steps={steps} lang={lang} />}
+              {showChecklist && <ChecklistUI steps={steps} />}
             </div>
           </div>
 

@@ -1,13 +1,10 @@
 'use client';
 
+import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
-import type { Language } from '@/lib/types';
 
-interface Props {
-  lang: Language;
-}
-
-export default function StatsBar({ lang }: Props) {
+export default function StatsBar() {
+  const { lang } = useLang();
   const s = translations.stats;
 
   const stats = [

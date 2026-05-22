@@ -1,16 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
-import type { Language } from '@/lib/types';
 
-interface Props {
-  lang: Language;
-}
-
-export default function HeroSection({ lang }: Props) {
+export default function HeroSection() {
+  const { lang } = useLang();
   const h = translations.hero;
-
   const headline = lang === 'th' ? h.headline_th : h.headline_en;
   const lines = headline.split('\n');
 
@@ -21,9 +17,7 @@ export default function HeroSection({ lang }: Props) {
           {/* Eyebrow */}
           <div className="inline-flex items-center gap-2 bg-[#FFF8E7] border border-[#F0A500]/30 rounded-full px-4 py-1.5 mb-8">
             <span className="w-2 h-2 rounded-full bg-[#F0A500] inline-block" />
-            <span className="text-sm text-[#F0A500] font-medium">
-              {lang === 'th' ? 'ค้นหาทุนการศึกษาฟรี' : 'Free Scholarship Discovery'}
-            </span>
+            <span className="text-sm text-[#F0A500] font-medium">{h.eyebrow[lang]}</span>
           </div>
 
           {/* Headline */}
@@ -39,11 +33,7 @@ export default function HeroSection({ lang }: Props) {
           >
             {lines.map((line, i) => (
               <span key={i} className="block">
-                {i === 1 ? (
-                  <span className="text-[#F0A500]">{line}</span>
-                ) : (
-                  line
-                )}
+                {i === 1 ? <span className="text-[#F0A500]">{line}</span> : line}
               </span>
             ))}
           </h1>

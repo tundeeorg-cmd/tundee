@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, useMemo } from 'react';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import ScholarshipFilters from '@/components/ScholarshipFilters';
-import { useLanguage } from '@/components/LanguageToggle';
+import { useLang } from '@/lib/LanguageContext';
 import { getScholarships } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
 import type { FilterState, Scholarship } from '@/lib/types';
@@ -43,7 +43,7 @@ function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[
 }
 
 export default function BrowsePage() {
-  const [lang] = useLanguage();
+  const { lang } = useLang();
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
@@ -86,7 +86,6 @@ export default function BrowsePage() {
               <ScholarshipFilters
                 filters={filters}
                 onChange={setFilters}
-                lang={lang}
                 resultCount={filtered.length}
               />
             </div>
@@ -111,7 +110,6 @@ export default function BrowsePage() {
                 <ScholarshipFilters
                   filters={filters}
                   onChange={setFilters}
-                  lang={lang}
                   resultCount={filtered.length}
                 />
               </div>
@@ -146,7 +144,7 @@ export default function BrowsePage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {filtered.map((s) => (
-                  <ScholarshipCard key={s.id} scholarship={s} lang={lang} />
+                  <ScholarshipCard key={s.id} scholarship={s} />
                 ))}
               </div>
             )}

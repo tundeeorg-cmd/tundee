@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import HeroSection from '@/components/HeroSection';
 import StatsBar from '@/components/StatsBar';
 import ScholarshipCard from '@/components/ScholarshipCard';
-import { useLanguage } from '@/components/LanguageToggle';
+import { useLang } from '@/lib/LanguageContext';
 import { getScholarships } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
 import type { Scholarship } from '@/lib/types';
@@ -45,7 +45,7 @@ const ApplyIcon = () => (
 );
 
 export default function HomePage() {
-  const [lang] = useLanguage();
+  const { lang } = useLang();
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,8 +62,8 @@ export default function HomePage() {
 
   return (
     <>
-      <HeroSection lang={lang} />
-      <StatsBar lang={lang} />
+      <HeroSection />
+      <StatsBar />
 
       {/* How It Works */}
       <section className="section-pad bg-white">
@@ -99,7 +99,6 @@ export default function HomePage() {
         <div className="max-w-[1200px] mx-auto px-6">
           <div className="max-w-2xl mx-auto bg-white border border-[#E5E5EA] rounded-[12px] p-8 md:p-12">
             <div className="flex items-center gap-3 mb-6">
-              {/* Avatar placeholder */}
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold"
                 style={{ background: 'linear-gradient(135deg, #F0A500 0%, #E08A00 100%)' }}
@@ -111,9 +110,7 @@ export default function HomePage() {
                 <div className="text-xs text-[#6E6E73]">{p.detail[lang]}</div>
               </div>
             </div>
-            <h3
-              className="text-xs font-semibold text-[#F0A500] uppercase tracking-widest mb-4"
-            >
+            <h3 className="text-xs font-semibold text-[#F0A500] uppercase tracking-widest mb-4">
               {p.title[lang]}
             </h3>
             <blockquote
@@ -156,7 +153,7 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {scholarships.map((s) => (
-                <ScholarshipCard key={s.id} scholarship={s} lang={lang} />
+                <ScholarshipCard key={s.id} scholarship={s} />
               ))}
             </div>
           )}

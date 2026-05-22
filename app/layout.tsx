@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
+import { LanguageProvider } from '@/lib/LanguageContext';
 
 export const metadata: Metadata = {
   title: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
@@ -34,11 +35,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <Nav />
-        <main className="flex-1 pt-16">
-          {children}
-        </main>
-        <Footer />
+        <LanguageProvider>
+          <Nav />
+          <main className="flex-1 pt-16">
+            {children}
+          </main>
+          <Footer />
+        </LanguageProvider>
       </body>
     </html>
   );
