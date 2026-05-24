@@ -20,6 +20,13 @@ function NavLinks({ onClick }: { onClick?: () => void }) {
       <Link href="/about" onClick={onClick} className="text-[#1D1D1F] hover:text-[#F0A500] transition-colors duration-200 text-sm font-medium">
         {nav.about[lang]}
       </Link>
+      <Link
+        href="/auth"
+        onClick={onClick}
+        className="text-sm font-medium text-[#F0A500] hover:text-[#D4920A] transition-colors duration-200"
+      >
+        {nav.login[lang]}
+      </Link>
     </>
   );
 }

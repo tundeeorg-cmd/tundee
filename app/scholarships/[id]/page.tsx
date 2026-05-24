@@ -8,8 +8,18 @@ import { useParams } from 'next/navigation';
 import ChecklistUI from '@/components/ChecklistUI';
 import { useLang } from '@/lib/LanguageContext';
 import { getScholarshipById, getChecklistSteps } from '@/lib/supabase';
-import { translations } from '@/lib/translations';
+import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import type { ChecklistStep, Scholarship } from '@/lib/types';
+
+function translateProvince(name: string, lang: string): string {
+  if (lang === 'en') return PROVINCE_EN_MAP[name] ?? name;
+  return name;
+}
+
+function translateDocument(doc: string, lang: string): string {
+  if (lang === 'en') return DOCUMENT_EN_MAP[doc] ?? doc;
+  return doc;
+}
 
 const FUNDER_TYPE_COLORS: Record<string, string> = {
   government: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -212,7 +222,7 @@ export default function ScholarshipDetailPage() {
                   value={
                     isNational
                       ? translations.common.national[lang]
-                      : (s.province_restriction ?? []).join(', ')
+                      : (s.province_restriction ?? []).map((p) => translateProvince(p, lang)).join(', ')
                   }
                 />
                 <InfoRow
@@ -245,7 +255,7 @@ export default function ScholarshipDetailPage() {
                       <svg className="w-4 h-4 text-[#F0A500] mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm text-[#1D1D1F]">{doc}</span>
+                      <span className="text-sm text-[#1D1D1F]">{translateDocument(doc, lang)}</span>
                     </li>
                   ))}
                 </ul>

@@ -18,6 +18,15 @@ const EMPTY_FILTERS: FilterState = {
   welfareCard: false,
 };
 
+function sortByAmount(scholarships: Scholarship[]): Scholarship[] {
+  return [...scholarships].sort((a, b) => {
+    if (a.amount_thb === null && b.amount_thb === null) return 0;
+    if (a.amount_thb === null) return 1;
+    if (b.amount_thb === null) return -1;
+    return b.amount_thb - a.amount_thb;
+  });
+}
+
 function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[] {
   return scholarships.filter((s) => {
     if (f.funderType && s.funder_type !== f.funderType) return false;
@@ -58,7 +67,7 @@ export default function BrowsePage() {
     });
   }, []);
 
-  const filtered = useMemo(() => applyFilters(scholarships, filters), [scholarships, filters]);
+  const filtered = useMemo(() => sortByAmount(applyFilters(scholarships, filters)), [scholarships, filters]);
 
   return (
     <div className="bg-white min-h-screen">
@@ -120,6 +129,7 @@ export default function BrowsePage() {
               <span className="text-sm text-[#6E6E73]">
                 {filtered.length} {b.results[lang]}
               </span>
+              <span className="text-xs text-[#6E6E73] hidden sm:block">{b.sortLabel[lang]}</span>
             </div>
 
             {/* Grid */}
