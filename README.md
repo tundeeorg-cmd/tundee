@@ -127,6 +127,30 @@ Key tables:
 
 ---
 
+## Fairness Layer
+
+TunDee implements post-processing equalized odds correction based on:
+
+> Hardt, M., Price, E., & Srebro, N. (2016). *Equality of Opportunity in Supervised Learning.* NeurIPS 2016. [arXiv:1610.02413](https://arxiv.org/abs/1610.02413)
+
+**Criterion:** Equalized Odds
+- Among students who qualify for a scholarship, recommendation rates must be equal regardless of whether they are from Bangkok or rural northeastern provinces.
+- Both true positive rate parity AND false positive rate parity must hold.
+
+**Why not demographic parity:** Would recommend scholarships to students who don't qualify just to balance numbers. Equalized odds only equalizes among qualified students.
+
+**Why post-processing:** Scholarship eligibility rules are set by funders (EEF, Chulalongkorn, PTT) and cannot be changed. Pre-processing and in-processing are not available. Post-processing is the only technically valid approach.
+
+**Protected attributes:**
+- Region: Bangkok/urban (A=0) vs. rural/northeastern provinces (A=1)
+- Income: Brackets 4-7 (A=0) vs. brackets 1-3 under 15,000 THB/month (A=1)
+
+Correction activates when A=1 on BOTH attributes simultaneously.
+
+**Bias audit:** Run `computeEqualizedOddsGap()` monthly from Month 7. Publish results publicly. Target: 60% reduction in EO gap for scholarships with `historical_bias_score > 0.6`.
+
+---
+
 ## v1 Limitations (by design)
 
 - No authentication — all data is public read

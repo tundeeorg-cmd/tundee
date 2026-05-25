@@ -150,6 +150,22 @@ export default function HomePage() {
                 <div key={i} className="h-52 bg-[#F5F5F7] rounded-[12px] animate-pulse" />
               ))}
             </div>
+          ) : scholarships.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="text-5xl mb-4">🎓</div>
+              <h3
+                className="text-lg font-semibold text-[#1D1D1F] mb-2"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {translations.browse.emptyHeading[lang]}
+              </h3>
+              <p
+                className="text-sm text-[#6E6E73] max-w-sm leading-relaxed"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              >
+                {translations.browse.emptyBody[lang]}
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {scholarships.map((s) => (

@@ -11,6 +11,113 @@ import { getScholarshipById, getChecklistSteps } from '@/lib/supabase';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import type { ChecklistStep, Scholarship } from '@/lib/types';
 
+// Match data stored by the browse page when navigating from My Matches tab
+interface StoredMatchData {
+  raw_score: number;
+  fairness_score: number;
+  correction_applied: number;
+  fairness_boosted: boolean;
+  reasons: string[];
+  reasons_en: string[];
+}
+
+function loadMatchData(id: string): StoredMatchData | null {
+  try {
+    const raw = sessionStorage.getItem(`tundee_match_${id}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Fairness Tooltip ─────────────────────────────────────────────────────
+function FairnessTooltip({ lang }: { lang: string }) {
+  const [open, setOpen] = useState(false);
+  const d = translations.detail;
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="ml-1.5 w-4 h-4 rounded-full bg-[#F0A500]/20 text-[#F0A500] text-[10px] font-bold flex items-center justify-center hover:bg-[#F0A500]/30 transition-colors"
+        aria-label="Fairness info"
+      >
+        i
+      </button>
+      {open && (
+        <div className="absolute bottom-6 left-0 z-20 w-72 bg-white border border-[#E5E5EA] rounded-[10px] shadow-lg p-3 text-xs text-[#6E6E73] leading-relaxed"
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          {d.fairnessTooltip[lang as 'th' | 'en']}
+          <button onClick={() => setOpen(false)} className="block mt-2 text-[#F0A500] font-medium">
+            {lang === 'th' ? 'ปิด' : 'Close'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Why This Matched Panel ────────────────────────────────────────────────
+function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; lang: string }) {
+  const d = translations.detail;
+  const reasons = lang === 'th' ? matchData.reasons : matchData.reasons_en;
+  const rawPct = Math.round(matchData.raw_score * 100);
+  const fairPct = Math.round(matchData.fairness_score * 100);
+  const color = matchData.fairness_boosted ? '#F0A500' : '#0066CC';
+
+  return (
+    <div className="bg-[#FAFAFA] border border-[#E5E5EA] rounded-[12px] p-5 space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <span className="text-base">🎯</span>
+        <h3 className="text-sm font-semibold text-[#1D1D1F]"
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          {d.whyMatch[lang as 'th' | 'en']}
+        </h3>
+      </div>
+
+      {/* Reasons */}
+      {reasons.length > 0 && (
+        <ul className="space-y-1.5">
+          {reasons.map((r, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-[#6E6E73]">
+              <span className="text-[#F0A500] mt-0.5 shrink-0">✓</span>
+              <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>{r}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Score bar */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-[#6E6E73]">{translations.browse.matchScore[lang as 'th' | 'en']}</span>
+            {matchData.fairness_boosted && <FairnessTooltip lang={lang} />}
+          </div>
+          <span className="text-sm font-bold" style={{ color }}>{fairPct}%</span>
+        </div>
+        <div className="h-2 bg-[#F5F5F7] rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${fairPct}%`, background: color }} />
+        </div>
+      </div>
+
+      {/* Fairness badge + raw vs adjusted */}
+      {matchData.fairness_boosted && (
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-[#F0A500] bg-[#FFF8E7] border border-[#F0A500]/30 px-2.5 py-0.5 rounded-full">
+              {d.fairnessBadgeDetail[lang as 'th' | 'en']}
+            </span>
+          </div>
+          <span className="text-[10px] text-[#ADADB8]">
+            {d.rawScore[lang as 'th' | 'en']} {rawPct}% → {d.fairnessAdjusted[lang as 'th' | 'en']} {fairPct}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function translateProvince(name: string, lang: string): string {
   if (lang === 'en') return PROVINCE_EN_MAP[name] ?? name;
   return name;
@@ -54,12 +161,16 @@ export default function ScholarshipDetailPage() {
   const [steps, setSteps] = useState<ChecklistStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [matchData, setMatchData] = useState<StoredMatchData | null>(null);
   const checklistRef = useRef<HTMLDivElement>(null);
 
   const d = translations.detail;
   const ft = translations.funderTypes;
 
   useEffect(() => {
+    // Load match data from sessionStorage (set by browse page My Matches tab)
+    setMatchData(loadMatchData(id));
+
     Promise.all([getScholarshipById(id), getChecklistSteps()]).then(([s, st]) => {
       setScholarship(s);
       setSteps(st);
@@ -239,6 +350,9 @@ export default function ScholarshipDetailPage() {
                 />
               </dl>
             </div>
+
+            {/* Explainability panel (only when coming from My Matches tab) */}
+            {matchData && <ExplainabilityPanel matchData={matchData} lang={lang} />}
 
             {/* Documents */}
             {s.documents_required && s.documents_required.length > 0 && (
