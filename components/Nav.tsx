@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import LanguageToggle from './LanguageToggle';
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 function NavLinks({ onClick, user }: { onClick?: () => void; user: User | null }) {
@@ -53,8 +53,10 @@ export default function Nav() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Get initial user
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const supabase = createClient();
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
 
     // Listen for auth changes (login / logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {

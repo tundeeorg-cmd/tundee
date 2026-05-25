@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
-import { supabase } from '@/lib/supabase';
 
 type Tab = 'login' | 'signup';
 
@@ -30,271 +31,210 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
-function GoogleLogo() {
-  return (
-    <svg className="w-5 h-5 shrink-0" viewBox="0 0 48 48">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-    </svg>
-  );
-}
-
-function InputField({
-  label,
-  type,
-  value,
-  onChange,
-  placeholder,
-  error,
-  showToggle,
-  onToggle,
-  showText,
-}: {
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  error?: string;
-  showToggle?: boolean;
-  onToggle?: () => void;
-  showText?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-[#1D1D1F] mb-1.5" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-        {label}
-      </label>
-      <div className="relative">
-        <input
-          type={showToggle && showText ? 'text' : type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={`w-full px-4 py-3 ${showToggle ? 'pr-11' : ''} rounded-lg border text-sm text-[#1D1D1F] bg-white outline-none focus:border-[#F0A500] focus:ring-2 focus:ring-[#F0A500]/10 transition-all placeholder:text-[#ADADB8] ${error ? 'border-red-400 bg-red-50/30' : 'border-[#E5E5EA]'}`}
-        />
-        {showToggle && (
-          <button
-            type="button"
-            onClick={onToggle}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E6E73] hover:text-[#1D1D1F] transition-colors"
-            tabIndex={-1}
-          >
-            <EyeIcon open={!!showText} />
-          </button>
-        )}
-      </div>
-      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
-    </div>
-  );
-}
-
-export default function AuthPage() {
+function AuthForm() {
   const { lang } = useLang();
-  const a = translations.auth;
+  const t = translations.auth;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
 
   const [tab, setTab] = useState<Tab>('login');
-  const [showPass, setShowPass] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState('');
-
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  function resetForm() {
-    setErrors({});
-    setSuccess('');
-    setName('');
-    setEmail('');
-    setPassword('');
-    setConfirm('');
-    setShowPass(false);
-    setShowConfirm(false);
-  }
+  // Redirect already-logged-in users
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace('/scholarships');
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function validate(): boolean {
-    const errs: Record<string, string> = {};
-    if (tab === 'signup' && !name.trim()) errs.name = a.nameRequired[lang];
-    if (!email.trim()) errs.email = a.emailRequired[lang];
-    if (!password) errs.password = a.passwordRequired[lang];
-    else if (password.length < 8) errs.password = a.passwordMin[lang];
-    if (tab === 'signup' && password !== confirm) errs.confirm = a.passwordMismatch[lang];
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  }
+  // Show callback error if present
+  useEffect(() => {
+    if (searchParams.get('error') === 'auth_callback_failed') {
+      setError(lang === 'th' ? 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่' : 'Authentication failed. Please try again.');
+    }
+  }, [searchParams, lang]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
+
+  async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    setError('');
+    setSuccessMsg('');
+    if (!email || !password) {
+      setError(lang === 'th' ? 'กรุณากรอกอีเมลและรหัสผ่าน' : 'Please enter your email and password.');
+      return;
+    }
     setLoading(true);
-    setErrors({});
-    setSuccess('');
 
-    try {
-      if (tab === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: name } },
-        });
-        if (error) throw error;
-        setSuccess(a.successSignup[lang]);
-        resetForm();
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        setSuccess(a.successLogin[lang]);
+    if (tab === 'login') {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) {
+        setError(lang === 'th' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : 'Invalid email or password.');
+        setLoading(false);
+        return;
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setErrors({ form: message });
-    } finally {
+      router.push('/scholarships');
+    } else {
+      const { error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${siteUrl}/auth/callback` },
+      });
+      if (err) {
+        setError(err.message);
+        setLoading(false);
+        return;
+      }
+      setSuccessMsg(lang === 'th'
+        ? 'ส่งอีเมลยืนยันแล้ว! กรุณาตรวจสอบกล่องจดหมาย'
+        : 'Confirmation email sent! Please check your inbox.');
       setLoading(false);
     }
   }
 
   async function handleGoogle() {
     setGoogleLoading(true);
-    try {
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin },
-      });
-    } finally {
+    setError('');
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${siteUrl}/auth/callback` },
+    });
+    if (err) {
+      setError(err.message);
       setGoogleLoading(false);
     }
+    // On success browser navigates away — no need to reset loading
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-[420px]">
-        {/* Card */}
-        <div className="bg-white rounded-[20px] shadow-[0_4px_6px_rgba(0,0,0,0.05),0_20px_40px_rgba(0,0,0,0.1)] p-8">
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <Link href="/" className="inline-flex flex-col items-center gap-0.5">
-              <span className="text-2xl font-semibold text-[#1D1D1F]" style={{ fontFamily: 'Sarabun, sans-serif' }}>
-                ทุนดี
-              </span>
-              <span className="text-[10px] font-light text-[#6E6E73] tracking-widest uppercase" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-                TunDee
-              </span>
-            </Link>
-          </div>
+    <main className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4 py-20">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#E5E5EA] w-full max-w-md p-8">
+        {/* Logo */}
+        <Link href="/" className="flex flex-col items-center mb-8">
+          <span className="text-2xl font-semibold text-[#1D1D1F]" style={{ fontFamily: 'Sarabun, sans-serif' }}>ทุนดี</span>
+          <span className="text-[10px] font-light text-[#6E6E73] tracking-widest uppercase" style={{ fontFamily: 'DM Sans, sans-serif' }}>TunDee</span>
+        </Link>
 
-          {/* Tab switcher */}
-          <div className="flex bg-[#F5F5F7] rounded-[10px] p-1 mb-7">
-            {(['login', 'signup'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); resetForm(); }}
-                className={`flex-1 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${tab === t ? 'bg-white text-[#1D1D1F] shadow-sm' : 'text-[#6E6E73] hover:text-[#1D1D1F]'}`}
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-              >
-                {t === 'login' ? a.loginTab[lang] : a.signupTab[lang]}
-              </button>
-            ))}
-          </div>
+        {/* Tab switch */}
+        <div className="flex rounded-xl bg-[#F5F5F7] p-1 mb-6">
+          {(['login', 'signup'] as Tab[]).map((t_) => (
+            <button
+              key={t_}
+              onClick={() => { setTab(t_); setError(''); setSuccessMsg(''); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                tab === t_ ? 'bg-white text-[#1D1D1F] shadow-sm' : 'text-[#6E6E73]'
+              }`}
+            >
+              {t_ === 'login' ? t.loginTab[lang] : t.signupTab[lang]}
+            </button>
+          ))}
+        </div>
 
-          {/* Success */}
-          {success && (
-            <div className="mb-5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              {success}
-            </div>
+        {/* Google OAuth */}
+        <button
+          onClick={handleGoogle}
+          disabled={googleLoading}
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-[#E5E5EA] bg-white hover:bg-[#F5F5F7] transition-colors text-sm font-medium text-[#1D1D1F] mb-4 disabled:opacity-50"
+        >
+          {googleLoading ? <Spinner /> : (
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
           )}
+          {t.googleBtn[lang]}
+        </button>
 
-          {/* Form-level error */}
-          {errors.form && (
-            <div className="mb-5 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              {errors.form}
-            </div>
-          )}
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-[#E5E5EA]" />
+          <span className="text-xs text-[#6E6E73]">{t.or[lang]}</span>
+          <div className="flex-1 h-px bg-[#E5E5EA]" />
+        </div>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            {tab === 'signup' && (
-              <InputField
-                label={a.fullName[lang]}
-                type="text"
-                value={name}
-                onChange={setName}
-                placeholder={a.fullNamePlaceholder[lang]}
-                error={errors.name}
-              />
-            )}
-
-            <InputField
-              label={a.email[lang]}
+        {/* Email / password form */}
+        <form onSubmit={handleEmailAuth} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#1D1D1F] mb-1.5">{t.email[lang]}</label>
+            <input
               type="email"
               value={email}
-              onChange={setEmail}
-              placeholder={a.emailPlaceholder[lang]}
-              error={errors.email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder={t.emailPlaceholder[lang]}
+              className="w-full px-4 py-3 rounded-xl border border-[#E5E5EA] text-sm focus:outline-none focus:ring-2 focus:ring-[#F0A500] bg-white"
+              autoComplete="email"
             />
-
-            <InputField
-              label={a.password[lang]}
-              type="password"
-              value={password}
-              onChange={setPassword}
-              placeholder={a.passwordPlaceholder[lang]}
-              error={errors.password}
-              showToggle
-              onToggle={() => setShowPass((v) => !v)}
-              showText={showPass}
-            />
-
-            {tab === 'signup' && (
-              <InputField
-                label={a.confirmPassword[lang]}
-                type="password"
-                value={confirm}
-                onChange={setConfirm}
-                placeholder={a.confirmPlaceholder[lang]}
-                error={errors.confirm}
-                showToggle
-                onToggle={() => setShowConfirm((v) => !v)}
-                showText={showConfirm}
-              />
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#F0A500] text-white font-semibold py-3 rounded-full hover:bg-[#D4920A] transition-colors duration-200 disabled:opacity-60 flex items-center justify-center gap-2 text-sm mt-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-            >
-              {loading && <Spinner />}
-              {tab === 'login' ? a.loginBtn[lang] : a.signupBtn[lang]}
-            </button>
-          </form>
-
-          {/* OR divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-[#E5E5EA]" />
-            <span className="text-xs text-[#6E6E73] font-medium tracking-wider">{a.or[lang]}</span>
-            <div className="flex-1 h-px bg-[#E5E5EA]" />
           </div>
 
-          {/* Google sign-in */}
+          <div>
+            <label className="block text-sm font-medium text-[#1D1D1F] mb-1.5">{t.password[lang]}</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={t.passwordPlaceholder[lang]}
+                className="w-full px-4 py-3 pr-11 rounded-xl border border-[#E5E5EA] text-sm focus:outline-none focus:ring-2 focus:ring-[#F0A500] bg-white"
+                autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E6E73] hover:text-[#1D1D1F]"
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          )}
+          {successMsg && (
+            <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">{successMsg}</p>
+          )}
+
           <button
-            type="button"
-            onClick={handleGoogle}
-            disabled={googleLoading}
-            className="w-full flex items-center justify-center gap-3 border border-[#E5E5EA] bg-white text-[#1D1D1F] font-medium py-3 rounded-full hover:bg-[#F5F5F7] transition-colors duration-200 text-sm disabled:opacity-60"
-            style={{ fontFamily: 'DM Sans, sans-serif' }}
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#F0A500] hover:bg-[#D4920A] text-white font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {googleLoading ? <Spinner /> : <GoogleLogo />}
-            {a.googleBtn[lang]}
+            {loading && <Spinner />}
+            {tab === 'login' ? t.loginBtn[lang] : t.signupBtn[lang]}
           </button>
-        </div>
+        </form>
+
+        {/* Switch tab hint */}
+        <p className="text-center text-sm text-[#6E6E73] mt-6">
+          {tab === 'login'
+            ? (lang === 'th' ? 'ยังไม่มีบัญชี?' : "Don't have an account?")
+            : (lang === 'th' ? 'มีบัญชีแล้ว?' : 'Already have an account?')}{' '}
+          <button
+            onClick={() => { setTab(tab === 'login' ? 'signup' : 'login'); setError(''); setSuccessMsg(''); }}
+            className="text-[#F0A500] font-medium hover:underline"
+          >
+            {tab === 'login' ? t.signupTab[lang] : t.loginTab[lang]}
+          </button>
+        </p>
       </div>
-    </div>
+    </main>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense>
+      <AuthForm />
+    </Suspense>
   );
 }

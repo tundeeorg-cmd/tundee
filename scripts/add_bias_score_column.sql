@@ -2,6 +2,7 @@
 -- Real scholarship data will be imported via CSV after this script runs.
 -- DO NOT run in production until real data CSV is ready to upload.
 
+-- ── Scholarships: new columns ────────────────────────────────────────────
 ALTER TABLE scholarships
 ADD COLUMN IF NOT EXISTS historical_bias_score DECIMAL(3,2) DEFAULT 0.5;
 
@@ -18,10 +19,10 @@ ADD COLUMN IF NOT EXISTS grade_levels TEXT[] DEFAULT NULL;
 COMMENT ON COLUMN scholarships.grade_levels IS
 'Eligible grade levels: ["M4","M5","M6","uni","graduate"] or NULL for any.';
 
--- Profiles table for storing student matching data
+-- ── Profiles table ───────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  province_id TEXT,               -- Thai province name e.g. 'ขอนแก่น'
+  province_id TEXT,
   income_bracket INTEGER CHECK (income_bracket BETWEEN 1 AND 7),
   gpa DECIMAL(3,2) CHECK (gpa BETWEEN 0 AND 4),
   fields_of_interest TEXT[] DEFAULT ARRAY['any'],
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can upsert own profile" ON public.profiles;
+
 CREATE POLICY "Users can read own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id);
@@ -41,7 +45,7 @@ CREATE POLICY "Users can upsert own profile"
   ON public.profiles FOR ALL
   USING (auth.uid() = id);
 
--- Recommendations table for logging match results (fairness audit)
+-- ── Recommendations table ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.recommendations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -55,6 +59,9 @@ CREATE TABLE IF NOT EXISTS public.recommendations (
 );
 
 ALTER TABLE public.recommendations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own recommendations" ON public.recommendations;
+DROP POLICY IF EXISTS "Users can upsert own recommendations" ON public.recommendations;
 
 CREATE POLICY "Users can read own recommendations"
   ON public.recommendations FOR SELECT
