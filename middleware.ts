@@ -31,6 +31,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/scholarships', request.url))
   }
 
+  // Protect /admin — must be logged in (email check happens client-side)
+  if (!session && request.nextUrl.pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/auth', request.url))
+  }
+
   return response
 }
 

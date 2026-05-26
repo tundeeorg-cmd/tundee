@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLang } from '@/lib/LanguageContext';
 import { translations, PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -15,6 +15,7 @@ const GRADE_LEVELS = ['M4', 'M5', 'M6', 'uni', 'graduate'] as const;
 export default function ProfilePage() {
   const { lang } = useLang();
   const router = useRouter();
+  const supabase = createClient();
   const p = translations.profile;
 
   const [user, setUser] = useState<User | null>(null);
