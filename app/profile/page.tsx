@@ -55,14 +55,16 @@ export default function ProfilePage() {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await supabase.auth.getUser();
+        // getSession() reads from localStorage — no network round-trip, instant
+        const { data: sessionData } = await supabase.auth.getSession();
         if (!mounted) return;
-        if (!data.user) return;
-        setUser(data.user);
+        if (!sessionData.session?.user) return;
+        const authUser = sessionData.session.user;
+        setUser(authUser);
 
         // Account profile
         try {
-          const acct = await getProfile(data.user.id);
+          const acct = await getProfile(authUser.id);
           if (!mounted) return;
           setUserProfile(acct);
           setDisplayName(acct?.display_name ?? '');
@@ -72,7 +74,7 @@ export default function ProfilePage() {
         // Matching profile
         try {
           const { data: profile } = await supabase
-            .from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+            .from('profiles').select('*').eq('id', authUser.id).maybeSingle();
           if (!mounted) return;
           if (profile) {
             setProvince(profile.province_id ?? '');

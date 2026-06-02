@@ -234,10 +234,11 @@ export default function BrowsePage() {
       setLoading(false);
     });
 
-    // Check auth
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      setUser(data.user);
+    // Check auth — use getSession() (reads localStorage, no network round-trip)
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const authUser = data.session.user;
+      setUser(authUser);
       setActiveTab('matches');
       setMatchesLoading(true);
 
@@ -246,7 +247,7 @@ export default function BrowsePage() {
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', data.user.id)
+          .eq('id', authUser.id)
           .maybeSingle();
 
         if (profile) {
@@ -284,7 +285,8 @@ export default function BrowsePage() {
   }, [userProfile, scholarships]);
 
   async function logRecommendations(results: MatchResult[], profile: StudentProfile) {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const currentUser = session?.user;
     if (!currentUser) return;
     const demographic = classifyDemographic(profile);
 
