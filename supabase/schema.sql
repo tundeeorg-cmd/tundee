@@ -36,7 +36,7 @@ alter table scholarships enable row level security;
 
 create policy "Public read scholarships"
   on scholarships for select
-  using (is_active = true);
+  using (is_active IS NOT FALSE);  -- allows TRUE and NULL, blocks only explicit false
 
 -- ─────────────────────────────────────────────
 -- Table: scholarship_checklist_steps
