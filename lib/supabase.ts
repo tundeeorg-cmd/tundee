@@ -17,7 +17,7 @@ export async function getScholarships(): Promise<Scholarship[]> {
     .from('scholarships')
     .select('*')
     .eq('is_active', true)
-    .order('created_at', { ascending: false })
+    .order('amount_thb', { ascending: false, nullsFirst: false })
   if (error) {
     console.error('Error fetching scholarships:', error.message)
     return []

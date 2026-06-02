@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
+import TierBadge from '@/components/TierBadge';
 import type { Scholarship } from '@/lib/types';
 
 interface Props {
@@ -58,11 +59,14 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
           </h3>
           {funder && <p className="text-sm text-[#6E6E73] mt-1 truncate">{funder}</p>}
         </div>
-        {s.funder_type && (
-          <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${colorClass}`}>
-            {funderTypeLabel}
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {s.tier && <TierBadge tier={s.tier} lang={lang} />}
+          {s.funder_type && (
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${colorClass}`}>
+              {funderTypeLabel}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Amount */}

@@ -84,6 +84,7 @@ export const translations = {
     completeProfileSub: { th: 'เราต้องการข้อมูลเกรด จังหวัด และสาขาวิชาของคุณ', en: 'We need your GPA, province, and field of study' },
     noMatchesHeading: { th: 'ยังไม่มีทุนที่ตรงกับโปรไฟล์ของคุณ', en: 'No matches for your profile yet' },
     noMatchesSub: { th: 'ลองค้นหาเองโดยใช้แท็บ "ค้นหาเอง"', en: 'Try browsing all scholarships in the Browse All tab' },
+    tierFilterLabel: { th: 'ระดับความยากในการสมัคร', en: 'Difficulty / Tier' },
   },
   card: {
     viewDetail: { th: 'ดูรายละเอียด →', en: 'View Details →' },
@@ -132,6 +133,18 @@ export const translations = {
     fairnessTooltip: { th: 'ทุนนี้ได้รับการ boost สำหรับนักเรียนจากภูมิภาคที่มีโอกาสน้อยกว่า เพื่อความเท่าเทียม (Hardt, Price, Srebro 2016)', en: 'This scholarship was boosted for students from underrepresented regions to achieve equalized odds (Hardt, Price & Srebro, NeurIPS 2016)' },
     rawScore: { th: 'คะแนนเดิม', en: 'Raw match' },
     fairnessAdjusted: { th: 'คะแนนปรับความยุติธรรม', en: 'Fairness-adjusted' },
+    // New fields from real scholarship data
+    tierLabel: { th: 'ระดับ', en: 'Tier' },
+    renewable: { th: 'ทุนต่อเนื่อง', en: 'Renewable' },
+    bondObligation: { th: 'ข้อผูกพัน', en: 'Bond Obligation' },
+    englishLevel: { th: 'ระดับภาษาอังกฤษ', en: 'English Level' },
+    scoreRequired: { th: 'คะแนนภาษาที่ต้องการ', en: 'Score Required' },
+    specialSkills: { th: 'ทักษะพิเศษ', en: 'Special Skills' },
+    talents: { th: 'ความสามารถพิเศษ', en: 'Talents' },
+    gradeLevelsLabel: { th: 'ระดับชั้นที่รับสมัคร', en: 'Eligible Grade Levels' },
+    boolYes: { th: 'ใช่', en: 'Yes' },
+    boolNo: { th: 'ไม่', en: 'No' },
+    englishNone: { th: 'ไม่กำหนด', en: 'None required' },
   },
   funderTypes: {
     government: { th: 'รัฐบาล', en: 'Government' },
@@ -139,6 +152,12 @@ export const translations = {
     foundation: { th: 'มูลนิธิ', en: 'Foundation' },
     royal: { th: 'ราชสกุล', en: 'Royal' },
     university: { th: 'มหาวิทยาลัย', en: 'University' },
+  },
+  tier: {
+    SAFETY: { th: 'โอกาสสูง', en: 'Safety' },
+    TARGET: { th: 'เหมาะสม', en: 'Target' },
+    REACH:  { th: 'ท้าทาย', en: 'Reach' },
+    filterLabel: { th: 'ระดับความยากในการสมัคร', en: 'Difficulty / Tier' },
   },
   about: {
     title: { th: 'เกี่ยวกับทุนดี', en: 'About TunDee' },

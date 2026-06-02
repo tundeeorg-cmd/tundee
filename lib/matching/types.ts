@@ -30,6 +30,16 @@ export interface ScholarshipRow {
   description_en: string | null
   historical_bias_score: number  // 0.1-0.9, default 0.5
   grade_levels: string[] | null
+  // New columns from real scholarship data import
+  tier?: 'SAFETY' | 'TARGET' | 'REACH'
+  renewable?: boolean
+  bond_obligation?: boolean
+  english_level?: string
+  english_score_required?: string | null
+  special_skills?: string[]
+  talents?: string[]
+  awards_required?: string[]
+  is_active?: boolean
 }
 
 export interface MatchResult {

@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import ScholarshipFilters from '@/components/ScholarshipFilters';
+import TierBadge from '@/components/TierBadge';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarships } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
@@ -16,6 +17,8 @@ import type { User } from '@supabase/supabase-js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
+type Tier = 'SAFETY' | 'TARGET' | 'REACH';
+const ALL_TIERS: Tier[] = ['SAFETY', 'TARGET', 'REACH'];
 
 const EMPTY_FILTERS: FilterState = {
   funderType: '',
@@ -131,11 +134,14 @@ function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
             {funder && <p className="text-xs text-[#6E6E73] truncate">{funder}</p>}
           </div>
         </div>
-        {s.amount_thb && (
-          <span className="text-sm font-semibold text-[#F0A500] shrink-0" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            {s.amount_thb.toLocaleString('th-TH')}
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {s.tier && <TierBadge tier={s.tier} lang={lang} />}
+          {s.amount_thb && (
+            <span className="text-sm font-semibold text-[#F0A500]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+              {s.amount_thb.toLocaleString('th-TH')}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Reasons */}
@@ -215,6 +221,7 @@ export default function BrowsePage() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('browse');
+  const [selectedTiers, setSelectedTiers] = useState<Tier[]>([...ALL_TIERS]);
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<StudentProfile | null>(null);
@@ -300,9 +307,19 @@ export default function BrowsePage() {
     }
   }
 
+  function toggleTier(tier: Tier) {
+    setSelectedTiers(prev =>
+      prev.includes(tier)
+        ? prev.length === 1 ? prev : prev.filter(t => t !== tier) // keep at least one
+        : [...prev, tier]
+    );
+  }
+
   const filtered = useMemo(
-    () => sortByAmount(applyFilters(scholarships, filters)),
-    [scholarships, filters]
+    () => sortByAmount(applyFilters(scholarships, filters)).filter(s =>
+      selectedTiers.includes((s as Scholarship & { tier?: Tier }).tier ?? 'TARGET')
+    ),
+    [scholarships, filters, selectedTiers]
   );
 
   const isDataEmpty = !loading && scholarships.length === 0;
@@ -417,6 +434,43 @@ export default function BrowsePage() {
                     <ScholarshipFilters filters={filters} onChange={setFilters} resultCount={filtered.length} />
                   </div>
                 )}
+
+                {/* Tier filter */}
+                <div className="mb-5">
+                  <p className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-2">
+                    {b.tierFilterLabel[lang]}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_TIERS.map(tier => {
+                      const styles = { SAFETY: { bg: '#EAFAF1', active: '#1E8449', dot: '🟢' }, TARGET: { bg: '#FFF8E7', active: '#D35400', dot: '🟡' }, REACH: { bg: '#FDEDEC', active: '#C0392B', dot: '🔴' } }[tier];
+                      const label = translations.tier[tier][lang as 'th' | 'en'];
+                      const isOn = selectedTiers.includes(tier);
+                      return (
+                        <button
+                          key={tier}
+                          onClick={() => toggleTier(tier)}
+                          style={{
+                            background: isOn ? styles.bg : '#F5F5F7',
+                            color: isOn ? styles.active : '#ADADB8',
+                            border: `1.5px solid ${isOn ? styles.active : 'transparent'}`,
+                            borderRadius: '20px',
+                            padding: '6px 14px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          <span>{styles.dot}</span>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {/* Results header */}
                 <div className="flex items-center justify-between mb-6">

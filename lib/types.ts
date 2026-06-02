@@ -24,6 +24,17 @@ export interface Scholarship {
   is_active: boolean;
   created_at: string;
   last_verified_at: string | null;
+  // New columns added with real scholarship data
+  tier?: 'SAFETY' | 'TARGET' | 'REACH';
+  renewable?: boolean;
+  bond_obligation?: boolean;
+  english_level?: string;
+  english_score_required?: string | null;
+  special_skills?: string[];
+  talents?: string[];
+  awards_required?: string[];
+  grade_levels?: string[];
+  historical_bias_score?: number;
 }
 
 export interface ChecklistStep {

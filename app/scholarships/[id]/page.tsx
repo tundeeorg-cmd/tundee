@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ChecklistUI from '@/components/ChecklistUI';
+import TierBadge from '@/components/TierBadge';
 import { useLang } from '@/lib/LanguageContext';
 import { getScholarshipById, getChecklistSteps } from '@/lib/supabase';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
@@ -200,6 +201,25 @@ export default function ScholarshipDetailPage() {
   }
 
   const s = scholarship;
+  const sx = s as Scholarship & {
+    tier?: 'SAFETY' | 'TARGET' | 'REACH';
+    renewable?: boolean;
+    bond_obligation?: boolean;
+    english_level?: string;
+    english_score_required?: string | null;
+    special_skills?: string[];
+    talents?: string[];
+    grade_levels?: string[];
+  };
+
+  const GRADE_LABEL: Record<string, { th: string; en: string }> = {
+    M4: { th: 'ม.4', en: 'M4' },
+    M5: { th: 'ม.5', en: 'M5' },
+    M6: { th: 'ม.6', en: 'M6' },
+    uni: { th: 'ปริญญาตรี', en: 'Undergraduate' },
+    graduate: { th: 'บัณฑิตศึกษา', en: 'Graduate' },
+  };
+
   const name = lang === 'th' ? s.name_th : (s.name_en ?? s.name_th);
   const nameSecondary = lang === 'th' ? s.name_en : s.name_th;
   const funder = lang === 'th' ? s.funder_name_th : (s.funder_name_en ?? s.funder_name_th);
@@ -242,6 +262,9 @@ export default function ScholarshipDetailPage() {
             {/* Header */}
             <div>
               <div className="flex flex-wrap items-center gap-3 mb-4">
+                {(s as Scholarship & { tier?: 'SAFETY' | 'TARGET' | 'REACH' }).tier && (
+                  <TierBadge tier={(s as Scholarship & { tier: 'SAFETY' | 'TARGET' | 'REACH' }).tier} lang={lang} size="md" />
+                )}
                 {s.funder_type && (
                   <Pill className={funderColor}>{funderTypeLabel}</Pill>
                 )}
@@ -348,6 +371,78 @@ export default function ScholarshipDetailPage() {
                   label={d.welfareCard[lang]}
                   value={s.welfare_card_priority ? d.welfareYes[lang] : d.welfareNo[lang]}
                 />
+                {/* Grade levels (new array field) */}
+                {sx.grade_levels && sx.grade_levels.length > 0 && (
+                  <InfoRow
+                    label={d.gradeLevelsLabel[lang]}
+                    value={sx.grade_levels.map(g => GRADE_LABEL[g]?.[lang as 'th' | 'en'] ?? g).join(', ')}
+                  />
+                )}
+                {/* Tier */}
+                {sx.tier && (
+                  <InfoRow
+                    label={d.tierLabel[lang]}
+                    value={<TierBadge tier={sx.tier} lang={lang} size="md" />}
+                  />
+                )}
+                {/* Renewable */}
+                {sx.renewable != null && (
+                  <InfoRow
+                    label={d.renewable[lang]}
+                    value={sx.renewable ? d.boolYes[lang] : d.boolNo[lang]}
+                  />
+                )}
+                {/* Bond obligation */}
+                {sx.bond_obligation != null && (
+                  <InfoRow
+                    label={d.bondObligation[lang]}
+                    value={sx.bond_obligation ? d.boolYes[lang] : d.boolNo[lang]}
+                  />
+                )}
+                {/* English level */}
+                {sx.english_level && sx.english_level !== 'none' && (
+                  <InfoRow
+                    label={d.englishLevel[lang]}
+                    value={sx.english_level}
+                  />
+                )}
+                {/* English score required */}
+                {sx.english_score_required && (
+                  <InfoRow
+                    label={d.scoreRequired[lang]}
+                    value={sx.english_score_required}
+                  />
+                )}
+                {/* Special skills */}
+                {sx.special_skills && sx.special_skills.length > 0 && (
+                  <InfoRow
+                    label={d.specialSkills[lang]}
+                    value={
+                      <div className="flex flex-wrap gap-1.5">
+                        {sx.special_skills.map((skill, i) => (
+                          <span key={i} className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    }
+                  />
+                )}
+                {/* Talents */}
+                {sx.talents && sx.talents.length > 0 && (
+                  <InfoRow
+                    label={d.talents[lang]}
+                    value={
+                      <div className="flex flex-wrap gap-1.5">
+                        {sx.talents.map((t, i) => (
+                          <span key={i} className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    }
+                  />
+                )}
               </dl>
             </div>
 
