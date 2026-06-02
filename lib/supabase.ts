@@ -16,8 +16,8 @@ export async function getScholarships(): Promise<Scholarship[]> {
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
-    .eq('is_active', true)
-    .order('amount_thb', { ascending: false, nullsFirst: false })
+    .neq('is_active', false)   // includes is_active=true AND is_active=NULL
+    .order('amount_thb', { ascending: false })
   if (error) {
     console.error('Error fetching scholarships:', error.message)
     return []
@@ -31,7 +31,7 @@ export async function getScholarshipById(id: string): Promise<Scholarship | null
     .from('scholarships')
     .select('*')
     .eq('id', id)
-    .eq('is_active', true)
+    .neq('is_active', false)   // includes is_active=true AND is_active=NULL
     .single()
   if (error) {
     console.error('Error fetching scholarship:', error.message)
