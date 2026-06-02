@@ -44,34 +44,52 @@ export default function ProfilePage() {
   const [gradeLevel, setGradeLevel]         = useState('M6');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
+  // Safety timeout — never stay stuck on loading spinner
+  useEffect(() => {
+    const t = setTimeout(() => setAuthLoading(false), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
   // Load user + existing profile
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { setAuthLoading(false); return; }
-      setUser(data.user);
-
-      // Account profile
-      const acct = await getProfile(data.user.id);
-      setUserProfile(acct);
-      setDisplayName(acct?.display_name ?? '');
-      setAvatarUrl(acct?.avatar_url ?? null);
-
-      // Matching profile
+    let mounted = true;
+    (async () => {
       try {
-        const { data: profile } = await supabase
-          .from('profiles').select('*').eq('id', data.user.id).single();
-        if (profile) {
-          setProvince(profile.province_id ?? '');
-          setGpa(profile.gpa != null ? String(profile.gpa) : '');
-          setIncomeBracket(profile.income_bracket ?? 4);
-          setWelfareCard(profile.welfare_card ?? false);
-          setGradeLevel(profile.grade_level ?? 'M6');
-          setSelectedFields(profile.fields_of_interest?.filter((f: string) => f !== 'any') ?? []);
-        }
-      } catch { /* no profile yet */ }
+        const { data } = await supabase.auth.getUser();
+        if (!mounted) return;
+        if (!data.user) return;
+        setUser(data.user);
 
-      setAuthLoading(false);
-    });
+        // Account profile
+        try {
+          const acct = await getProfile(data.user.id);
+          if (!mounted) return;
+          setUserProfile(acct);
+          setDisplayName(acct?.display_name ?? '');
+          setAvatarUrl(acct?.avatar_url ?? null);
+        } catch { /* display_name/avatar_url columns may not exist yet */ }
+
+        // Matching profile
+        try {
+          const { data: profile } = await supabase
+            .from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+          if (!mounted) return;
+          if (profile) {
+            setProvince(profile.province_id ?? '');
+            setGpa(profile.gpa != null ? String(profile.gpa) : '');
+            setIncomeBracket(profile.income_bracket ?? 4);
+            setWelfareCard(profile.welfare_card ?? false);
+            setGradeLevel(profile.grade_level ?? 'M6');
+            setSelectedFields(profile.fields_of_interest?.filter((f: string) => f !== 'any') ?? []);
+          }
+        } catch { /* no profile yet */ }
+      } catch (e) {
+        console.error('Profile page auth error:', e);
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

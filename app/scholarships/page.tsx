@@ -247,7 +247,7 @@ export default function BrowsePage() {
           .from('profiles')
           .select('*')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
 
         if (profile) {
           const sp: StudentProfile = {
@@ -271,12 +271,16 @@ export default function BrowsePage() {
   // Run engine whenever scholarships or profile changes
   useEffect(() => {
     if (!userProfile || scholarships.length === 0) return;
-    const rows = scholarships.map(toScholarshipRow);
-    const results = getMatchedScholarships(rows, userProfile);
-    setMatches(results);
+    try {
+      const rows = scholarships.map(toScholarshipRow);
+      const results = getMatchedScholarships(rows, userProfile);
+      setMatches(results);
 
-    // Log recommendations async (fire-and-forget)
-    logRecommendations(results, userProfile);
+      // Log recommendations async (fire-and-forget)
+      logRecommendations(results, userProfile);
+    } catch (e) {
+      console.error('Matching engine error:', e);
+    }
   }, [userProfile, scholarships]);
 
   async function logRecommendations(results: MatchResult[], profile: StudentProfile) {
