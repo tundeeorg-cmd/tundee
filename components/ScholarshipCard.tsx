@@ -26,8 +26,12 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
 
   const name = lang === 'th' ? s.name_th : (s.name_en ?? s.name_th);
   const funder = lang === 'th' ? s.funder_name_th : (s.funder_name_en ?? s.funder_name_th);
-  const funderTypeLabel = s.funder_type ? ft[s.funder_type][lang] : '';
-  const colorClass = s.funder_type ? FUNDER_TYPE_COLORS[s.funder_type] : 'bg-gray-50 text-gray-600';
+  const funderTypeLabel = s.funder_type
+    ? (ft[s.funder_type as keyof typeof ft]?.[lang] ?? s.funder_type)
+    : '';
+  const colorClass = s.funder_type
+    ? (FUNDER_TYPE_COLORS[s.funder_type] ?? 'bg-gray-50 text-gray-600')
+    : 'bg-gray-50 text-gray-600';
   const isNational = !s.province_restriction || s.province_restriction.includes('national');
   const isAnyField = !s.field_of_study || s.field_of_study.includes('any');
 

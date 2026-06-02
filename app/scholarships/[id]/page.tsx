@@ -224,8 +224,12 @@ export default function ScholarshipDetailPage() {
   const nameSecondary = lang === 'th' ? s.name_en : s.name_th;
   const funder = lang === 'th' ? s.funder_name_th : (s.funder_name_en ?? s.funder_name_th);
   const description = lang === 'th' ? s.description_th : (s.description_en ?? s.description_th);
-  const funderTypeLabel = s.funder_type ? ft[s.funder_type][lang] : '';
-  const funderColor = s.funder_type ? FUNDER_TYPE_COLORS[s.funder_type] : '';
+  const funderTypeLabel = s.funder_type
+    ? (ft[s.funder_type as keyof typeof ft]?.[lang] ?? s.funder_type)
+    : '';
+  const funderColor = s.funder_type
+    ? (FUNDER_TYPE_COLORS[s.funder_type] ?? 'bg-gray-50 text-gray-600 border-gray-200')
+    : '';
 
   const isNational = !s.province_restriction || s.province_restriction.includes('national');
   const isAnyField = !s.field_of_study || s.field_of_study.includes('any');

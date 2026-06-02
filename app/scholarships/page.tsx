@@ -315,9 +315,15 @@ export default function BrowsePage() {
     );
   }
 
+  // Normalise tier from DB (may be lowercase, unexpected, or missing)
+  function getTier(s: Scholarship): Tier {
+    const raw = (s as Scholarship & { tier?: string }).tier?.toUpperCase();
+    return (raw && ALL_TIERS.includes(raw as Tier)) ? (raw as Tier) : 'TARGET';
+  }
+
   const filtered = useMemo(
     () => sortByAmount(applyFilters(scholarships, filters)).filter(s =>
-      selectedTiers.includes((s as Scholarship & { tier?: Tier }).tier ?? 'TARGET')
+      selectedTiers.includes(getTier(s))
     ),
     [scholarships, filters, selectedTiers]
   );
