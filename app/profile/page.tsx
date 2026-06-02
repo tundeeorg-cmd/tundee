@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLang } from '@/lib/LanguageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { translations, PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { createClient } from '@/lib/supabase/client';
+import { getProfile, updateDisplayName, uploadAvatar, getInitials } from '@/lib/profile';
+import type { UserProfile } from '@/lib/profile';
 import type { User } from '@supabase/supabase-js';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -13,40 +16,50 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 const GRADE_LEVELS = ['M4', 'M5', 'M6', 'uni', 'graduate'] as const;
 
 export default function ProfilePage() {
-  const { lang } = useLang();
+  const { lang, setLang } = useLang();
+  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const supabase = createClient();
   const p = translations.profile;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser]             = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveState, setSaveState]   = useState<SaveState>('idle');
 
-  // Form state
-  const [province, setProvince] = useState('');
-  const [gpa, setGpa] = useState('');
-  const [incomeBracket, setIncomeBracket] = useState<number>(4);
-  const [welfareCard, setWelfareCard] = useState(false);
-  const [gradeLevel, setGradeLevel] = useState('M6');
+  // Account state
+  const [userProfile, setUserProfile]       = useState<UserProfile | null>(null);
+  const [displayName, setDisplayName]       = useState('');
+  const [nameSaving, setNameSaving]         = useState(false);
+  const [nameToast, setNameToast]           = useState(false);
+  const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading]   = useState(false);
+  const [fileError, setFileError]           = useState('');
+
+  // Matching profile state
+  const [province, setProvince]             = useState('');
+  const [gpa, setGpa]                       = useState('');
+  const [incomeBracket, setIncomeBracket]   = useState<number>(4);
+  const [welfareCard, setWelfareCard]       = useState(false);
+  const [gradeLevel, setGradeLevel]         = useState('M6');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
   // Load user + existing profile
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) {
-        setAuthLoading(false);
-        return;
-      }
+      if (!data.user) { setAuthLoading(false); return; }
       setUser(data.user);
 
-      // Load existing profile
+      // Account profile
+      const acct = await getProfile(data.user.id);
+      setUserProfile(acct);
+      setDisplayName(acct?.display_name ?? '');
+      setAvatarUrl(acct?.avatar_url ?? null);
+
+      // Matching profile
       try {
         const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
+          .from('profiles').select('*').eq('id', data.user.id).single();
         if (profile) {
           setProvince(profile.province_id ?? '');
           setGpa(profile.gpa != null ? String(profile.gpa) : '');
@@ -55,13 +68,37 @@ export default function ProfilePage() {
           setGradeLevel(profile.grade_level ?? 'M6');
           setSelectedFields(profile.fields_of_interest?.filter((f: string) => f !== 'any') ?? []);
         }
-      } catch {
-        // no profile yet — form stays empty, that's fine
-      }
+      } catch { /* no profile yet */ }
 
       setAuthLoading(false);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ── Account handlers ──────────────────────────────────────────────── */
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) { setFileError(p.fileTooLarge[lang]); return; }
+    setFileError('');
+    setAvatarLoading(true);
+    try {
+      const url = await uploadAvatar(user.id, file);
+      setAvatarUrl(url);
+    } catch { /* ignore */ }
+    setAvatarLoading(false);
+  }
+
+  async function handleSaveName() {
+    if (!user) return;
+    setNameSaving(true);
+    try {
+      await updateDisplayName(user.id, displayName.trim());
+      setNameToast(true);
+      setTimeout(() => setNameToast(false), 2500);
+    } catch { /* ignore */ }
+    setNameSaving(false);
+  }
 
   function toggleField(field: string) {
     setSelectedFields((prev) =>
@@ -97,7 +134,7 @@ export default function ProfilePage() {
   // ── Loading ────────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#F0A500] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -106,16 +143,16 @@ export default function ProfilePage() {
   // ── Not logged in ──────────────────────────────────────────────────────
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4">
-        <div className="bg-white rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] p-10 max-w-sm w-full text-center">
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center px-4">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)] p-10 max-w-sm w-full text-center border border-transparent dark:border-[#38383A]">
           <div className="text-5xl mb-5">🔒</div>
           <h2
-            className="text-xl font-semibold text-[#1D1D1F] mb-2"
+            className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-2"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
           >
             {p.notLoggedIn[lang]}
           </h2>
-          <p className="text-sm text-[#6E6E73] mb-6">{p.notLoggedInSub[lang]}</p>
+          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-6">{p.notLoggedInSub[lang]}</p>
           <Link
             href="/auth"
             className="inline-block bg-[#F0A500] text-white font-semibold px-8 py-3 rounded-full hover:bg-[#D4920A] transition-colors text-sm"
@@ -130,20 +167,20 @@ export default function ProfilePage() {
   // ── Saved success state ────────────────────────────────────────────────
   if (saveState === 'saved') {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4">
-        <div className="bg-white rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] p-10 max-w-sm w-full text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center px-4">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)] p-10 max-w-sm w-full text-center border border-transparent dark:border-[#38383A]">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <h2
-            className="text-xl font-semibold text-[#1D1D1F] mb-2"
+            className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-2"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
           >
             {p.saved[lang]}
           </h2>
-          <p className="text-sm text-[#6E6E73] mb-8">{p.savedSub[lang]}</p>
+          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-8">{p.savedSub[lang]}</p>
           <Link
             href="/scholarships"
             className="inline-block bg-[#F0A500] text-white font-semibold px-8 py-3 rounded-full hover:bg-[#D4920A] transition-colors text-sm"
@@ -153,7 +190,7 @@ export default function ProfilePage() {
           </Link>
           <button
             onClick={() => setSaveState('idle')}
-            className="block mx-auto mt-4 text-sm text-[#6E6E73] hover:text-[#1D1D1F]"
+            className="block mx-auto mt-4 text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white"
           >
             {lang === 'th' ? 'แก้ไขโปรไฟล์' : 'Edit profile'}
           </button>
@@ -164,17 +201,17 @@ export default function ProfilePage() {
 
   // ── Profile form ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F5F7]">
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000]">
       {/* Header */}
-      <div className="bg-white border-b border-[#E5E5EA]">
+      <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
         <div className="max-w-[680px] mx-auto px-6 py-10">
           <h1
-            className="text-3xl text-[#1D1D1F] mb-2"
+            className="text-3xl text-[#1D1D1F] dark:text-white mb-2"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
           >
             {p.title[lang]}
           </h1>
-          <p className="text-sm text-[#6E6E73]">{p.subtitle[lang]}</p>
+          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">{p.subtitle[lang]}</p>
         </div>
       </div>
 
@@ -182,14 +219,158 @@ export default function ProfilePage() {
 
         {/* Error banner */}
         {saveState === 'error' && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-lg px-4 py-3">
             {p.saveError[lang]}
           </div>
         )}
 
+        {/* ── Card: Account settings ────────────────────────────────── */}
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
+          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
+            {lang === 'th' ? 'บัญชีของคุณ' : 'Account'}
+          </h2>
+
+          {/* Avatar */}
+          <div className="flex items-center gap-5">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="relative w-16 h-16 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#F0A500] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E] shrink-0"
+              aria-label={p.changePhoto[lang]}
+            >
+              {avatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="w-full h-full bg-[#F0A500] text-white flex items-center justify-center text-2xl font-semibold">
+                  {getInitials(displayName || user?.email || '?')}
+                </span>
+              )}
+              {/* overlay on hover */}
+              <span className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                {avatarLoading ? (
+                  <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                )}
+              </span>
+            </button>
+            <div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-sm font-medium text-[#F0A500] hover:text-[#D4920A] transition-colors"
+              >
+                {p.changePhoto[lang]}
+              </button>
+              <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5">JPG, PNG · max 5 MB</p>
+              {fileError && <p className="text-xs text-red-500 mt-0.5">{fileError}</p>}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+          </div>
+
+          {/* Display name */}
+          <div>
+            <label htmlFor="display-name" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+              {p.displayName[lang]}
+              <span className="ml-2 text-xs text-[#ADADB8] font-normal">{displayName.length}/40</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="display-name"
+                type="text"
+                maxLength={40}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder={p.displayNamePlaceholder[lang]}
+                className="flex-1 text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#ADADB8]"
+              />
+              <button
+                type="button"
+                onClick={handleSaveName}
+                disabled={nameSaving}
+                className="shrink-0 bg-[#F0A500] text-white text-sm font-semibold px-4 rounded-lg hover:bg-[#D4920A] transition-colors disabled:opacity-60"
+              >
+                {nameToast ? p.savedToast[lang] : nameSaving ? '…' : p.saveButton[lang]}
+              </button>
+            </div>
+          </div>
+
+          {/* Email (readonly) */}
+          <div>
+            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">{p.emailLabel[lang]}</label>
+            <input
+              type="email"
+              readOnly
+              value={user?.email ?? ''}
+              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] cursor-not-allowed"
+            />
+            <p className="text-xs text-[#ADADB8] mt-1">{p.emailNote[lang]}</p>
+          </div>
+
+          {/* Theme picker */}
+          <div>
+            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-3">{p.themeLabel[lang]}</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'light' as const, icon: '☀️', label: p.themeLight[lang] },
+                { key: 'dark'  as const, icon: '🌙', label: p.themeDark[lang]  },
+                { key: 'auto'  as const, icon: '⚙️', label: p.themeAuto[lang]  },
+              ]).map(({ key, icon, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTheme(key)}
+                  className={`flex flex-col items-center gap-1.5 py-3 rounded-[12px] border-2 transition-all text-sm ${
+                    theme === key
+                      ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500] font-semibold'
+                      : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
+                  }`}
+                >
+                  <span className="text-xl">{icon}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Language toggle */}
+          <div>
+            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-3">{p.languageLabel[lang]}</label>
+            <div className="flex gap-2">
+              {(['th', 'en'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLang(l)}
+                  className={`flex-1 py-2.5 rounded-[10px] border-2 text-sm font-medium transition-all ${
+                    lang === l
+                      ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500]'
+                      : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
+                  }`}
+                >
+                  {l === 'th' ? '🇹🇭 ภาษาไทย' : '🇬🇧 English'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* ── Card: Basic info ──────────────────────────────────────── */}
-        <div className="bg-white rounded-[16px] border border-[#E5E5EA] p-6 space-y-5">
-          <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
+          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
             {lang === 'th' ? 'ข้อมูลพื้นฐาน' : 'Basic Info'}
           </h2>
 
@@ -219,14 +400,14 @@ export default function ProfilePage() {
 
           {/* Province */}
           <div>
-            <label htmlFor="province" className="block text-sm font-medium text-[#1D1D1F] mb-2">
+            <label htmlFor="province" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
               {p.province[lang]}
             </label>
             <select
               id="province"
               value={province}
               onChange={(e) => setProvince(e.target.value)}
-              className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2.5 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#F0A500] transition-colors"
+              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors"
             >
               <option value="">{p.provincePlaceholder[lang]}</option>
               {PROVINCES_TH.map((prov) => (
@@ -237,7 +418,7 @@ export default function ProfilePage() {
 
           {/* GPA */}
           <div>
-            <label htmlFor="gpa" className="block text-sm font-medium text-[#1D1D1F] mb-2">
+            <label htmlFor="gpa" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
               {p.gpa[lang]}
             </label>
             <input
@@ -249,14 +430,14 @@ export default function ProfilePage() {
               value={gpa}
               onChange={(e) => setGpa(e.target.value)}
               placeholder="เช่น 3.50"
-              className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2.5 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#ADADB8]"
+              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#ADADB8]"
             />
           </div>
         </div>
 
         {/* ── Card: Financial info ──────────────────────────────────── */}
-        <div className="bg-white rounded-[16px] border border-[#E5E5EA] p-6 space-y-5">
-          <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
+          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
             {lang === 'th' ? 'ข้อมูลทางการเงิน' : 'Financial Info'}
           </h2>
 
@@ -303,7 +484,7 @@ export default function ProfilePage() {
         </div>
 
         {/* ── Card: Fields of interest ──────────────────────────────── */}
-        <div className="bg-white rounded-[16px] border border-[#E5E5EA] p-6 space-y-4">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-4">
           <div>
             <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-1">
               {p.fields[lang]}

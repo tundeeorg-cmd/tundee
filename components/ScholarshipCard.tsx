@@ -51,17 +51,17 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
   }
 
   return (
-    <article className="bg-white border border-[#E5E5EA] rounded-[12px] p-6 flex flex-col gap-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow duration-300 group">
+    <article className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-shadow duration-300 group">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h3
-            className="text-base font-semibold text-[#1D1D1F] leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
+            className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
           >
             {name}
           </h3>
-          {funder && <p className="text-sm text-[#6E6E73] mt-1 truncate">{funder}</p>}
+          {funder && <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mt-1 truncate">{funder}</p>}
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           {s.tier && <TierBadge tier={s.tier} lang={lang} />}
@@ -81,23 +81,23 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
       {/* Tags */}
       <div className="flex flex-wrap gap-2">
         {s.welfare_card_priority && (
-          <span className="text-xs bg-[#FFF8E7] text-[#B8860B] border border-[#F0A500]/30 px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#B8860B] dark:text-[#F0A500] border border-[#F0A500]/30 px-2 py-0.5 rounded-full">
             {c.welfareTag[lang]}
           </span>
         )}
-        <span className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2 py-0.5 rounded-full">
+        <span className="text-xs bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
           {isNational ? c.national[lang] : s.province_restriction?.[0] ?? ''}
         </span>
-        <span className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2 py-0.5 rounded-full">
+        <span className="text-xs bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
           {isAnyField ? c.anyField[lang] : s.field_of_study?.[0] ?? ''}
         </span>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#F5F5F7]">
+      <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#F5F5F7] dark:border-[#38383A]">
         <div>
-          <span className="text-xs text-[#6E6E73]">{c.deadline[lang]}: </span>
-          <span className="text-xs font-medium text-[#1D1D1F]">{formatDeadline()}</span>
+          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{c.deadline[lang]}: </span>
+          <span className="text-xs font-medium text-[#1D1D1F] dark:text-white">{formatDeadline()}</span>
         </div>
         <Link href={`/scholarships/${s.id}`} className="text-sm text-[#F0A500] font-medium hover:underline shrink-0">
           {c.viewDetail[lang]}
