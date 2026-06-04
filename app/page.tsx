@@ -184,6 +184,37 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── CTA gold band ──────────────────────────────────────────────────── */}
+      <section style={{ backgroundColor: '#F0A500' }}>
+        <div className="max-w-[1200px] mx-auto px-6 py-16 text-center">
+          <h2
+            className="text-2xl md:text-3xl font-semibold text-white mb-3"
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+          >
+            {lang === 'th' ? 'เริ่มต้นค้นหาทุนของคุณวันนี้' : 'Start finding your scholarship today'}
+          </h2>
+          <p className="text-white/80 text-sm mb-8">
+            {lang === 'th'
+              ? '34+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด'
+              : '34+ real scholarships, AI-powered matching, always free'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/auth"
+              className="px-7 py-3 rounded-full text-sm font-semibold bg-white text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+            >
+              {lang === 'th' ? 'สร้างบัญชีฟรี' : 'Create Free Account'}
+            </Link>
+            <Link
+              href="/scholarships"
+              className="px-7 py-3 rounded-full text-sm font-semibold border-2 border-white text-white hover:bg-white/10 transition-colors"
+            >
+              {lang === 'th' ? 'ดูทุนทั้งหมด' : 'Browse All Scholarships'}
+            </Link>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

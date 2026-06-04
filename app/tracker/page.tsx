@@ -91,12 +91,14 @@ interface AppCardProps {
   app: Application;
   section: SectionType;
   lang: string;
+  onDelete?: (appId: string) => void;
+  onStatusUpdate?: (appId: string, status: Application['status']) => void;
 }
 
-function ApplicationCard({ app, section, lang }: AppCardProps) {
+function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCardProps) {
   const scholarship = app.scholarships ?? null;
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
-  // Gracefully handle missing scholarship join
   const name = scholarship
     ? (lang === 'th' ? scholarship.name_th : (scholarship.name_en ?? scholarship.name_th))
     : app.scholarship_id;
@@ -119,6 +121,7 @@ function ApplicationCard({ app, section, lang }: AppCardProps) {
       : lang === 'th' ? 'ดูรายละเอียด →' : 'View Details →';
 
   const historyStatus = STATUS_CONFIG[app.status as keyof typeof STATUS_CONFIG] ?? null;
+  const detailHref = scholarship ? `/scholarships/${scholarship.id}` : `/scholarships/${app.scholarship_id}`;
 
   return (
     <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-5 flex flex-col gap-3">
@@ -186,14 +189,57 @@ function ApplicationCard({ app, section, lang }: AppCardProps) {
         </div>
       )}
 
-      {/* Action */}
-      <div className="mt-auto pt-1">
+      {/* Action row */}
+      <div className="mt-auto pt-1 flex items-center justify-between gap-3">
         <Link
-          href={scholarship ? `/scholarships/${scholarship.id}` : `/scholarships/${app.scholarship_id}`}
+          href={detailHref}
           className="text-xs font-semibold text-[#F0A500] hover:text-[#D4920A] transition-colors"
         >
           {actionLabel}
         </Link>
+
+        {/* Saved section: delete button */}
+        {section === 'saved' && onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(app.id)}
+            className="text-xs text-[#ADADB8] hover:text-red-500 transition-colors"
+            aria-label="Remove"
+          >
+            {lang === 'th' ? 'ลบออก ✕' : 'Remove ✕'}
+          </button>
+        )}
+
+        {/* History section: update result dropdown (for submitted/no_reply) */}
+        {section === 'history' && (app.status === 'submitted' || app.status === 'no_reply') && onStatusUpdate && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowStatusMenu((v) => !v)}
+              className="text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-2 py-1 transition-colors"
+            >
+              {lang === 'th' ? 'อัปเดตผล ▾' : 'Update result ▾'}
+            </button>
+            {showStatusMenu && (
+              <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[10px] shadow-lg overflow-hidden w-44">
+                {[
+                  { status: 'won'      as Application['status'], th: '🏆 ได้รับทุน',       en: '🏆 Won' },
+                  { status: 'lost'     as Application['status'], th: '✗ ไม่ผ่านการคัดเลือก', en: '✗ Not selected' },
+                  { status: 'no_reply' as Application['status'], th: '⏳ รอผลต่อ',          en: '⏳ Still waiting' },
+                ].map((opt) => (
+                  <button
+                    key={opt.status}
+                    type="button"
+                    onClick={() => { onStatusUpdate(app.id, opt.status); setShowStatusMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#3A3A3C] transition-colors"
+                  >
+                    {lang === 'th' ? opt.th : opt.en}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -207,9 +253,11 @@ interface SectionProps {
   section: SectionType;
   lang: string;
   empty: EmptyStateProps;
+  onDelete?: (appId: string) => void;
+  onStatusUpdate?: (appId: string, status: Application['status']) => void;
 }
 
-function Section({ label, apps, section, lang, empty }: SectionProps) {
+function Section({ label, apps, section, lang, empty, onDelete, onStatusUpdate }: SectionProps) {
   return (
     <div className="mb-8">
       <p className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider mb-4">
@@ -220,7 +268,14 @@ function Section({ label, apps, section, lang, empty }: SectionProps) {
           <EmptyState {...empty} lang={lang} />
         ) : (
           apps.map((app) => (
-            <ApplicationCard key={app.id} app={app} section={section} lang={lang} />
+            <ApplicationCard
+              key={app.id}
+              app={app}
+              section={section}
+              lang={lang}
+              onDelete={onDelete}
+              onStatusUpdate={onStatusUpdate}
+            />
           ))
         )}
       </div>
@@ -304,6 +359,31 @@ export default function TrackerPage() {
       subscription.unsubscribe();
     };
   }, [fetchApps, supabase.auth]);
+
+  // ── Delete handler ─────────────────────────────────────────────────────────
+  async function handleDelete(appId: string) {
+    setApps((prev) => prev.filter((a) => a.id !== appId)); // optimistic
+    try {
+      await supabase.from('applications').delete().eq('id', appId);
+      console.log('[TunDee] Deleted application', appId);
+    } catch {
+      // Refetch on error
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) fetchApps(session.user.id);
+    }
+  }
+
+  // ── Status update handler ──────────────────────────────────────────────────
+  async function handleStatusUpdate(appId: string, status: Application['status']) {
+    setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a))); // optimistic
+    try {
+      await supabase.from('applications').update({ status }).eq('id', appId);
+      console.log('[TunDee] Updated application status', appId, '->', status);
+    } catch {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) fetchApps(session.user.id);
+    }
+  }
 
   // ── Derived lists ──────────────────────────────────────────────────────────
   const inProgressApps = apps.filter((a) => a.status === 'started' || a.status === 'in_progress');
@@ -407,11 +487,7 @@ export default function TrackerPage() {
             th: 'ยังไม่มีทุนที่กำลังสมัคร',
             en: 'No applications in progress',
             lang,
-            link: {
-              href: '/scholarships',
-              th: 'ค้นหาทุนการศึกษา →',
-              en: 'Browse scholarships →',
-            },
+            link: { href: '/scholarships', th: 'ค้นหาทุนการศึกษา →', en: 'Browse scholarships →' },
           }}
         />
 
@@ -421,6 +497,7 @@ export default function TrackerPage() {
           apps={savedApps}
           section="saved"
           lang={lang}
+          onDelete={handleDelete}
           empty={{
             emoji: '🔖',
             th: 'ยังไม่มีทุนที่บันทึกไว้',
@@ -435,6 +512,7 @@ export default function TrackerPage() {
           apps={historyApps}
           section="history"
           lang={lang}
+          onStatusUpdate={handleStatusUpdate}
           empty={{
             emoji: '📋',
             th: 'ยังไม่มีประวัติการสมัคร',

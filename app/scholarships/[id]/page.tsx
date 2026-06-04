@@ -3,15 +3,16 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useRef } from 'react';
+// Note: ChecklistStep type no longer needed — using InteractiveChecklist component
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import ChecklistUI from '@/components/ChecklistUI';
+import InteractiveChecklist from '@/components/InteractiveChecklist';
 import TierBadge from '@/components/TierBadge';
 import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
-import { supabase, getScholarshipById, getChecklistSteps } from '@/lib/supabase';
+import { supabase, getScholarshipById } from '@/lib/supabase';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
-import type { ChecklistStep, Scholarship } from '@/lib/types';
+import type { Scholarship } from '@/lib/types';
 
 // Match data stored by the browse page when navigating from My Matches tab
 interface StoredMatchData {
@@ -160,9 +161,7 @@ export default function ScholarshipDetailPage() {
   const id = params.id as string;
   const { lang } = useLang();
   const [scholarship, setScholarship] = useState<Scholarship | null>(null);
-  const [steps, setSteps] = useState<ChecklistStep[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showChecklist, setShowChecklist] = useState(false);
   const [matchData, setMatchData] = useState<StoredMatchData | null>(null);
   const checklistRef = useRef<HTMLDivElement>(null);
 
@@ -173,9 +172,8 @@ export default function ScholarshipDetailPage() {
     // Load match data from sessionStorage (set by browse page My Matches tab)
     setMatchData(loadMatchData(id));
 
-    Promise.all([getScholarshipById(id), getChecklistSteps()]).then(([s, st]) => {
+    getScholarshipById(id).then((s) => {
       setScholarship(s);
-      setSteps(st);
       setLoading(false);
     });
   }, [id]);
@@ -476,9 +474,9 @@ export default function ScholarshipDetailPage() {
               </div>
             )}
 
-            {/* Checklist */}
+            {/* Interactive checklist — saves progress to applications table */}
             <div ref={checklistRef}>
-              {showChecklist && <ChecklistUI steps={steps} />}
+              <InteractiveChecklist scholarshipId={id} />
             </div>
           </div>
 
@@ -524,13 +522,10 @@ export default function ScholarshipDetailPage() {
                 <SaveButton scholarshipId={s.id} size="md" />
               </div>
 
-              {/* Start checklist */}
+              {/* Scroll to checklist */}
               <button
                 onClick={() => {
-                  setShowChecklist(true);
-                  setTimeout(() => {
-                    checklistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 100);
+                  checklistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
                 className="flex items-center justify-center gap-2 w-full border border-[#F0A500] text-[#F0A500] font-semibold py-4 px-6 rounded-full hover:bg-[#FFF8E7] transition-colors duration-200 text-sm"
                 style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
