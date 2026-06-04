@@ -4,6 +4,7 @@ import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { UserProvider } from '@/contexts/UserContext';
 
 export const metadata: Metadata = {
   title: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
@@ -43,11 +44,13 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col">
         <ThemeProvider>
           <LanguageProvider>
-            <Nav />
-            <main className="flex-1 pt-16">
-              {children}
-            </main>
-            <Footer />
+            <UserProvider>
+              <Nav />
+              <main className="flex-1 pt-16">
+                {children}
+              </main>
+              <Footer />
+            </UserProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

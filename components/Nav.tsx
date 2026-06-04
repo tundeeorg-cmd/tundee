@@ -7,18 +7,23 @@ import { useLang } from '@/lib/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { translations } from '@/lib/translations';
 import { createClient } from '@/lib/supabase/client';
-import { getProfile, getInitials } from '@/lib/profile';
+import { getInitials } from '@/lib/profile';
+import { useUserProfile } from '@/contexts/UserContext';
 import type { User } from '@supabase/supabase-js';
-import type { UserProfile } from '@/lib/profile';
 
 /* ── Avatar circle ─────────────────────────────────────────────────────── */
-function Avatar({ user, profile, size = 32 }: { user: User; profile: UserProfile | null; size?: number }) {
-  const initials = getInitials(profile?.display_name || user.email || '?');
-  if (profile?.avatar_url) {
+function Avatar({ user, avatarUrl, displayName, size = 32 }: {
+  user: User;
+  avatarUrl: string | null;
+  displayName: string | null;
+  size?: number;
+}) {
+  const initials = getInitials(displayName || user.email || '?');
+  if (avatarUrl) {
     return (
       /* eslint-disable-next-line @next/next/no-img-element */
       <img
-        src={profile.avatar_url}
+        src={avatarUrl}
         alt={initials}
         width={size}
         height={size}
@@ -68,26 +73,21 @@ function ThemeRow({ lang }: { lang: string }) {
 /* ── Main Nav ──────────────────────────────────────────────────────────── */
 export default function Nav() {
   const { lang } = useLang();
+  const { avatarUrl, displayName } = useUserProfile();
   const [menuOpen, setMenuOpen]       = useState(false);
   const [dropdownOpen, setDropdown]   = useState(false);
   const [user, setUser]               = useState<User | null>(null);
-  const [profile, setProfile]         = useState<UserProfile | null>(null);
   const dropdownRef                   = useRef<HTMLDivElement>(null);
   const nav = translations.nav;
 
-  /* Load user + profile */
+  /* Load user session */
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      const u = data.session?.user ?? null;
-      setUser(u);
-      if (u) setProfile(await getProfile(u.id));
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_ev, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (u) setProfile(await getProfile(u.id));
-      else setProfile(null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
+      setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -168,7 +168,7 @@ export default function Nav() {
                 aria-expanded={dropdownOpen}
                 style={{ width: 36, height: 36 }}
               >
-                <Avatar user={user} profile={profile} size={36} />
+                <Avatar user={user} avatarUrl={avatarUrl} displayName={displayName} size={36} />
               </button>
 
               {dropdownOpen && (
@@ -178,10 +178,10 @@ export default function Nav() {
                 >
                   {/* User header */}
                   <div className="px-4 pt-3 pb-3 flex items-center gap-3 border-b border-[#F5F5F7] dark:border-[#38383A]">
-                    <Avatar user={user} profile={profile} size={36} />
+                    <Avatar user={user} avatarUrl={avatarUrl} displayName={displayName} size={36} />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-[#1D1D1F] dark:text-white truncate">
-                        {profile?.display_name || user.email?.split('@')[0] || 'User'}
+                        {displayName || user.email?.split('@')[0] || 'User'}
                       </p>
                       <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] truncate">{user.email}</p>
                     </div>
@@ -256,10 +256,10 @@ export default function Nav() {
             <>
               {/* User info */}
               <div className="border-t border-[#F5F5F7] dark:border-[#3A3A3C] pt-4 flex items-center gap-3">
-                <Avatar user={user} profile={profile} size={36} />
+                <Avatar user={user} avatarUrl={avatarUrl} displayName={displayName} size={36} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-[#1D1D1F] dark:text-white truncate">
-                    {profile?.display_name || user.email?.split('@')[0]}
+                    {displayName || user.email?.split('@')[0]}
                   </p>
                   <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] truncate">{user.email}</p>
                 </div>

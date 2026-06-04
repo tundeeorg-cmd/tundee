@@ -1,577 +1,765 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { translations, PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
+import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
-import { getProfile, updateDisplayName, uploadAvatar, getInitials } from '@/lib/profile';
-import type { UserProfile } from '@/lib/profile';
+import { uploadAvatar, getInitials } from '@/lib/profile';
+import Toast from '@/components/Toast';
 import type { User } from '@supabase/supabase-js';
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+// ── Province list ─────────────────────────────────────────────────────────
+const PROVINCES = [
+  { id: 'TH-10', th: 'กรุงเทพมหานคร', en: 'Bangkok' },
+  { id: 'TH-11', th: 'สมุทรปราการ', en: 'Samut Prakan' },
+  { id: 'TH-12', th: 'นนทบุรี', en: 'Nonthaburi' },
+  { id: 'TH-13', th: 'ปทุมธานี', en: 'Pathum Thani' },
+  { id: 'TH-14', th: 'พระนครศรีอยุธยา', en: 'Ayutthaya' },
+  { id: 'TH-15', th: 'อ่างทอง', en: 'Ang Thong' },
+  { id: 'TH-16', th: 'ลพบุรี', en: 'Lop Buri' },
+  { id: 'TH-17', th: 'สิงห์บุรี', en: 'Sing Buri' },
+  { id: 'TH-18', th: 'ชัยนาท', en: 'Chai Nat' },
+  { id: 'TH-19', th: 'สระบุรี', en: 'Saraburi' },
+  { id: 'TH-20', th: 'ชลบุรี', en: 'Chon Buri' },
+  { id: 'TH-21', th: 'ระยอง', en: 'Rayong' },
+  { id: 'TH-22', th: 'จันทบุรี', en: 'Chanthaburi' },
+  { id: 'TH-23', th: 'ตราด', en: 'Trat' },
+  { id: 'TH-24', th: 'ฉะเชิงเทรา', en: 'Chachoengsao' },
+  { id: 'TH-25', th: 'ปราจีนบุรี', en: 'Prachin Buri' },
+  { id: 'TH-26', th: 'นครนายก', en: 'Nakhon Nayok' },
+  { id: 'TH-27', th: 'สระแก้ว', en: 'Sa Kaeo' },
+  { id: 'TH-30', th: 'นครราชสีมา', en: 'Nakhon Ratchasima' },
+  { id: 'TH-31', th: 'บุรีรัมย์', en: 'Buri Ram' },
+  { id: 'TH-32', th: 'สุรินทร์', en: 'Surin' },
+  { id: 'TH-33', th: 'ศรีสะเกษ', en: 'Si Sa Ket' },
+  { id: 'TH-34', th: 'อุบลราชธานี', en: 'Ubon Ratchathani' },
+  { id: 'TH-35', th: 'ยโสธร', en: 'Yasothon' },
+  { id: 'TH-36', th: 'ชัยภูมิ', en: 'Chaiyaphum' },
+  { id: 'TH-37', th: 'อำนาจเจริญ', en: 'Amnat Charoen' },
+  { id: 'TH-38', th: 'บึงกาฬ', en: 'Bueng Kan' },
+  { id: 'TH-39', th: 'หนองบัวลำภู', en: 'Nong Bua Lam Phu' },
+  { id: 'TH-40', th: 'ขอนแก่น', en: 'Khon Kaen' },
+  { id: 'TH-41', th: 'อุดรธานี', en: 'Udon Thani' },
+  { id: 'TH-42', th: 'เลย', en: 'Loei' },
+  { id: 'TH-43', th: 'หนองคาย', en: 'Nong Khai' },
+  { id: 'TH-44', th: 'มหาสารคาม', en: 'Maha Sarakham' },
+  { id: 'TH-45', th: 'ร้อยเอ็ด', en: 'Roi Et' },
+  { id: 'TH-46', th: 'กาฬสินธุ์', en: 'Kalasin' },
+  { id: 'TH-47', th: 'สกลนคร', en: 'Sakon Nakhon' },
+  { id: 'TH-48', th: 'นครพนม', en: 'Nakhon Phanom' },
+  { id: 'TH-49', th: 'มุกดาหาร', en: 'Mukdahan' },
+  { id: 'TH-50', th: 'เชียงใหม่', en: 'Chiang Mai' },
+  { id: 'TH-51', th: 'ลำพูน', en: 'Lamphun' },
+  { id: 'TH-52', th: 'ลำปาง', en: 'Lampang' },
+  { id: 'TH-53', th: 'อุตรดิตถ์', en: 'Uttaradit' },
+  { id: 'TH-54', th: 'แพร่', en: 'Phrae' },
+  { id: 'TH-55', th: 'น่าน', en: 'Nan' },
+  { id: 'TH-56', th: 'พะเยา', en: 'Phayao' },
+  { id: 'TH-57', th: 'เชียงราย', en: 'Chiang Rai' },
+  { id: 'TH-58', th: 'แม่ฮ่องสอน', en: 'Mae Hong Son' },
+  { id: 'TH-60', th: 'นครสวรรค์', en: 'Nakhon Sawan' },
+  { id: 'TH-61', th: 'อุทัยธานี', en: 'Uthai Thani' },
+  { id: 'TH-62', th: 'กำแพงเพชร', en: 'Kamphaeng Phet' },
+  { id: 'TH-63', th: 'ตาก', en: 'Tak' },
+  { id: 'TH-64', th: 'สุโขทัย', en: 'Sukhothai' },
+  { id: 'TH-65', th: 'พิษณุโลก', en: 'Phitsanulok' },
+  { id: 'TH-66', th: 'พิจิตร', en: 'Phichit' },
+  { id: 'TH-67', th: 'เพชรบูรณ์', en: 'Phetchabun' },
+  { id: 'TH-70', th: 'ราชบุรี', en: 'Ratchaburi' },
+  { id: 'TH-71', th: 'กาญจนบุรี', en: 'Kanchanaburi' },
+  { id: 'TH-72', th: 'สุพรรณบุรี', en: 'Suphan Buri' },
+  { id: 'TH-73', th: 'นครปฐม', en: 'Nakhon Pathom' },
+  { id: 'TH-74', th: 'สมุทรสาคร', en: 'Samut Sakhon' },
+  { id: 'TH-75', th: 'สมุทรสงคราม', en: 'Samut Songkhram' },
+  { id: 'TH-76', th: 'เพชรบุรี', en: 'Phetchaburi' },
+  { id: 'TH-77', th: 'ประจวบคีรีขันธ์', en: 'Prachuap Khiri Khan' },
+  { id: 'TH-80', th: 'นครศรีธรรมราช', en: 'Nakhon Si Thammarat' },
+  { id: 'TH-81', th: 'กระบี่', en: 'Krabi' },
+  { id: 'TH-82', th: 'พังงา', en: 'Phangnga' },
+  { id: 'TH-83', th: 'ภูเก็ต', en: 'Phuket' },
+  { id: 'TH-84', th: 'สุราษฎร์ธานี', en: 'Surat Thani' },
+  { id: 'TH-85', th: 'ระนอง', en: 'Ranong' },
+  { id: 'TH-86', th: 'ชุมพร', en: 'Chumphon' },
+  { id: 'TH-90', th: 'สงขลา', en: 'Songkhla' },
+  { id: 'TH-91', th: 'สตูล', en: 'Satun' },
+  { id: 'TH-92', th: 'ตรัง', en: 'Trang' },
+  { id: 'TH-93', th: 'พัทลุง', en: 'Phatthalung' },
+  { id: 'TH-94', th: 'ปัตตานี', en: 'Pattani' },
+  { id: 'TH-95', th: 'ยะลา', en: 'Yala' },
+  { id: 'TH-96', th: 'นราธิวาส', en: 'Narathiwat' },
+];
+
+// ── Fields of interest ────────────────────────────────────────────────────
+const FIELDS = [
+  { id: 'any',              th: 'ทุกสาขา',                en: 'Any Field' },
+  { id: 'engineering',      th: 'วิศวกรรมศาสตร์',        en: 'Engineering' },
+  { id: 'medicine',         th: 'แพทยศาสตร์',            en: 'Medicine' },
+  { id: 'science',          th: 'วิทยาศาสตร์',           en: 'Science' },
+  { id: 'business',         th: 'บริหารธุรกิจ',          en: 'Business' },
+  { id: 'computer_science', th: 'วิทยาการคอมพิวเตอร์',   en: 'Computer Science' },
+  { id: 'data_science',     th: 'วิทยาศาสตร์ข้อมูล',    en: 'Data Science' },
+  { id: 'agriculture',      th: 'เกษตรศาสตร์',           en: 'Agriculture' },
+  { id: 'education',        th: 'ศึกษาศาสตร์',           en: 'Education' },
+  { id: 'law',              th: 'นิติศาสตร์',            en: 'Law' },
+  { id: 'arts',             th: 'ศิลปะ',                 en: 'Arts' },
+];
 
 const GRADE_LEVELS = ['M4', 'M5', 'M6', 'uni', 'graduate'] as const;
+type GradeLevel = typeof GRADE_LEVELS[number];
 
+const GRADE_LABELS: Record<GradeLevel, { th: string; en: string }> = {
+  M4: { th: 'ม.4', en: 'M4 (Gr.10)' },
+  M5: { th: 'ม.5', en: 'M5 (Gr.11)' },
+  M6: { th: 'ม.6', en: 'M6 (Gr.12)' },
+  uni: { th: 'ป.ตรี', en: 'Bachelor' },
+  graduate: { th: 'ป.โท/เอก', en: 'Graduate' },
+};
+
+// ── Section label ──────────────────────────────────────────────────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-bold tracking-[1.5px] uppercase text-[#AEAEB2] dark:text-[#636366] mb-3">
+      {children}
+    </p>
+  );
+}
+
+// ── Card wrapper ───────────────────────────────────────────────────────────
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-2xl p-6 space-y-4">
+      {children}
+    </div>
+  );
+}
+
+// ── Save button ────────────────────────────────────────────────────────────
+function SaveButton({ saving, lang, onClick }: { saving: boolean; lang: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={saving}
+      className="flex items-center justify-center gap-2 bg-[#F0A500] hover:bg-[#D4920A] active:scale-[0.98] text-white font-semibold px-6 py-3 rounded-xl transition-all disabled:opacity-50 text-sm w-full sm:w-auto"
+    >
+      {saving && (
+        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+        </svg>
+      )}
+      {saving ? (lang === 'th' ? 'กำลังบันทึก...' : 'Saving...') : (lang === 'th' ? 'บันทึก' : 'Save')}
+    </button>
+  );
+}
+
+// ── Toggle switch ──────────────────────────────────────────────────────────
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative w-12 h-7 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#F0A500] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E] ${
+        checked ? 'bg-[#F0A500]' : 'bg-[#E5E5EA] dark:bg-[#38383A]'
+      }`}
+    >
+      <span
+        className={`absolute top-[3px] left-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-sm transition-transform duration-200 ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { lang, setLang } = useLang();
   const { theme, setTheme } = useTheme();
+  const { setAvatarUrl: setNavAvatar, setDisplayName: setNavDisplayName } = useUserProfile();
   const router = useRouter();
   const supabase = createClient();
-  const p = translations.profile;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [user, setUser]             = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [saveState, setSaveState]   = useState<SaveState>('idle');
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Account state
-  const [userProfile, setUserProfile]       = useState<UserProfile | null>(null);
-  const [displayName, setDisplayName]       = useState('');
-  const [nameSaving, setNameSaving]         = useState(false);
-  const [nameToast, setNameToast]           = useState(false);
-  const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
-  const [avatarLoading, setAvatarLoading]   = useState(false);
-  const [fileError, setFileError]           = useState('');
+  // Personal info
+  const [savedDisplayName, setSavedDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [savingName, setSavingName] = useState(false);
 
-  // Matching profile state
-  const [province, setProvince]             = useState('');
-  const [gpa, setGpa]                       = useState('');
-  const [incomeBracket, setIncomeBracket]   = useState<number>(4);
-  const [welfareCard, setWelfareCard]       = useState(false);
-  const [gradeLevel, setGradeLevel]         = useState('M6');
+  // Student profile
+  const [gpa, setGpa] = useState('');
+  const [province, setProvince] = useState('');
+  const [provinceSearch, setProvinceSearch] = useState('');
+  const [incomeBracket, setIncomeBracket] = useState<number>(4);
+  const [welfareCard, setWelfareCard] = useState(false);
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('M6');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  // Safety timeout — never stay stuck on loading spinner
-  useEffect(() => {
-    const t = setTimeout(() => setAuthLoading(false), 3000);
-    return () => clearTimeout(t);
-  }, []);
+  // Toast
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
-  // Load user + existing profile
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        // getSession() reads from localStorage — no network round-trip, instant
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!mounted) return;
-        if (!sessionData.session?.user) return;
-        const authUser = sessionData.session.user;
-        setUser(authUser);
+  function showToast(msg: string, type: 'success' | 'error') {
+    setToast({ msg, type });
+    setToastVisible(true);
+    setTimeout(() => {
+      setToastVisible(false);
+      setTimeout(() => setToast(null), 350);
+    }, 2500);
+  }
 
-        // Account profile
-        try {
-          const acct = await getProfile(authUser.id);
-          if (!mounted) return;
-          setUserProfile(acct);
-          setDisplayName(acct?.display_name ?? '');
-          setAvatarUrl(acct?.avatar_url ?? null);
-        } catch { /* display_name/avatar_url columns may not exist yet */ }
-
-        // Matching profile
-        try {
-          const { data: profile } = await supabase
-            .from('profiles').select('*').eq('id', authUser.id).maybeSingle();
-          if (!mounted) return;
-          if (profile) {
-            setProvince(profile.province_id ?? '');
-            setGpa(profile.gpa != null ? String(profile.gpa) : '');
-            setIncomeBracket(profile.income_bracket ?? 4);
-            setWelfareCard(profile.welfare_card ?? false);
-            setGradeLevel(profile.grade_level ?? 'M6');
-            setSelectedFields(profile.fields_of_interest?.filter((f: string) => f !== 'any') ?? []);
-          }
-        } catch { /* no profile yet */ }
-      } catch (e) {
-        console.error('Profile page auth error:', e);
-      } finally {
-        if (mounted) setAuthLoading(false);
+  // ── Auth — use onAuthStateChange for reliability ─────────────────────────
+  const loadProfile = useCallback(async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) {
+        setDisplayName(data.display_name ?? '');
+        setSavedDisplayName(data.display_name ?? '');
+        setAvatarUrl(data.avatar_url ?? null);
+        setGpa(data.gpa != null ? String(data.gpa) : '');
+        setProvince(data.province_id ?? '');
+        setIncomeBracket(data.income_bracket ?? 4);
+        setWelfareCard(data.welfare_card ?? false);
+        setGradeLevel((data.grade_level as GradeLevel) ?? 'M6');
+        setSelectedFields(
+          data.fields_of_interest?.filter((f: string) => f !== 'any') ?? []
+        );
       }
-    })();
-    return () => { mounted = false; };
+    } catch { /* row may not exist yet */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Account handlers ──────────────────────────────────────────────── */
+  useEffect(() => {
+    let mounted = true;
+
+    // Immediate session check
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session?.user) {
+        setUser(data.session.user);
+        loadProfile(data.session.user.id).finally(() => {
+          if (mounted) setLoading(false);
+        });
+      } else {
+        // Also listen for INITIAL_SESSION from onAuthStateChange
+      }
+    });
+
+    // Auth state listener — authoritative source
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        if (session?.user) {
+          setUser(session.user);
+          loadProfile(session.user.id).finally(() => {
+            if (mounted) setLoading(false);
+          });
+        } else if (event === 'SIGNED_OUT') {
+          router.replace('/auth');
+        } else if (event === 'INITIAL_SESSION' && !session) {
+          setLoading(false);
+        }
+      }
+    );
+
+    // Hard timeout — never stuck on spinner
+    const t = setTimeout(() => { if (mounted) setLoading(false); }, 4000);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(t);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 5 * 1024 * 1024) { setFileError(p.fileTooLarge[lang]); return; }
-    setFileError('');
-    setAvatarLoading(true);
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(lang === 'th' ? 'ไฟล์ใหญ่เกินไป (max 5 MB)' : 'File too large (max 5 MB)', 'error');
+      return;
+    }
+    setAvatarUploading(true);
     try {
       const url = await uploadAvatar(user.id, file);
       setAvatarUrl(url);
-    } catch { /* ignore */ }
-    setAvatarLoading(false);
+      setNavAvatar(url);
+      showToast(lang === 'th' ? 'อัปโหลดสำเร็จ ✓' : 'Photo updated ✓', 'success');
+    } catch {
+      showToast(lang === 'th' ? 'อัปโหลดไม่สำเร็จ กรุณาลองใหม่' : 'Upload failed. Please try again.', 'error');
+    }
+    setAvatarUploading(false);
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function handleSaveName() {
     if (!user) return;
-    setNameSaving(true);
+    setSavingName(true);
     try {
-      await updateDisplayName(user.id, displayName.trim());
-      setNameToast(true);
-      setTimeout(() => setNameToast(false), 2500);
-    } catch { /* ignore */ }
-    setNameSaving(false);
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
+      if (error) throw error;
+      setSavedDisplayName(displayName.trim());
+      setNavDisplayName(displayName.trim());
+      showToast(lang === 'th' ? 'บันทึกเรียบร้อย ✓' : 'Saved ✓', 'success');
+    } catch {
+      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    }
+    setSavingName(false);
   }
 
-  function toggleField(field: string) {
-    setSelectedFields((prev) =>
-      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
+  async function handleSaveProfile() {
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      const gpaNum = parseFloat(gpa);
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        gpa: !isNaN(gpaNum) && gpaNum >= 0 && gpaNum <= 4 ? gpaNum : null,
+        province_id: province || null,
+        income_bracket: incomeBracket,
+        welfare_card: welfareCard,
+        grade_level: gradeLevel,
+        fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      showToast(lang === 'th' ? 'บันทึกโปรไฟล์เรียบร้อย ✓' : 'Profile saved ✓', 'success');
+    } catch {
+      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    }
+    setSavingProfile(false);
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push('/');
+  }
+
+  function toggleField(id: string) {
+    setSelectedFields(prev =>
+      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
     );
   }
 
-  async function handleSave() {
-    if (!user) return;
-    setSaveState('saving');
-
-    const gpaNum = parseFloat(gpa);
-    const profileData = {
-      id: user.id,
-      province_id: province || null,
-      gpa: !isNaN(gpaNum) && gpaNum >= 0 && gpaNum <= 4 ? gpaNum : null,
-      income_bracket: incomeBracket,
-      welfare_card: welfareCard,
-      grade_level: gradeLevel,
-      fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-      updated_at: new Date().toISOString(),
-    };
-
-    try {
-      const { error } = await supabase.from('profiles').upsert(profileData);
-      if (error) throw error;
-      setSaveState('saved');
-    } catch {
-      setSaveState('error');
-    }
-  }
-
-  // ── Loading ────────────────────────────────────────────────────────────
-  if (authLoading) {
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#F0A500] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-[3px] border-[#F0A500] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+            {lang === 'th' ? 'กำลังโหลด...' : 'Loading...'}
+          </p>
+        </div>
       </div>
     );
   }
 
-  // ── Not logged in ──────────────────────────────────────────────────────
+  // ── Not logged in → redirect (should rarely show) ──────────────────────
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center px-4">
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)] p-10 max-w-sm w-full text-center border border-transparent dark:border-[#38383A]">
-          <div className="text-5xl mb-5">🔒</div>
-          <h2
-            className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-2"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-          >
-            {p.notLoggedIn[lang]}
-          </h2>
-          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-6">{p.notLoggedInSub[lang]}</p>
-          <Link
-            href="/auth"
-            className="inline-block bg-[#F0A500] text-white font-semibold px-8 py-3 rounded-full hover:bg-[#D4920A] transition-colors text-sm"
-          >
-            {p.loginBtn[lang]}
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-[#6E6E73] dark:text-[#8E8E93] mb-4 text-sm">
+            {lang === 'th' ? 'กำลังพาไปหน้าเข้าสู่ระบบ...' : 'Redirecting to login...'}
+          </p>
+          <Link href="/auth" className="text-[#F0A500] font-semibold text-sm hover:underline">
+            {lang === 'th' ? 'คลิกที่นี่หากไม่ redirect' : 'Click here if not redirected'}
           </Link>
         </div>
       </div>
     );
   }
 
-  // ── Saved success state ────────────────────────────────────────────────
-  if (saveState === 'saved') {
-    return (
-      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000] flex items-center justify-center px-4">
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[20px] shadow-[0_4px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)] p-10 max-w-sm w-full text-center border border-transparent dark:border-[#38383A]">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-5">
-            <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2
-            className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-2"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-          >
-            {p.saved[lang]}
-          </h2>
-          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-8">{p.savedSub[lang]}</p>
+  // ── Province filtered list ─────────────────────────────────────────────
+  const filteredProvinces = provinceSearch.trim()
+    ? PROVINCES.filter(p =>
+        p.th.includes(provinceSearch) ||
+        p.en.toLowerCase().includes(provinceSearch.toLowerCase())
+      )
+    : PROVINCES;
+
+  const initials = getInitials(displayName || user.email || '?');
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111]">
+
+      {/* ── Page header ──────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
+        <div className="max-w-[560px] mx-auto px-4 h-14 flex items-center justify-between">
           <Link
             href="/scholarships"
-            className="inline-block bg-[#F0A500] text-white font-semibold px-8 py-3 rounded-full hover:bg-[#D4920A] transition-colors text-sm"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+            className="flex items-center gap-1.5 text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white transition-colors"
           >
-            {p.viewMatches[lang]}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+            </svg>
+            {lang === 'th' ? 'กลับ' : 'Back'}
           </Link>
-          <button
-            onClick={() => setSaveState('idle')}
-            className="block mx-auto mt-4 text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white"
-          >
-            {lang === 'th' ? 'แก้ไขโปรไฟล์' : 'Edit profile'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Profile form ───────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#000000]">
-      {/* Header */}
-      <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
-        <div className="max-w-[680px] mx-auto px-6 py-10">
-          <h1
-            className="text-3xl text-[#1D1D1F] dark:text-white mb-2"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
-          >
-            {p.title[lang]}
+          <h1 className="text-base font-semibold text-[#1D1D1F] dark:text-white">
+            {lang === 'th' ? 'โปรไฟล์ของฉัน' : 'My Profile'}
           </h1>
-          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">{p.subtitle[lang]}</p>
+          <div className="w-12" /> {/* spacer */}
         </div>
       </div>
 
-      <div className="max-w-[680px] mx-auto px-6 py-10 space-y-6">
+      <div className="max-w-[560px] mx-auto px-4 py-8 space-y-5 pb-20">
 
-        {/* Error banner */}
-        {saveState === 'error' && (
-          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-lg px-4 py-3">
-            {p.saveError[lang]}
-          </div>
-        )}
-
-        {/* ── Card: Account settings ────────────────────────────────── */}
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
-            {lang === 'th' ? 'บัญชีของคุณ' : 'Account'}
-          </h2>
-
-          {/* Avatar */}
-          <div className="flex items-center gap-5">
+        {/* ── SECTION 1: Avatar ─────────────────────────────────────── */}
+        <div className="flex flex-col items-center pt-4 pb-2">
+          <div className="relative">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="relative w-16 h-16 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#F0A500] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E] shrink-0"
-              aria-label={p.changePhoto[lang]}
+              className="block w-24 h-24 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#F0A500] focus:ring-offset-2 dark:focus:ring-offset-[#111111]"
+              aria-label={lang === 'th' ? 'เปลี่ยนรูปโปรไฟล์' : 'Change profile photo'}
             >
               {avatarUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="w-full h-full bg-[#F0A500] text-white flex items-center justify-center text-2xl font-semibold">
-                  {getInitials(displayName || user?.email || '?')}
+                <span className="w-full h-full bg-[#F0A500] text-white flex items-center justify-center text-3xl font-bold select-none">
+                  {initials}
                 </span>
               )}
-              {/* overlay on hover */}
-              <span className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                {avatarLoading ? (
-                  <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+              {/* Upload overlay */}
+              {avatarUploading && (
+                <span className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-full">
+                  <svg className="animate-spin w-6 h-6 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
                   </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  </svg>
-                )}
-              </span>
+                </span>
+              )}
             </button>
-            <div>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-sm font-medium text-[#F0A500] hover:text-[#D4920A] transition-colors"
-              >
-                {p.changePhoto[lang]}
-              </button>
-              <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5">JPG, PNG · max 5 MB</p>
-              {fileError && <p className="text-xs text-red-500 mt-0.5">{fileError}</p>}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
           </div>
-
-          {/* Display name */}
-          <div>
-            <label htmlFor="display-name" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
-              {p.displayName[lang]}
-              <span className="ml-2 text-xs text-[#ADADB8] font-normal">{displayName.length}/40</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="display-name"
-                type="text"
-                maxLength={40}
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={p.displayNamePlaceholder[lang]}
-                className="flex-1 text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#ADADB8]"
-              />
-              <button
-                type="button"
-                onClick={handleSaveName}
-                disabled={nameSaving}
-                className="shrink-0 bg-[#F0A500] text-white text-sm font-semibold px-4 rounded-lg hover:bg-[#D4920A] transition-colors disabled:opacity-60"
-              >
-                {nameToast ? p.savedToast[lang] : nameSaving ? '…' : p.saveButton[lang]}
-              </button>
-            </div>
-          </div>
-
-          {/* Email (readonly) */}
-          <div>
-            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">{p.emailLabel[lang]}</label>
-            <input
-              type="email"
-              readOnly
-              value={user?.email ?? ''}
-              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] cursor-not-allowed"
-            />
-            <p className="text-xs text-[#ADADB8] mt-1">{p.emailNote[lang]}</p>
-          </div>
-
-          {/* Theme picker */}
-          <div>
-            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-3">{p.themeLabel[lang]}</label>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { key: 'light' as const, icon: '☀️', label: p.themeLight[lang] },
-                { key: 'dark'  as const, icon: '🌙', label: p.themeDark[lang]  },
-                { key: 'auto'  as const, icon: '⚙️', label: p.themeAuto[lang]  },
-              ]).map(({ key, icon, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTheme(key)}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-[12px] border-2 transition-all text-sm ${
-                    theme === key
-                      ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500] font-semibold'
-                      : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
-                  }`}
-                >
-                  <span className="text-xl">{icon}</span>
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Language toggle */}
-          <div>
-            <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-3">{p.languageLabel[lang]}</label>
-            <div className="flex gap-2">
-              {(['th', 'en'] as const).map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLang(l)}
-                  className={`flex-1 py-2.5 rounded-[10px] border-2 text-sm font-medium transition-all ${
-                    lang === l
-                      ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500]'
-                      : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
-                  }`}
-                >
-                  {l === 'th' ? '🇹🇭 ภาษาไทย' : '🇬🇧 English'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Card: Basic info ──────────────────────────────────────── */}
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
-            {lang === 'th' ? 'ข้อมูลพื้นฐาน' : 'Basic Info'}
-          </h2>
-
-          {/* Grade level */}
-          <div>
-            <label className="block text-sm font-medium text-[#1D1D1F] mb-2">
-              {p.gradeLevel[lang]}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {GRADE_LEVELS.map((gl) => (
-                <button
-                  key={gl}
-                  type="button"
-                  onClick={() => setGradeLevel(gl)}
-                  className={`text-sm px-4 py-2 rounded-full border transition-colors ${
-                    gradeLevel === gl
-                      ? 'bg-[#F0A500] text-white border-[#F0A500]'
-                      : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'
-                  }`}
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-                >
-                  {p.gradeLevels[gl][lang]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Province */}
-          <div>
-            <label htmlFor="province" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
-              {p.province[lang]}
-            </label>
-            <select
-              id="province"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors"
-            >
-              <option value="">{p.provincePlaceholder[lang]}</option>
-              {PROVINCES_TH.map((prov) => (
-                <option key={prov} value={prov}>{prov}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* GPA */}
-          <div>
-            <label htmlFor="gpa" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
-              {p.gpa[lang]}
-            </label>
-            <input
-              id="gpa"
-              type="number"
-              min="0"
-              max="4"
-              step="0.01"
-              value={gpa}
-              onChange={(e) => setGpa(e.target.value)}
-              placeholder="เช่น 3.50"
-              className="w-full text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-3 py-2.5 bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#ADADB8]"
-            />
-          </div>
-        </div>
-
-        {/* ── Card: Financial info ──────────────────────────────────── */}
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-5">
-          <h2 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
-            {lang === 'th' ? 'ข้อมูลทางการเงิน' : 'Financial Info'}
-          </h2>
-
-          {/* Income bracket */}
-          <div>
-            <label className="block text-sm font-medium text-[#1D1D1F] mb-2">
-              {p.income[lang]}
-            </label>
-            <div className="space-y-2">
-              {([1, 2, 3, 4, 5, 6, 7] as const).map((bracket) => (
-                <button
-                  key={bracket}
-                  type="button"
-                  onClick={() => setIncomeBracket(bracket)}
-                  className={`w-full text-left text-sm px-4 py-2.5 rounded-lg border transition-colors ${
-                    incomeBracket === bracket
-                      ? 'bg-[#FFF8E7] border-[#F0A500] text-[#1D1D1F]'
-                      : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]/50'
-                  }`}
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-                >
-                  <span className={`font-medium mr-2 ${incomeBracket === bracket ? 'text-[#F0A500]' : 'text-[#ADADB8]'}`}>
-                    {bracket}.
-                  </span>
-                  {p.incomeBrackets[bracket][lang]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Welfare card */}
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={welfareCard}
-              onChange={(e) => setWelfareCard(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-[#F0A500] shrink-0"
-            />
-            <div>
-              <div className="text-sm font-medium text-[#1D1D1F]">{p.welfareCard[lang]}</div>
-              <div className="text-xs text-[#6E6E73] mt-0.5">{p.welfareCardSub[lang]}</div>
-            </div>
-          </label>
-        </div>
-
-        {/* ── Card: Fields of interest ──────────────────────────────── */}
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] p-6 space-y-4">
-          <div>
-            <h2 className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-1">
-              {p.fields[lang]}
-            </h2>
-            <p className="text-xs text-[#ADADB8]">{p.fieldsSub[lang]}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {FIELDS_OF_STUDY.map((field) => {
-              const label = lang === 'th' ? field.th : field.en;
-              const isSelected = selectedFields.includes(field.th);
-              return (
-                <button
-                  key={field.th}
-                  type="button"
-                  onClick={() => toggleField(field.th)}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    isSelected
-                      ? 'bg-[#F0A500] text-white border-[#F0A500]'
-                      : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {selectedFields.length === 0 && (
-            <p className="text-xs text-[#ADADB8] italic">
-              {lang === 'th' ? '— ไม่ได้เลือก จะแสดงทุนทุกสาขา —' : '— None selected, will show all fields —'}
-            </p>
-          )}
-        </div>
-
-        {/* ── Save button ───────────────────────────────────────────── */}
-        <button
-          onClick={handleSave}
-          disabled={saveState === 'saving'}
-          className="w-full bg-[#F0A500] text-white font-semibold py-4 rounded-full hover:bg-[#D4920A] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
-          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-        >
-          {saveState === 'saving' ? (
-            <>
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              {p.saving[lang]}
-            </>
-          ) : (
-            p.saveBtn[lang]
-          )}
-        </button>
-
-        {/* Sign out */}
-        <div className="text-center pb-4">
           <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push('/');
-            }}
-            className="text-xs text-[#ADADB8] hover:text-[#6E6E73] transition-colors"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-3 text-sm font-medium text-[#F0A500] hover:text-[#D4920A] transition-colors flex items-center gap-1.5"
           >
-            {p.signOut[lang]}
+            <span>📷</span>
+            {lang === 'th' ? 'เปลี่ยนรูปภาพ' : 'Change photo'}
           </button>
+          <p className="text-xs text-[#AEAEB2] mt-1">JPG, PNG, WebP · max 5 MB</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
+        </div>
+
+        {/* ── SECTION 2: Personal info ──────────────────────────────── */}
+        <div>
+          <SectionLabel>{lang === 'th' ? 'ข้อมูลส่วนตัว' : 'Personal Info'}</SectionLabel>
+          <Card>
+            {/* Display name */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+                {lang === 'th' ? 'ชื่อที่แสดง' : 'Display Name'}
+              </label>
+              <input
+                type="text"
+                maxLength={50}
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder={lang === 'th' ? 'ชื่อของคุณ' : 'Your name'}
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#2C2C2E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-1 focus:ring-[#F0A500] transition-colors placeholder:text-[#AEAEB2]"
+              />
+              <p className="text-xs text-[#AEAEB2] mt-1 text-right">{displayName.length}/50</p>
+            </div>
+
+            {/* Email (readonly) */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+                {lang === 'th' ? 'อีเมล' : 'Email'}
+              </label>
+              <input
+                type="email"
+                readOnly
+                value={user.email ?? ''}
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-[#F5F5F7] dark:bg-[#3A3A3C] text-[15px] text-[#AEAEB2] cursor-not-allowed"
+              />
+              <p className="text-xs text-[#AEAEB2] mt-1">
+                {lang === 'th' ? 'ไม่สามารถเปลี่ยนอีเมลได้' : 'Email cannot be changed'}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <SaveButton
+                saving={savingName}
+                lang={lang}
+                onClick={handleSaveName}
+              />
+            </div>
+          </Card>
+        </div>
+
+        {/* ── SECTION 3: Student profile ────────────────────────────── */}
+        <div>
+          <SectionLabel>{lang === 'th' ? 'โปรไฟล์นักเรียน' : 'Student Profile'}</SectionLabel>
+          <Card>
+            {/* Info note */}
+            <p className="text-xs text-[#AEAEB2] dark:text-[#636366] flex items-center gap-1.5 -mt-1">
+              <span>🎯</span>
+              {lang === 'th'
+                ? 'ข้อมูลนี้ใช้สำหรับจับคู่ทุนที่เหมาะกับคุณ'
+                : 'Used to match scholarships to your profile'}
+            </p>
+
+            {/* Grade level */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+                {lang === 'th' ? 'ระดับการศึกษา' : 'Grade Level'}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {GRADE_LEVELS.map(gl => (
+                  <button
+                    key={gl}
+                    type="button"
+                    onClick={() => setGradeLevel(gl)}
+                    className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
+                      gradeLevel === gl
+                        ? 'bg-[#F0A500] text-white border-[#F0A500] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/60'
+                    }`}
+                  >
+                    {GRADE_LABELS[gl][lang as 'th' | 'en']}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* GPA */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+                {lang === 'th' ? 'เกรดเฉลี่ย (GPAX)' : 'GPA (GPAX)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="4"
+                step="0.01"
+                value={gpa}
+                onChange={e => setGpa(e.target.value)}
+                placeholder="0.00 – 4.00"
+                className={`w-full px-[14px] py-3 rounded-[10px] border bg-white dark:bg-[#2C2C2E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-1 focus:ring-[#F0A500] transition-colors placeholder:text-[#AEAEB2] ${
+                  gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4)
+                    ? 'border-red-400'
+                    : 'border-[#E5E5EA] dark:border-[#38383A]'
+                }`}
+              />
+              {gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4) && (
+                <p className="text-xs text-red-500 mt-1">
+                  {lang === 'th' ? 'กรุณากรอก 0.00 – 4.00' : 'Must be between 0.00 and 4.00'}
+                </p>
+              )}
+            </div>
+
+            {/* Province */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+                {lang === 'th' ? 'จังหวัด' : 'Province'}
+              </label>
+              <input
+                type="text"
+                value={provinceSearch}
+                onChange={e => setProvinceSearch(e.target.value)}
+                placeholder={lang === 'th' ? 'ค้นหาจังหวัด...' : 'Search province...'}
+                className="w-full px-[14px] py-2.5 rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#2C2C2E] text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] transition-colors placeholder:text-[#AEAEB2] mb-2"
+              />
+              <select
+                value={province}
+                onChange={e => { setProvince(e.target.value); setProvinceSearch(''); }}
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#2C2C2E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-1 focus:ring-[#F0A500] transition-colors"
+              >
+                <option value="">{lang === 'th' ? 'เลือกจังหวัด' : 'Select province'}</option>
+                {filteredProvinces.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {lang === 'th' ? p.th : p.en}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Income bracket */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+                {lang === 'th' ? 'รายได้ครัวเรือน / เดือน' : 'Monthly Household Income'}
+              </label>
+              <select
+                value={incomeBracket}
+                onChange={e => setIncomeBracket(Number(e.target.value))}
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#2C2C2E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-1 focus:ring-[#F0A500] transition-colors"
+              >
+                {([
+                  [1, { th: 'น้อยกว่า 5,000 บาท', en: 'Under 5,000 THB' }],
+                  [2, { th: '5,000 – 10,000 บาท', en: '5,000 – 10,000 THB' }],
+                  [3, { th: '10,000 – 15,000 บาท', en: '10,000 – 15,000 THB' }],
+                  [4, { th: '15,000 – 20,000 บาท', en: '15,000 – 20,000 THB' }],
+                  [5, { th: '20,000 – 30,000 บาท', en: '20,000 – 30,000 THB' }],
+                  [6, { th: '30,000 – 50,000 บาท', en: '30,000 – 50,000 THB' }],
+                  [7, { th: 'มากกว่า 50,000 บาท', en: 'Over 50,000 THB' }],
+                ] as [number, { th: string; en: string }][]).map(([val, labels]) => (
+                  <option key={val} value={val}>{labels[lang as 'th' | 'en']}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Fields of interest */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+                {lang === 'th' ? 'สาขาที่สนใจ' : 'Fields of Interest'}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {FIELDS.map(f => {
+                  const active = selectedFields.includes(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => toggleField(f.id)}
+                      className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
+                        active
+                          ? 'bg-[#F0A500] text-white border-[#F0A500] font-medium'
+                          : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/60'
+                      }`}
+                    >
+                      {f[lang as 'th' | 'en']}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedFields.length === 0 && (
+                <p className="text-xs text-[#AEAEB2] mt-2 italic">
+                  {lang === 'th' ? '— ไม่ได้เลือก จะแสดงทุนทุกสาขา —' : '— None selected — shows all fields —'}
+                </p>
+              )}
+            </div>
+
+            {/* Welfare card toggle */}
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                <p className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+                  {lang === 'th' ? 'บัตรสวัสดิการแห่งรัฐ' : 'State Welfare Card'}
+                </p>
+                <p className="text-xs text-[#AEAEB2] mt-0.5">
+                  {lang === 'th' ? 'เปิดหากคุณมีบัตรสวัสดิการแห่งรัฐ' : 'Enable if you hold a state welfare card'}
+                </p>
+              </div>
+              <Toggle checked={welfareCard} onChange={setWelfareCard} />
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <SaveButton saving={savingProfile} lang={lang} onClick={handleSaveProfile} />
+            </div>
+          </Card>
+        </div>
+
+        {/* ── SECTION 4: Settings ───────────────────────────────────── */}
+        <div>
+          <SectionLabel>{lang === 'th' ? 'การตั้งค่า' : 'Settings'}</SectionLabel>
+          <Card>
+            {/* Theme */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+                {lang === 'th' ? 'ธีม' : 'Theme'}
+              </label>
+              <div className="flex gap-2">
+                {([
+                  { key: 'light' as const, icon: '☀️', th: 'สว่าง',    en: 'Light' },
+                  { key: 'dark'  as const, icon: '🌙', th: 'มืด',      en: 'Dark'  },
+                  { key: 'auto'  as const, icon: '⚙️', th: 'อัตโนมัติ', en: 'Auto'  },
+                ]).map(({ key, icon, th: thLabel, en: enLabel }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTheme(key)}
+                    className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all text-sm ${
+                      theme === key
+                        ? 'bg-[#FFF8E7] dark:bg-[#2C1F00] border-[#F0A500] text-[#D4920A] dark:text-[#F0A500] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
+                    }`}
+                  >
+                    <span className="text-lg leading-none">{icon}</span>
+                    <span>{lang === 'th' ? thLabel : enLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+                {lang === 'th' ? 'ภาษา' : 'Language'}
+              </label>
+              <div className="flex gap-2">
+                {([
+                  { key: 'th' as const, label: '🇹🇭  ภาษาไทย' },
+                  { key: 'en' as const, label: '🇬🇧  English' },
+                ]).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLang(key)}
+                    className={`flex-1 py-3 rounded-xl border transition-all text-sm font-medium ${
+                      lang === key
+                        ? 'bg-[#FFF8E7] dark:bg-[#2C1F00] border-[#F0A500] text-[#D4920A] dark:text-[#F0A500] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500]/50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* ── SECTION 5: Sign out ───────────────────────────────────── */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="w-full py-3.5 rounded-xl border-2 border-red-400 dark:border-red-500 text-red-500 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-950 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <span>🚪</span>
+            {lang === 'th' ? 'ออกจากระบบ' : 'Sign Out'}
+          </button>
+          <p className="text-center text-xs text-[#AEAEB2] mt-4">
+            TunDee · ทุนดี · tundee.org
+          </p>
         </div>
 
       </div>
+
+      {/* Toast */}
+      {toast && <Toast message={toast.msg} type={toast.type} visible={toastVisible} />}
     </div>
   );
 }
