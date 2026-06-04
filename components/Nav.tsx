@@ -9,6 +9,7 @@ import { translations } from '@/lib/translations';
 import { createClient } from '@/lib/supabase/client';
 import { getInitials } from '@/lib/profile';
 import { useUserProfile } from '@/contexts/UserContext';
+import { getDeadlineInfo } from '@/lib/deadline';
 import type { User } from '@supabase/supabase-js';
 
 /* ── Avatar circle ─────────────────────────────────────────────────────── */
@@ -74,23 +75,51 @@ function ThemeRow({ lang }: { lang: string }) {
 export default function Nav() {
   const { lang } = useLang();
   const { avatarUrl, displayName } = useUserProfile();
-  const [menuOpen, setMenuOpen]       = useState(false);
-  const [dropdownOpen, setDropdown]   = useState(false);
-  const [user, setUser]               = useState<User | null>(null);
-  const dropdownRef                   = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen]         = useState(false);
+  const [dropdownOpen, setDropdown]     = useState(false);
+  const [user, setUser]                 = useState<User | null>(null);
+  const [hasUrgentDeadline, setUrgent]  = useState(false);
+  const dropdownRef                     = useRef<HTMLDivElement>(null);
   const nav = translations.nav;
 
   /* Load user session */
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+      const u = data.session?.user ?? null;
+      setUser(u);
+      if (u) checkUrgentDeadlines(u.id);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) checkUrgentDeadlines(u.id);
+      else setUrgent(false);
     });
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function checkUrgentDeadlines(userId: string) {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('applications')
+        .select('scholarship_id, scholarships(deadline_date)')
+        .eq('user_id', userId)
+        .in('status', ['started', 'in_progress']);
+      if (!data) return;
+      const hasUrgent = data.some((app) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = (app.scholarships as unknown) as { deadline_date: string | null } | null;
+        if (!s?.deadline_date) return false;
+        return (getDeadlineInfo(s.deadline_date).days ?? 999) <= 7;
+      });
+      setUrgent(hasUrgent);
+    } catch {
+      // applications table may not exist yet — silently ignore
+    }
+  }
 
   /* Close dropdown on outside click */
   useEffect(() => {
@@ -128,6 +157,18 @@ export default function Nav() {
       >
         {nav.search[lang]}
       </Link>
+      {user && (
+        <Link
+          href="/tracker"
+          onClick={() => setMenuOpen(false)}
+          className="relative text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
+        >
+          {nav.navTracker[lang]}
+          {hasUrgentDeadline && (
+            <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full" />
+          )}
+        </Link>
+      )}
       <Link
         href="/about"
         onClick={() => setMenuOpen(false)}

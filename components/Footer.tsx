@@ -40,8 +40,9 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-[#E5E5EA] dark:border-[#38383A]">
+        <div className="mt-12 pt-8 border-t border-[#E5E5EA] dark:border-[#38383A] flex flex-col items-center gap-1">
           <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] text-center">{f.copyright[lang]}</p>
+          <p className="text-[11px] text-[#ADADB8] dark:text-[#6E6E73] text-center">{f.updated[lang]}</p>
         </div>
       </div>
     </footer>

@@ -37,6 +37,22 @@ export interface Scholarship {
   historical_bias_score?: number;
 }
 
+export type ApplicationStatus =
+  | 'viewing' | 'started' | 'in_progress'
+  | 'submitted' | 'won' | 'lost' | 'no_reply';
+
+export interface Application {
+  id: string;
+  user_id: string;
+  scholarship_id: string;
+  status: ApplicationStatus;
+  checklist_progress: number[];
+  clicked_through_at: string | null;
+  created_at: string;
+  updated_at?: string;
+  scholarships?: Scholarship | null;
+}
+
 export interface ChecklistStep {
   id: number;
   step_number: number;

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
 import TierBadge from '@/components/TierBadge';
+import SaveButton from '@/components/SaveButton';
+import { getDeadlineInfo, DEADLINE_COLOR_MAP } from '@/lib/deadline';
 import type { Scholarship } from '@/lib/types';
 
 interface Props {
@@ -35,6 +37,11 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
   const isNational = !s.province_restriction || s.province_restriction.includes('national');
   const isAnyField = !s.field_of_study || s.field_of_study.includes('any');
 
+  // Deadline urgency
+  const deadlineInfo = getDeadlineInfo(s.deadline_date);
+  const deadlineColors = DEADLINE_COLOR_MAP[deadlineInfo.color];
+  const deadlineLabel = lang === 'th' ? deadlineInfo.label : deadlineInfo.labelEn;
+
   function formatAmount(): string {
     if (!s.amount_thb) return d.contactFunder[lang];
     const amount = s.amount_thb.toLocaleString('th-TH');
@@ -43,17 +50,16 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
     return `${amount} ${c.oneTime[lang]}`;
   }
 
-  function formatDeadline(): string {
-    if (!s.deadline_date) return d.contactFunderInline[lang];
-    return new Date(s.deadline_date).toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
-  }
-
   return (
-    <article className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-shadow duration-300 group">
+    <article className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-shadow duration-300 group relative">
+
+      {/* Save button — top-right absolute */}
+      <div className="absolute top-4 right-4 z-10">
+        <SaveButton scholarshipId={s.id} size="sm" />
+      </div>
+
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 pr-8">
         <div className="flex-1 min-w-0">
           <h3
             className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
@@ -95,10 +101,17 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#F5F5F7] dark:border-[#38383A]">
-        <div>
-          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{c.deadline[lang]}: </span>
-          <span className="text-xs font-medium text-[#1D1D1F] dark:text-white">{formatDeadline()}</span>
-        </div>
+        {/* Deadline urgency pill */}
+        <span
+          className="text-xs font-semibold px-2.5 py-1 rounded-full border"
+          style={{
+            background: deadlineColors.bg,
+            color: deadlineColors.text,
+            borderColor: deadlineColors.border,
+          }}
+        >
+          {deadlineLabel}
+        </span>
         <Link href={`/scholarships/${s.id}`} className="text-sm text-[#F0A500] font-medium hover:underline shrink-0">
           {c.viewDetail[lang]}
         </Link>

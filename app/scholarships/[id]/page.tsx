@@ -7,8 +7,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ChecklistUI from '@/components/ChecklistUI';
 import TierBadge from '@/components/TierBadge';
+import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
-import { getScholarshipById, getChecklistSteps } from '@/lib/supabase';
+import { supabase, getScholarshipById, getChecklistSteps } from '@/lib/supabase';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import type { ChecklistStep, Scholarship } from '@/lib/types';
 
@@ -490,6 +491,24 @@ export default function ScholarshipDetailPage() {
                   href={s.application_url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={async () => {
+                    // Track click-through: upsert with status=started
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (session?.user) {
+                        await supabase.from('applications').upsert(
+                          {
+                            user_id: session.user.id,
+                            scholarship_id: s.id,
+                            status: 'started',
+                            clicked_through_at: new Date().toISOString(),
+                          },
+                          { onConflict: 'user_id,scholarship_id' }
+                        );
+                        console.log('[TunDee] Tracked click-through for scholarship', s.id);
+                      }
+                    } catch { /* applications table may not exist yet */ }
+                  }}
                   className="flex items-center justify-center gap-2 w-full bg-[#F0A500] text-white font-semibold py-4 px-6 rounded-full hover:bg-[#D4920A] transition-colors duration-200 text-sm"
                   style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
                 >
@@ -499,6 +518,11 @@ export default function ScholarshipDetailPage() {
                   </svg>
                 </a>
               ) : null}
+
+              {/* Save scholarship */}
+              <div className="flex items-center justify-center gap-2 py-2">
+                <SaveButton scholarshipId={s.id} size="md" />
+              </div>
 
               {/* Start checklist */}
               <button

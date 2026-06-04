@@ -10,6 +10,7 @@ import TierBadge from '@/components/TierBadge';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarships } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
+import { getDeadlineInfo } from '@/lib/deadline';
 import { getMatchedScholarships, classifyDemographic } from '@/lib/matching';
 import type { MatchResult, ScholarshipRow, StudentProfile } from '@/lib/matching';
 import type { FilterState, Scholarship } from '@/lib/types';
@@ -18,6 +19,7 @@ import type { User } from '@supabase/supabase-js';
 // ── Types ────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
 type Tier = 'SAFETY' | 'TARGET' | 'REACH';
+type SortKey = 'amount' | 'deadline';
 const ALL_TIERS: Tier[] = ['SAFETY', 'TARGET', 'REACH'];
 
 const EMPTY_FILTERS: FilterState = {
@@ -35,6 +37,19 @@ function sortByAmount(scholarships: Scholarship[]): Scholarship[] {
     if (a.amount_thb === null) return 1;
     if (b.amount_thb === null) return -1;
     return b.amount_thb - a.amount_thb;
+  });
+}
+
+function sortByDeadline(scholarships: Scholarship[]): Scholarship[] {
+  return [...scholarships].sort((a, b) => {
+    const daysA = getDeadlineInfo(a.deadline_date).days;
+    const daysB = getDeadlineInfo(b.deadline_date).days;
+    if (daysA === null && daysB === null) return 0;
+    if (daysA === null) return 1;
+    if (daysB === null) return -1;
+    if (daysA < 0 && daysB >= 0) return 1;  // expired goes last
+    if (daysA >= 0 && daysB < 0) return -1;
+    return daysA - daysB; // closest deadline first
   });
 }
 
@@ -223,6 +238,7 @@ export default function BrowsePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('browse');
   const [selectedTiers, setSelectedTiers] = useState<Tier[]>([...ALL_TIERS]);
+  const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<StudentProfile | null>(null);
@@ -336,12 +352,10 @@ export default function BrowsePage() {
     return (raw && ALL_TIERS.includes(raw as Tier)) ? (raw as Tier) : 'TARGET';
   }
 
-  const filtered = useMemo(
-    () => sortByAmount(applyFilters(scholarships, filters)).filter(s =>
-      selectedTiers.includes(getTier(s))
-    ),
-    [scholarships, filters, selectedTiers]
-  );
+  const filtered = useMemo(() => {
+    const base = applyFilters(scholarships, filters).filter(s => selectedTiers.includes(getTier(s)));
+    return sortKey === 'deadline' ? sortByDeadline(base) : sortByAmount(base);
+  }, [scholarships, filters, selectedTiers, sortKey]);
 
   // True only when load is done AND DB returned nothing (not just filtered to 0)
   const isDataEmpty = !loading && scholarships.length === 0;
@@ -494,14 +508,33 @@ export default function BrowsePage() {
                   </div>
                 </div>
 
-                {/* Results header — only show real count after data loads */}
-                <div className="flex items-center justify-between mb-6">
+                {/* Results header + sort toggle */}
+                <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
                   <span className="text-sm text-[#6E6E73]">
                     {loading
                       ? (lang === 'th' ? 'กำลังโหลด...' : 'Loading...')
                       : `${filtered.length} ${b.results[lang]}`}
                   </span>
-                  <span className="text-xs text-[#6E6E73] hidden sm:block">{b.sortLabel[lang]}</span>
+                  {!loading && (
+                    <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
+                      <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
+                      <div className="flex gap-1 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-lg p-0.5">
+                        {(['deadline', 'amount'] as SortKey[]).map((key) => (
+                          <button
+                            key={key}
+                            onClick={() => setSortKey(key)}
+                            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                              sortKey === key
+                                ? 'bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white shadow-sm'
+                                : 'text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white'
+                            }`}
+                          >
+                            {key === 'deadline' ? b.sortDeadline[lang] : b.sortAmount[lang]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {loading ? (
