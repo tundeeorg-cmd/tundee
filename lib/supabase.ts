@@ -12,13 +12,29 @@ export const supabase = isConfigured
   : createBrowserClient('https://placeholder.supabase.co', 'placeholder')
 
 export async function getScholarships(): Promise<Scholarship[]> {
-  if (!isConfigured) return []
+  if (!isConfigured) {
+    console.warn('[TunDee] Supabase not configured — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY')
+    return []
+  }
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
     .order('amount_thb', { ascending: false })
+
+  // ── Debug logging (keep until scholarships reliably load) ──────────────
+  console.log('=== SCHOLARSHIPS DEBUG ===')
+  console.log('rows returned:', data?.length ?? 0)
+  console.log('error:', error ?? 'none')
+  if (data && data.length > 0) {
+    console.log('first row keys:', Object.keys(data[0]))
+    console.log('first row sample:', { id: data[0].id, name_th: data[0].name_th, is_active: data[0].is_active, tier: data[0].tier })
+  } else {
+    console.warn('[TunDee] 0 scholarships returned — most likely cause: RLS policy blocks rows where is_active IS NULL. Run this SQL in Supabase:', "UPDATE scholarships SET is_active = TRUE WHERE is_active IS NULL; DROP POLICY IF EXISTS \"Public read scholarships\" ON scholarships; CREATE POLICY \"Public read scholarships\" ON scholarships FOR SELECT USING (is_active IS NOT FALSE);")
+  }
+  // ──────────────────────────────────────────────────────────────────────
+
   if (error) {
-    console.error('Error fetching scholarships:', error.message)
+    console.error('[TunDee] Supabase error fetching scholarships:', error.message, error.code, error.details)
     return []
   }
   return (data as Scholarship[]) ?? []

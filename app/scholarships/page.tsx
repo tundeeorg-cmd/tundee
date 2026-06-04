@@ -181,9 +181,8 @@ function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
   );
 }
 
-// ── Empty State ───────────────────────────────────────────────────────────
+// ── Empty State (DB returned 0 rows — likely RLS issue) ──────────────────
 function EmptyState({ lang }: { lang: string }) {
-  const b = translations.browse;
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
       <div className="text-6xl mb-6">🎓</div>
@@ -191,21 +190,22 @@ function EmptyState({ lang }: { lang: string }) {
         className="text-xl font-semibold text-[#1D1D1F] mb-3"
         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
       >
-        {b.emptyHeading[lang as 'th' | 'en']}
+        {lang === 'th' ? 'ยังไม่พบทุนการศึกษา' : 'No scholarships found'}
       </h2>
       <p
-        className="text-sm text-[#6E6E73] max-w-sm leading-relaxed mb-4"
+        className="text-sm text-[#6E6E73] max-w-sm leading-relaxed mb-6"
         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
       >
-        {b.emptyBody[lang as 'th' | 'en']}
+        {lang === 'th'
+          ? 'กรุณา refresh หน้า หรือติดต่อผู้ดูแลระบบ'
+          : 'Try refreshing the page, or contact the site admin.'}
       </p>
-      <p className="text-xs text-[#ADADB8]">{b.emptySmall[lang as 'th' | 'en']}</p>
-      <Link
-        href="/auth"
-        className="mt-6 text-sm text-[#F0A500] font-medium border border-[#F0A500]/40 rounded-full px-6 py-2 hover:bg-[#FFF8E7] transition-colors"
+      <button
+        onClick={() => window.location.reload()}
+        className="text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] transition-colors px-6 py-2.5 rounded-full"
       >
-        {translations.auth.signupTab[lang as 'th' | 'en']}
-      </Link>
+        {lang === 'th' ? 'รีเฟรชหน้านี้' : 'Refresh page'}
+      </button>
     </div>
   );
 }
@@ -218,6 +218,7 @@ export default function BrowsePage() {
   const [user, setUser] = useState<User | null>(null);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('browse');
@@ -229,10 +230,18 @@ export default function BrowsePage() {
   // Auth + data load
   useEffect(() => {
     // Load all scholarships
-    getScholarships().then((data) => {
-      setScholarships(data);
-      setLoading(false);
-    });
+    getScholarships()
+      .then((data) => {
+        setScholarships(data);
+        if (data.length === 0) {
+          setFetchError('no_data');
+        }
+      })
+      .catch((err) => {
+        console.error('[TunDee] getScholarships threw:', err);
+        setFetchError('exception');
+      })
+      .finally(() => setLoading(false));
 
     // Check auth — use getSession() (reads localStorage, no network round-trip)
     supabase.auth.getSession().then(async ({ data }) => {
@@ -334,6 +343,7 @@ export default function BrowsePage() {
     [scholarships, filters, selectedTiers]
   );
 
+  // True only when load is done AND DB returned nothing (not just filtered to 0)
   const isDataEmpty = !loading && scholarships.length === 0;
 
   return (
@@ -484,9 +494,13 @@ export default function BrowsePage() {
                   </div>
                 </div>
 
-                {/* Results header */}
+                {/* Results header — only show real count after data loads */}
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-sm text-[#6E6E73]">{filtered.length} {b.results[lang]}</span>
+                  <span className="text-sm text-[#6E6E73]">
+                    {loading
+                      ? (lang === 'th' ? 'กำลังโหลด...' : 'Loading...')
+                      : `${filtered.length} ${b.results[lang]}`}
+                  </span>
                   <span className="text-xs text-[#6E6E73] hidden sm:block">{b.sortLabel[lang]}</span>
                 </div>
 
@@ -499,7 +513,10 @@ export default function BrowsePage() {
                     <div className="text-4xl mb-4">🔍</div>
                     <h3 className="text-lg font-semibold text-[#1D1D1F] mb-2">{b.noResults[lang]}</h3>
                     <p className="text-[#6E6E73] text-sm mb-6">{b.noResultsSub[lang]}</p>
-                    <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[#F0A500] font-medium hover:underline">
+                    <button
+                      onClick={() => { setFilters(EMPTY_FILTERS); setSelectedTiers([...ALL_TIERS]); }}
+                      className="text-sm text-[#F0A500] font-medium hover:underline"
+                    >
                       {b.clearFilters[lang]}
                     </button>
                   </div>
