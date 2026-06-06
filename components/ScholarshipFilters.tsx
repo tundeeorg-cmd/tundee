@@ -35,9 +35,10 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
 
   const hasActiveFilters =
     filters.funderType !== '' || filters.minGpa !== null ||
-    filters.fieldOfStudy !== '' || filters.province !== '' || filters.welfareCard;
+    filters.fieldOfStudy !== '' || filters.province !== '' ||
+    filters.welfareCard || filters.gradeLevel !== '';
 
-  const clearAll = () => onChange({ funderType: '', minGpa: null, fieldOfStudy: '', province: '', welfareCard: false });
+  const clearAll = () => onChange({ funderType: '', minGpa: null, fieldOfStudy: '', province: '', welfareCard: false, gradeLevel: '' });
 
   return (
     <div className="bg-white border border-[#E5E5EA] rounded-[12px] p-6 space-y-6">
@@ -95,6 +96,36 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
             <option key={String(g.value)} value={g.value ?? ''}>{lang === 'th' ? g.th : g.en}</option>
           ))}
         </select>
+      </div>
+
+      {/* Grade level */}
+      <div>
+        <label className="block text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-3">
+          {lang === 'th' ? 'ระดับชั้น' : 'Grade Level'}
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { value: '', th: 'ทุกระดับ', en: 'Any' },
+            { value: 'ม.ต้น', th: 'ม.ต้น (ม.1–3)', en: 'Lower Sec.' },
+            { value: 'ม.ปลาย', th: 'ม.ปลาย (ม.4–6)', en: 'Upper Sec.' },
+            { value: 'ปวช./ปวส.', th: 'ปวช./ปวส.', en: 'Vocational' },
+            { value: 'uni', th: 'ปริญญาตรี', en: 'Bachelor' },
+            { value: 'graduate', th: 'บัณฑิตศึกษา', en: 'Graduate' },
+          ].map((g) => (
+            <button
+              key={g.value}
+              onClick={() => update({ gradeLevel: g.value })}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                filters.gradeLevel === g.value
+                  ? 'bg-[#F0A500] text-white border-[#F0A500]'
+                  : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'
+              }`}
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+            >
+              {lang === 'th' ? g.th : g.en}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Field of study */}

@@ -3,12 +3,22 @@
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
 
-export default function StatsBar() {
+interface Props {
+  scholarshipCount?: number;
+}
+
+export default function StatsBar({ scholarshipCount }: Props) {
   const { lang } = useLang();
   const s = translations.stats;
 
+  const countLabel = scholarshipCount
+    ? lang === 'th'
+      ? `${scholarshipCount}+ ทุน`
+      : `${scholarshipCount}+ Scholarships`
+    : s.scholarships[lang];
+
   const stats = [
-    { value: s.scholarships[lang], icon: '🎓' },
+    { value: countLabel, icon: '🎓' },
     { value: s.provinces[lang], icon: '📍' },
     { value: s.free[lang], icon: '✓' },
   ];

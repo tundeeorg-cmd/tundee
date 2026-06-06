@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /tracker
+
+Sitemap: https://www.tundee.org/sitemap.xml

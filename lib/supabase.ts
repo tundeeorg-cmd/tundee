@@ -19,6 +19,7 @@ export async function getScholarships(): Promise<Scholarship[]> {
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
+    .eq('is_active', true)
     .order('amount_thb', { ascending: false })
 
   // ── Debug logging (keep until scholarships reliably load) ──────────────
@@ -46,7 +47,7 @@ export async function getScholarshipById(id: string): Promise<Scholarship | null
     .from('scholarships')
     .select('*')
     .eq('id', id)
-    .maybeSingle()
+    .maybeSingle()  // deliberately no is_active filter — detail page should still show expired ones (with warning banner)
   if (error) {
     console.error('Error fetching scholarship:', error.message)
     return null

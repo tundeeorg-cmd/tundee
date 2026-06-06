@@ -19,7 +19,7 @@ import type { User } from '@supabase/supabase-js';
 // ── Types ────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
 type Tier = 'SAFETY' | 'TARGET' | 'REACH';
-type SortKey = 'amount' | 'deadline';
+type SortKey = 'amount' | 'deadline' | 'name';
 const ALL_TIERS: Tier[] = ['SAFETY', 'TARGET', 'REACH'];
 
 const EMPTY_FILTERS: FilterState = {
@@ -28,6 +28,7 @@ const EMPTY_FILTERS: FilterState = {
   fieldOfStudy: '',
   province: '',
   welfareCard: false,
+  gradeLevel: '',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -53,8 +54,30 @@ function sortByDeadline(scholarships: Scholarship[]): Scholarship[] {
   });
 }
 
+function sortByName(scholarships: Scholarship[], lang: string): Scholarship[] {
+  return [...scholarships].sort((a, b) => {
+    const nameA = lang === 'th' ? (a.name_th ?? '') : (a.name_en ?? a.name_th ?? '');
+    const nameB = lang === 'th' ? (b.name_th ?? '') : (b.name_en ?? b.name_th ?? '');
+    return nameA.localeCompare(nameB, lang === 'th' ? 'th' : 'en');
+  });
+}
+
+function searchFilter(scholarships: Scholarship[], query: string, lang: string): Scholarship[] {
+  if (!query.trim()) return scholarships;
+  const q = query.trim().toLowerCase();
+  return scholarships.filter((s) => {
+    const nameTh = (s.name_th ?? '').toLowerCase();
+    const nameEn = (s.name_en ?? '').toLowerCase();
+    const funderTh = (s.funder_name_th ?? '').toLowerCase();
+    const funderEn = (s.funder_name_en ?? '').toLowerCase();
+    return nameTh.includes(q) || nameEn.includes(q) || funderTh.includes(q) || funderEn.includes(q);
+  });
+}
+
 function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[] {
   return scholarships.filter((s) => {
+    // Safety: never show inactive scholarships even if they slipped through
+    if (s.is_active === false) return false;
     if (f.funderType && s.funder_type !== f.funderType) return false;
     if (f.minGpa !== null && s.min_gpa !== null && s.min_gpa > f.minGpa) return false;
     if (f.fieldOfStudy) {
@@ -66,6 +89,23 @@ function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[
       if (!provinces.includes('national') && !provinces.includes(f.province)) return false;
     }
     if (f.welfareCard && !s.welfare_card_priority) return false;
+    if (f.gradeLevel) {
+      const gl = s.grade_levels ?? [];
+      if (gl.length > 0) {
+        const g = f.gradeLevel;
+        // Generous matching: check canonical grade AND grouped labels
+        const GRADE_GROUPS: Record<string, string[]> = {
+          'ม.ต้น':    ['M1', 'M2', 'M3', 'ม.ต้น', 'ม.1', 'ม.2', 'ม.3'],
+          'ม.ปลาย':   ['M4', 'M5', 'M6', 'ม.ปลาย', 'ม.4', 'ม.5', 'ม.6'],
+          'ปวช./ปวส.': ['vocational', 'ปวช.', 'ปวส.', 'ม.ปลาย'],
+          uni:         ['uni'],
+          graduate:    ['graduate'],
+        };
+        const matchKeys = GRADE_GROUPS[g] ?? [g];
+        const hasMatch = gl.some(level => matchKeys.includes(level));
+        if (!hasMatch) return false;
+      }
+    }
     return true;
   });
 }
@@ -242,6 +282,7 @@ export default function BrowsePage() {
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<StudentProfile | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Auth + data load
   useEffect(() => {
@@ -285,6 +326,13 @@ export default function BrowsePage() {
             grade_level: profile.grade_level ?? 'M6',
           };
           setUserProfile(sp);
+
+          // Fire-and-forget: update last_active_at for the analytics dashboard
+          supabase
+            .from('profiles')
+            .update({ last_active_at: new Date().toISOString() })
+            .eq('id', authUser.id)
+            .then(() => {/* silent */})
         }
       } catch {
         // profiles table may not exist yet — silently ignore
@@ -298,12 +346,15 @@ export default function BrowsePage() {
   useEffect(() => {
     if (!userProfile || scholarships.length === 0) return;
     try {
-      const rows = scholarships.map(toScholarshipRow);
+      // Safety filter — exclude expired/hidden before matching
+      const activeScholarships = scholarships.filter(s => s.is_active !== false);
+      const rows = activeScholarships.map(toScholarshipRow);
       const results = getMatchedScholarships(rows, userProfile);
       setMatches(results);
 
       // Log recommendations async (fire-and-forget)
       logRecommendations(results, userProfile);
+
     } catch (e) {
       console.error('Matching engine error:', e);
     }
@@ -352,10 +403,21 @@ export default function BrowsePage() {
     return (raw && ALL_TIERS.includes(raw as Tier)) ? (raw as Tier) : 'TARGET';
   }
 
+  // Tier counts (before search, before sort — just filtering)
+  const tierCounts = useMemo(() => {
+    const base = applyFilters(scholarships, filters);
+    return Object.fromEntries(
+      ALL_TIERS.map((t) => [t, base.filter((s) => getTier(s) === t).length])
+    ) as Record<Tier, number>;
+  }, [scholarships, filters]);
+
   const filtered = useMemo(() => {
-    const base = applyFilters(scholarships, filters).filter(s => selectedTiers.includes(getTier(s)));
-    return sortKey === 'deadline' ? sortByDeadline(base) : sortByAmount(base);
-  }, [scholarships, filters, selectedTiers, sortKey]);
+    let base = applyFilters(scholarships, filters).filter(s => selectedTiers.includes(getTier(s)));
+    base = searchFilter(base, searchQuery, lang);
+    if (sortKey === 'deadline') return sortByDeadline(base);
+    if (sortKey === 'amount') return sortByAmount(base);
+    return sortByName(base, lang);
+  }, [scholarships, filters, selectedTiers, sortKey, searchQuery, lang]);
 
   // True only when load is done AND DB returned nothing (not just filtered to 0)
   const isDataEmpty = !loading && scholarships.length === 0;
@@ -425,10 +487,33 @@ export default function BrowsePage() {
                 </Link>
               </div>
             ) : matches.length === 0 ? (
-              <div className="flex flex-col items-center py-24 text-center">
+              <div className="flex flex-col items-center py-20 text-center">
                 <div className="text-5xl mb-5">🔍</div>
-                <h3 className="text-lg font-semibold text-[#1D1D1F] mb-2">{b.noMatchesHeading[lang]}</h3>
-                <p className="text-sm text-[#6E6E73]">{b.noMatchesSub[lang]}</p>
+                <h3
+                  className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2"
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                >
+                  {lang === 'th' ? 'ไม่พบทุนที่ตรงกับโปรไฟล์ปัจจุบัน' : 'No matches for your current profile'}
+                </h3>
+                <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-xs mb-6 leading-relaxed">
+                  {lang === 'th'
+                    ? 'ลองปรับเกรดหรือเพิ่มสาขาที่สนใจในโปรไฟล์ของคุณ'
+                    : 'Try updating your GPA or adding more fields of interest in your profile'}
+                </p>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  <Link
+                    href="/profile"
+                    className="px-5 py-2.5 bg-[#F0A500] text-white rounded-full text-sm font-semibold hover:bg-[#D4920A] transition-colors"
+                  >
+                    {lang === 'th' ? 'อัปเดตโปรไฟล์' : 'Update Profile'}
+                  </Link>
+                  <button
+                    onClick={() => setActiveTab('browse')}
+                    className="px-5 py-2.5 border border-[#E5E5EA] dark:border-[#38383A] rounded-full text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors"
+                  >
+                    {lang === 'th' ? 'ดูทุนทั้งหมด' : 'Browse All'}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -471,6 +556,45 @@ export default function BrowsePage() {
                   </div>
                 )}
 
+                {/* Search input */}
+                <div className="mb-5 relative">
+                  <div className="relative">
+                    <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search by scholarship or funder name...'}
+                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-[10px] bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#F0A500] transition-colors"
+                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#ADADB8] hover:text-[#6E6E73] transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {searchQuery && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-[#6E6E73]">
+                        {lang === 'th' ? 'ค้นหา:' : 'Searching:'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs bg-[#FFF8E7] border border-[#F0A500]/30 text-[#F0A500] px-2.5 py-0.5 rounded-full font-medium">
+                        {searchQuery}
+                        <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-[#D4920A]">×</button>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Tier filter */}
                 <div className="mb-5">
                   <p className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-2">
@@ -481,6 +605,7 @@ export default function BrowsePage() {
                       const styles = { SAFETY: { bg: '#EAFAF1', active: '#1E8449', dot: '🟢' }, TARGET: { bg: '#FFF8E7', active: '#D35400', dot: '🟡' }, REACH: { bg: '#FDEDEC', active: '#C0392B', dot: '🔴' } }[tier];
                       const label = translations.tier[tier][lang as 'th' | 'en'];
                       const isOn = selectedTiers.includes(tier);
+                      const count = tierCounts[tier] ?? 0;
                       return (
                         <button
                           key={tier}
@@ -502,6 +627,17 @@ export default function BrowsePage() {
                         >
                           <span>{styles.dot}</span>
                           {label}
+                          <span style={{
+                            background: isOn ? styles.active : '#ADADB8',
+                            color: '#fff',
+                            borderRadius: '10px',
+                            padding: '1px 6px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            marginLeft: '2px',
+                          }}>
+                            {count}
+                          </span>
                         </button>
                       );
                     })}
@@ -519,7 +655,7 @@ export default function BrowsePage() {
                     <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
                       <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
                       <div className="flex gap-1 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-lg p-0.5">
-                        {(['deadline', 'amount'] as SortKey[]).map((key) => (
+                        {(['deadline', 'amount', 'name'] as SortKey[]).map((key) => (
                           <button
                             key={key}
                             onClick={() => setSortKey(key)}
@@ -529,7 +665,11 @@ export default function BrowsePage() {
                                 : 'text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white'
                             }`}
                           >
-                            {key === 'deadline' ? b.sortDeadline[lang] : b.sortAmount[lang]}
+                            {key === 'deadline'
+                              ? b.sortDeadline[lang]
+                              : key === 'amount'
+                              ? b.sortAmount[lang]
+                              : (lang === 'th' ? 'ก–ฮ' : 'A–Z')}
                           </button>
                         ))}
                       </div>

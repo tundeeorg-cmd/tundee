@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 // Note: ChecklistStep type no longer needed — using InteractiveChecklist component
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -163,6 +163,7 @@ export default function ScholarshipDetailPage() {
   const [scholarship, setScholarship] = useState<Scholarship | null>(null);
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState<StoredMatchData | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const checklistRef = useRef<HTMLDivElement>(null);
 
   const d = translations.detail;
@@ -212,9 +213,17 @@ export default function ScholarshipDetailPage() {
   };
 
   const GRADE_LABEL: Record<string, { th: string; en: string }> = {
-    M4: { th: 'ม.4', en: 'M4' },
-    M5: { th: 'ม.5', en: 'M5' },
-    M6: { th: 'ม.6', en: 'M6' },
+    M1: { th: 'ม.1', en: 'M1 (Gr.7)' },
+    M2: { th: 'ม.2', en: 'M2 (Gr.8)' },
+    M3: { th: 'ม.3', en: 'M3 (Gr.9)' },
+    M4: { th: 'ม.4', en: 'M4 (Gr.10)' },
+    M5: { th: 'ม.5', en: 'M5 (Gr.11)' },
+    M6: { th: 'ม.6', en: 'M6 (Gr.12)' },
+    'ม.ต้น': { th: 'ม.ต้น (ม.1–3)', en: 'Lower Secondary' },
+    'ม.ปลาย': { th: 'ม.ปลาย (ม.4–6)', en: 'Upper Secondary' },
+    'ปวช.': { th: 'ปวช.', en: 'Vocational Cert.' },
+    'ปวส.': { th: 'ปวส.', en: 'Vocational Diploma' },
+    vocational: { th: 'สายอาชีพ', en: 'Vocational' },
     uni: { th: 'ปริญญาตรี', en: 'Undergraduate' },
     graduate: { th: 'บัณฑิตศึกษา', en: 'Graduate' },
   };
@@ -248,8 +257,18 @@ export default function ScholarshipDetailPage() {
     });
   }
 
+  const isExpired = s.deadline_date !== null && new Date(s.deadline_date) < new Date();
+
   return (
     <div className="bg-white min-h-screen">
+      <style>{`
+        @media print {
+          nav, .no-print, button:not(.print-keep), .sticky { display: none !important; }
+          body { font-size: 12pt; background: white; }
+          .print-break { page-break-before: always; }
+          a[href]::after { content: " (" attr(href) ")"; font-size: 9pt; color: #666; }
+        }
+      `}</style>
       <div className="max-w-[1200px] mx-auto px-6 py-10">
         {/* Back */}
         <Link
@@ -258,6 +277,18 @@ export default function ScholarshipDetailPage() {
         >
           {d.back[lang]}
         </Link>
+
+        {/* Expired deadline warning */}
+        {isExpired && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <span className="text-lg shrink-0">⚠️</span>
+            <p className="text-red-700 dark:text-red-400 font-semibold text-sm">
+              {lang === 'th'
+                ? 'ทุนนี้หมดเขตรับสมัครแล้ว — ตรวจสอบเว็บไซต์ทุนสำหรับรอบถัดไป'
+                : 'This scholarship deadline has passed — check the funder\'s website for the next cycle'}
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           {/* Main column */}
@@ -484,38 +515,92 @@ export default function ScholarshipDetailPage() {
           <aside className="lg:col-span-1">
             <div className="sticky top-24 space-y-4">
               {/* Apply CTA */}
-              {s.application_url ? (
-                <a
-                  href={s.application_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              {(() => {
+                const canApply = s.application_url && s.application_url !== 'CHECK_WEBSITE';
+                const applyHref = canApply
+                  ? s.application_url!
+                  : `https://www.google.com/search?q=${encodeURIComponent((s.name_th ?? '') + ' สมัคร')}`;
+                const trackClick = async () => {
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) {
+                      await supabase.from('applications').upsert(
+                        {
+                          user_id: session.user.id,
+                          scholarship_id: s.id,
+                          status: 'started',
+                          clicked_through_at: new Date().toISOString(),
+                        },
+                        { onConflict: 'user_id,scholarship_id' }
+                      );
+                    }
+                  } catch { /* silent */ }
+                };
+                return (
+                  <a
+                    href={applyHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={trackClick}
+                    className={`flex items-center justify-center gap-2 w-full font-semibold py-4 px-6 rounded-full transition-colors duration-200 text-sm ${
+                      canApply
+                        ? 'bg-[#F0A500] text-white hover:bg-[#D4920A]'
+                        : 'bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] border border-[#E5E5EA] dark:border-[#38383A]'
+                    }`}
+                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  >
+                    {canApply
+                      ? <>
+                          {d.applyNow[lang]}
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </>
+                      : <>
+                          {lang === 'th' ? 'ค้นหาข้อมูลทุนนี้' : 'Search for this scholarship'}
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        </>
+                    }
+                  </a>
+                );
+              })()}
+
+              {/* Share + Print */}
+              <div className="flex gap-2">
+                <button
                   onClick={async () => {
-                    // Track click-through: upsert with status=started
-                    try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (session?.user) {
-                        await supabase.from('applications').upsert(
-                          {
-                            user_id: session.user.id,
-                            scholarship_id: s.id,
-                            status: 'started',
-                            clicked_through_at: new Date().toISOString(),
-                          },
-                          { onConflict: 'user_id,scholarship_id' }
-                        );
-                        console.log('[TunDee] Tracked click-through for scholarship', s.id);
-                      }
-                    } catch { /* applications table may not exist yet */ }
+                    const url = window.location.href;
+                    const title = lang === 'th' ? s.name_th : (s.name_en ?? s.name_th);
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title,
+                          text: lang === 'th' ? `พบทุน ${title} บน TunDee` : `Check out ${title} on TunDee`,
+                          url,
+                        });
+                      } catch { /* user cancelled */ }
+                    } else {
+                      await navigator.clipboard.writeText(url);
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2500);
+                    }
                   }}
-                  className="flex items-center justify-center gap-2 w-full bg-[#F0A500] text-white font-semibold py-4 px-6 rounded-full hover:bg-[#D4920A] transition-colors duration-200 text-sm"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#38383A] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors no-print"
                 >
-                  {d.applyNow[lang]}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-              ) : null}
+                  {linkCopied ? '✓ ' : '🔗 '}
+                  {linkCopied
+                    ? (lang === 'th' ? 'คัดลอกแล้ว' : 'Copied!')
+                    : (lang === 'th' ? 'แชร์' : 'Share')}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#38383A] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors no-print"
+                >
+                  🖨️ {lang === 'th' ? 'พิมพ์' : 'Print'}
+                </button>
+              </div>
 
               {/* Save scholarship */}
               <div className="flex items-center justify-center gap-2 py-2">

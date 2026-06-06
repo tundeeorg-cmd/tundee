@@ -42,6 +42,9 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
   const deadlineColors = DEADLINE_COLOR_MAP[deadlineInfo.color];
   const deadlineLabel = lang === 'th' ? deadlineInfo.label : deadlineInfo.labelEn;
 
+  const isNew = s.created_at &&
+    (Date.now() - new Date(s.created_at).getTime()) < 30 * 24 * 60 * 60 * 1000;
+
   function formatAmount(): string {
     if (!s.amount_thb) return d.contactFunder[lang];
     const amount = s.amount_thb.toLocaleString('th-TH');
@@ -51,7 +54,7 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
   }
 
   return (
-    <article className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-shadow duration-300 group relative">
+    <article className="scholarship-card-hover bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 group relative">
 
       {/* Save button — top-right absolute */}
       <div className="absolute top-4 right-4 z-10">
@@ -61,12 +64,19 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 pr-8">
         <div className="flex-1 min-w-0">
-          <h3
-            className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-          >
-            {name}
-          </h3>
+          <div className="flex items-start gap-2 flex-wrap mb-0.5">
+            <h3
+              className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+            >
+              {name}
+            </h3>
+            {isNew && (
+              <span className="shrink-0 text-[10px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-700 mt-0.5">
+                {lang === 'th' ? 'ใหม่' : 'New'}
+              </span>
+            )}
+          </div>
           {funder && <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mt-1 truncate">{funder}</p>}
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">

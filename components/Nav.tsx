@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import LanguageToggle from './LanguageToggle';
 import { useLang } from '@/lib/LanguageContext';
@@ -22,14 +23,14 @@ function Avatar({ user, avatarUrl, displayName, size = 32 }: {
   const initials = getInitials(displayName || user.email || '?');
   if (avatarUrl) {
     return (
-      /* eslint-disable-next-line @next/next/no-img-element */
-      <img
+      <Image
         src={avatarUrl}
         alt={initials}
         width={size}
         height={size}
         className="rounded-full object-cover"
         style={{ width: size, height: size }}
+        unoptimized={!avatarUrl.startsWith('https://egfcqafrlrhkjnynsiyb') && !avatarUrl.startsWith('https://lh3.google')}
       />
     );
   }
@@ -79,6 +80,7 @@ export default function Nav() {
   const [dropdownOpen, setDropdown]     = useState(false);
   const [user, setUser]                 = useState<User | null>(null);
   const [hasUrgentDeadline, setUrgent]  = useState(false);
+  const [appCount, setAppCount]         = useState(0);
   const dropdownRef                     = useRef<HTMLDivElement>(null);
   const nav = translations.nav;
 
@@ -103,11 +105,12 @@ export default function Nav() {
   async function checkUrgentDeadlines(userId: string) {
     try {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, count } = await supabase
         .from('applications')
-        .select('scholarship_id, scholarships(deadline_date)')
+        .select('scholarship_id, scholarships(deadline_date)', { count: 'exact' })
         .eq('user_id', userId)
         .in('status', ['started', 'in_progress']);
+      if (count !== null) setAppCount(count);
       if (!data) return;
       const hasUrgent = data.some((app) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,8 +167,15 @@ export default function Nav() {
           className="relative text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
         >
           {nav.navTracker[lang]}
+          {/* Gold count badge */}
+          {appCount > 0 && (
+            <span className="absolute -top-1.5 -right-3.5 min-w-[16px] h-4 bg-[#F0A500] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+              {appCount > 9 ? '9+' : appCount}
+            </span>
+          )}
+          {/* Red urgency dot (when imminent deadline) */}
           {hasUrgentDeadline && (
-            <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#1C1C1E]" />
           )}
         </Link>
       )}
@@ -196,6 +206,12 @@ export default function Nav() {
         {/* ── Desktop ──────────────────────────────────────────────────── */}
         <div className="hidden md:flex items-center gap-8">
           {links}
+          {/* Subtle admin link — only visible to admin email */}
+          {user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+            <a href="/admin" className="text-xs text-[#ADADB8] hover:text-[#F0A500] transition-colors">
+              Admin
+            </a>
+          )}
           <LanguageToggle />
 
           {user ? (

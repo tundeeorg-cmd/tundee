@@ -68,4 +68,5 @@ export interface FilterState {
   fieldOfStudy: string;
   province: string;
   welfareCard: boolean;
+  gradeLevel: string;  // '' = any, otherwise matches grade_levels array
 }

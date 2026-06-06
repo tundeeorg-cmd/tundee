@@ -2,22 +2,56 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
+import BottomNav from '@/components/BottomNav';
+import BackToTop from '@/components/BackToTop';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider } from '@/contexts/UserContext';
 
 export const metadata: Metadata = {
-  title: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
-  description: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 3,000 ทุน ค้นหาได้ฟรี ตรงเป้า และง่ายดาย | TunDee aggregates 3,000+ Thai scholarships — free, targeted, bilingual.',
-  keywords: 'ทุนการศึกษา,scholarship,Thailand,thai scholarship,ทุนดี,tundee',
-  metadataBase: new URL('https://tundee.org'),
+  metadataBase: new URL('https://www.tundee.org'),
+  title: {
+    default: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
+    template: '%s | TunDee ทุนดี',
+  },
+  description: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 34 ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates Thai scholarships — AI-powered matching, free, bilingual.',
+  keywords: [
+    'ทุนการศึกษา', 'scholarship', 'Thailand', 'thai scholarship', 'ทุนดี', 'tundee',
+    'ทุนการศึกษาไทย', 'ทุนม.6', 'ทุนนักเรียน', 'Thai student scholarship',
+    'scholarship matching', 'ทุนโครงการ', 'ทุนรัฐบาล', 'ทุนเอกชน',
+  ],
+  authors: [{ name: 'Jenissa Vichiansin', url: 'https://www.tundee.org/about' }],
+  creator: 'TunDee',
+  publisher: 'TunDee',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+  },
+  alternates: {
+    canonical: 'https://www.tundee.org',
+    languages: {
+      'th-TH': 'https://www.tundee.org',
+      'en-US': 'https://www.tundee.org',
+    },
+  },
   openGraph: {
     title: 'ทุนดี — ค้นหาทุนการศึกษาไทย',
-    description: 'รวบรวมทุนการศึกษาไทยกว่า 3,000 ทุน ฟรีตลอด',
-    url: 'https://tundee.org',
-    siteName: 'TunDee',
+    description: 'รวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติด้วย AI ฟรีตลอด',
+    url: 'https://www.tundee.org',
+    siteName: 'TunDee ทุนดี',
     locale: 'th_TH',
     type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'TunDee — ทุนการศึกษาไทย' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
+    description: 'รวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติ ฟรีตลอด',
+    images: ['/og-image.png'],
+  },
+  verification: {
+    google: 'tundee-google-site-verification',
   },
 };
 
@@ -46,10 +80,14 @@ export default function RootLayout({
           <LanguageProvider>
             <UserProvider>
               <Nav />
-              <main className="flex-1 pt-16">
+              <main className="flex-1 pt-16 pb-[70px] md:pb-0">
                 {children}
               </main>
-              <Footer />
+              <div className="hidden md:block">
+                <Footer />
+              </div>
+              <BackToTop />
+              <BottomNav />
             </UserProvider>
           </LanguageProvider>
         </ThemeProvider>

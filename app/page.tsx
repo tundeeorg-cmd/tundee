@@ -63,7 +63,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
-      <StatsBar />
+      <StatsBar scholarshipCount={scholarships.length > 0 ? scholarships.length : undefined} />
 
       {/* How It Works */}
       <section className="section-pad bg-white">
@@ -196,8 +196,8 @@ export default function HomePage() {
           </h2>
           <p className="text-white/80 text-sm mb-8">
             {lang === 'th'
-              ? '34+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด'
-              : '34+ real scholarships, AI-powered matching, always free'}
+              ? `${scholarships.length > 0 ? scholarships.length : 34}+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด`
+              : `${scholarships.length > 0 ? scholarships.length : 34}+ real scholarships, AI-powered matching, always free`}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
