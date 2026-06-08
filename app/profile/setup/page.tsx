@@ -16,24 +16,24 @@ import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 const TOTAL_STEPS = 6;
 
 const GRADE_OPTIONS = [
-  { value: 'M1-M3',    th: 'ม.1–3',        en: 'Grade 7–9' },
-  { value: 'M4-M6',    th: 'ม.4–6',        en: 'Grade 10–12' },
-  { value: 'vocational',th: 'ปวช./ปวส.',   en: 'Vocational' },
-  { value: 'uni',       th: 'ปริญญาตรี',   en: 'Undergraduate' },
-  { value: 'graduate',  th: 'บัณฑิตศึกษา', en: 'Graduate' },
+  { value: 'M1-M3',     th: 'ม.1–3',        en: 'Grade 7–9' },
+  { value: 'M4-M6',     th: 'ม.4–6',        en: 'Grade 10–12' },
+  { value: 'vocational', th: 'ปวช./ปวส.',   en: 'Vocational' },
+  { value: 'uni',        th: 'ปริญญาตรี',   en: 'Undergraduate' },
+  { value: 'graduate',   th: 'บัณฑิตศึกษา', en: 'Graduate' },
 ];
 
 const INCOME_OPTIONS = [
-  { value: 1, th: 'ต่ำกว่า 5,000 บาท/เดือน',      en: 'Under ฿5,000/month' },
-  { value: 2, th: '5,000 – 10,000 บาท/เดือน',     en: '฿5,000 – ฿10,000/month' },
-  { value: 3, th: '10,000 – 15,000 บาท/เดือน',    en: '฿10,000 – ฿15,000/month' },
-  { value: 4, th: '15,000 – 20,000 บาท/เดือน',    en: '฿15,000 – ฿20,000/month' },
-  { value: 5, th: '20,000 – 30,000 บาท/เดือน',    en: '฿20,000 – ฿30,000/month' },
-  { value: 6, th: '30,000 – 50,000 บาท/เดือน',    en: '฿30,000 – ฿50,000/month' },
-  { value: 7, th: 'มากกว่า 50,000 บาท/เดือน',     en: 'Over ฿50,000/month' },
+  { value: 1, th: 'ต่ำกว่า 5,000 บาท/เดือน',   en: 'Under ฿5,000/month' },
+  { value: 2, th: '5,000 – 10,000 บาท/เดือน',  en: '฿5,000 – ฿10,000/month' },
+  { value: 3, th: '10,000 – 15,000 บาท/เดือน', en: '฿10,000 – ฿15,000/month' },
+  { value: 4, th: '15,000 – 20,000 บาท/เดือน', en: '฿15,000 – ฿20,000/month' },
+  { value: 5, th: '20,000 – 30,000 บาท/เดือน', en: '฿20,000 – ฿30,000/month' },
+  { value: 6, th: '30,000 – 50,000 บาท/เดือน', en: '฿30,000 – ฿50,000/month' },
+  { value: 7, th: 'มากกว่า 50,000 บาท/เดือน',  en: 'Over ฿50,000/month' },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-components (defined OUTSIDE page to prevent remount on re-render) ────
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
   const pct = Math.round(((step + 1) / total) * 100);
@@ -54,8 +54,50 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 function Spinner() {
+  return <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />;
+}
+
+// WizardContainer is intentionally outside the page component.
+// If defined inside, React treats it as a new component type on every render,
+// causing full unmount → remount → input focus loss + language flash.
+interface WizardContainerProps {
+  children: React.ReactNode;
+  step: number;
+  total: number;
+  lang: string;
+  error?: string;
+  onBack?: () => void;
+}
+function WizardContainer({ children, step, total, lang, error, onBack }: WizardContainerProps) {
   return (
-    <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md">
+        {/* Back + progress */}
+        <div className="mb-6">
+          {step > 0 && onBack && (
+            <button
+              onClick={onBack}
+              className="text-sm text-[#6e6e73] dark:text-[#8e8e93] hover:text-[#1D1D1F] dark:hover:text-white mb-4 flex items-center gap-1 transition-colors"
+            >
+              ← {lang === 'th' ? 'ย้อนกลับ' : 'Back'}
+            </button>
+          )}
+          <ProgressBar step={step} total={total} />
+        </div>
+
+        <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl shadow-sm border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden">
+          <div className="h-1 bg-[#F0A500]" />
+          <div className="px-7 py-8">
+            {error && (
+              <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            )}
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -88,8 +130,9 @@ export default function ProfileSetupPage() {
         router.replace('/auth');
       } else {
         setAuthLoading(false);
-        // Pre-fill name from Google if available
-        const name = data.session.user.user_metadata?.full_name ?? data.session.user.user_metadata?.name ?? '';
+        const name =
+          data.session.user.user_metadata?.full_name ??
+          data.session.user.user_metadata?.name ?? '';
         if (name) setDisplayName(name);
       }
     });
@@ -97,14 +140,13 @@ export default function ProfileSetupPage() {
   }, []);
 
   function toggleField(value: string) {
-    setSelectedFields(prev =>
-      prev.includes(value) ? prev.filter(x => x !== value) : [...prev, value]
+    setSelectedFields((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
     );
   }
 
   function nextStep() {
     setError('');
-    // Validate current step
     if (step === 2 && gpa) {
       const n = parseFloat(gpa);
       if (isNaN(n) || n < 0 || n > 4) {
@@ -112,12 +154,12 @@ export default function ProfileSetupPage() {
         return;
       }
     }
-    setStep(s => s + 1);
+    setStep((s) => s + 1);
   }
 
   function prevStep() {
     setError('');
-    setStep(s => s - 1);
+    setStep((s) => s - 1);
   }
 
   async function handleSave() {
@@ -130,27 +172,28 @@ export default function ProfileSetupPage() {
       const gpaNum = gpa ? parseFloat(gpa) : null;
 
       const { error: upsertErr } = await supabase.from('profiles').upsert({
-        id:               session.user.id,
-        display_name:     displayName.trim() || null,
-        grade_level:      gradeLevel || null,
-        province_id:      province || null,
-        gpa:              gpaNum,
-        income_bracket:   incomeBracket,
-        welfare_card:     welfareCard,
+        id:                 session.user.id,
+        display_name:       displayName.trim() || null,
+        grade_level:        gradeLevel || null,
+        province_id:        province || null,
+        gpa:                gpaNum,
+        income_bracket:     incomeBracket,
+        welfare_card:       welfareCard,
         fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        last_active_at:   new Date().toISOString(),
-        updated_at:       new Date().toISOString(),
+        // Note: last_active_at removed — column does not exist in profiles table
       });
 
       if (upsertErr) {
-        setError(upsertErr.message);
+        setError(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Could not save profile. Please try again.');
+        console.error('[TunDee] profile upsert error:', upsertErr.message);
         setSaving(false);
         return;
       }
 
       router.replace('/scholarships');
     } catch (e) {
-      setError(String(e));
+      setError(lang === 'th' ? 'เกิดข้อผิดพลาด กรุณาลองใหม่' : 'Something went wrong. Please try again.');
+      console.error('[TunDee] profile save error:', e);
       setSaving(false);
     }
   }
@@ -164,55 +207,26 @@ export default function ProfileSetupPage() {
     );
   }
 
-  const filteredProvinces = PROVINCES_TH.filter(p =>
+  const filteredProvinces = PROVINCES_TH.filter((p) =>
     p.toLowerCase().includes(provinceQuery.toLowerCase())
   );
 
-  // ── Shared layout wrapper ─────────────────────────────────────────────────
-  const Container = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Back + progress */}
-        <div className="mb-6">
-          {step > 0 && (
-            <button
-              onClick={prevStep}
-              className="text-sm text-[#6e6e73] dark:text-[#8e8e93] hover:text-[#1D1D1F] dark:hover:text-white mb-4 flex items-center gap-1 transition-colors"
-            >
-              ← {lang === 'th' ? 'ย้อนกลับ' : 'Back'}
-            </button>
-          )}
-          <ProgressBar step={step} total={TOTAL_STEPS} />
-        </div>
-
-        <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl shadow-sm border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden">
-          <div className="h-1 bg-[#F0A500]" />
-          <div className="px-7 py-8">
-            {error && (
-              <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
-                {error}
-              </div>
-            )}
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const fontTh = 'Sarabun, sans-serif';
+  const fontEn = 'DM Sans, sans-serif';
+  const font   = lang === 'th' ? fontTh : fontEn;
 
   // ══════════════════════════════════════════════════════════════════════════
   // STEP 0 — Name
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 0) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">👋</div>
-          <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'คุณชื่ออะไร?' : "What's your name?"}
           </h1>
-          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]">
+          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ชื่อที่ใช้แสดงในโปรไฟล์' : 'This will appear on your profile'}
           </p>
         </div>
@@ -220,27 +234,31 @@ export default function ProfileSetupPage() {
         <input
           type="text"
           value={displayName}
-          onChange={e => setDisplayName(e.target.value)}
+          onChange={(e) => setDisplayName(e.target.value)}
           placeholder={lang === 'th' ? 'ชื่อของคุณ' : 'Your name'}
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           className="w-full text-center text-2xl font-light border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#F0A500] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-3 mb-8 transition-colors"
-          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-          onKeyDown={e => { if (e.key === 'Enter') nextStep(); }}
+          style={{ fontFamily: font }}
+          onKeyDown={(e) => { if (e.key === 'Enter') nextStep(); }}
         />
 
         <button
           onClick={nextStep}
           className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors"
+          style={{ fontFamily: font }}
         >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
         </button>
         <p className="text-center mt-3">
-          <button onClick={nextStep} className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors">
+          <button
+            onClick={nextStep}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
         </p>
-      </Container>
+      </WizardContainer>
     );
   }
 
@@ -249,17 +267,16 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">🎓</div>
-          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'คุณกำลังเรียนอยู่ชั้นไหน?' : 'What grade are you in?'}
           </h1>
         </div>
 
         <div className="space-y-2 mb-6">
-          {GRADE_OPTIONS.map(opt => (
+          {GRADE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => { setGradeLevel(opt.value); setStep(2); }}
@@ -269,23 +286,26 @@ export default function ProfileSetupPage() {
                   : 'border-[#e0e0e0] dark:border-[#3a3a3c] hover:border-[#F0A500]/50 bg-white dark:bg-[#2c2c2e]'
               }`}
             >
-              <span className="flex-1 font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]"
-                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+              <span
+                className="flex-1 font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]"
+                style={{ fontFamily: font }}
+              >
                 {lang === 'th' ? opt.th : opt.en}
               </span>
-              {gradeLevel === opt.value && (
-                <span className="text-[#F0A500] font-bold">✓</span>
-              )}
+              {gradeLevel === opt.value && <span className="text-[#F0A500] font-bold">✓</span>}
             </button>
           ))}
         </div>
 
         <p className="text-center">
-          <button onClick={() => setStep(2)} className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors">
+          <button
+            onClick={() => setStep(2)}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
         </p>
-      </Container>
+      </WizardContainer>
     );
   }
 
@@ -294,14 +314,13 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 2) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">📊</div>
-          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'เกรดเฉลี่ยของคุณคือเท่าไหร่?' : 'What is your GPA?'}
           </h1>
-          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]">
+          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ใช้สำหรับกรองทุนที่มีเงื่อนไขเกรด' : 'Used to match scholarships with GPA requirements'}
           </p>
         </div>
@@ -313,26 +332,33 @@ export default function ProfileSetupPage() {
             max="4"
             step="0.01"
             value={gpa}
-            onChange={e => setGpa(e.target.value)}
+            onChange={(e) => setGpa(e.target.value)}
             placeholder="3.50"
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             inputMode="decimal"
             className="text-center text-4xl font-light w-40 border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#F0A500] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-2 transition-colors"
-            onKeyDown={e => { if (e.key === 'Enter') nextStep(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') nextStep(); }}
           />
           <p className="text-xs text-[#aeaeb2] mt-2">0.00 – 4.00</p>
         </div>
 
-        <button onClick={nextStep} className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors mb-3">
+        <button
+          onClick={nextStep}
+          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors mb-3"
+          style={{ fontFamily: font }}
+        >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
         </button>
         <p className="text-center">
-          <button onClick={() => { setGpa(''); nextStep(); }} className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors">
-            {lang === 'th' ? 'ยังไม่รู้ / ข้ามก่อน' : "Not sure yet / Skip"}
+          <button
+            onClick={() => { setGpa(''); nextStep(); }}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
+            {lang === 'th' ? 'ยังไม่รู้ / ข้ามก่อน' : 'Not sure yet / Skip'}
           </button>
         </p>
-      </Container>
+      </WizardContainer>
     );
   }
 
@@ -341,11 +367,10 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 3) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">📍</div>
-          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'คุณอยู่จังหวัดไหน?' : 'Which province are you from?'}
           </h1>
         </div>
@@ -354,16 +379,17 @@ export default function ProfileSetupPage() {
           <input
             type="text"
             value={provinceQuery}
-            onChange={e => setProvinceQuery(e.target.value)}
+            onChange={(e) => setProvinceQuery(e.target.value)}
             placeholder={lang === 'th' ? 'ค้นหาจังหวัด...' : 'Search province...'}
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             className="w-full px-4 py-3 text-base border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-2 focus:ring-[#F0A500]/20 placeholder-[#aeaeb2]"
+            style={{ fontFamily: fontTh }}
           />
         </div>
 
         <div className="max-h-52 overflow-y-auto border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl mb-4 divide-y divide-[#f0f0f0] dark:divide-[#3a3a3c]">
-          {filteredProvinces.slice(0, 20).map(pv => (
+          {filteredProvinces.slice(0, 20).map((pv) => (
             <button
               key={pv}
               onClick={() => { setProvince(pv); setStep(4); }}
@@ -372,25 +398,28 @@ export default function ProfileSetupPage() {
                   ? 'bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#F0A500] font-semibold'
                   : 'bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#3a3a3c]'
               }`}
-              style={{ fontFamily: 'Sarabun, sans-serif' }}
+              style={{ fontFamily: fontTh }}
             >
               {pv}
               {province === pv && <span className="float-right text-[#F0A500]">✓</span>}
             </button>
           ))}
           {filteredProvinces.length === 0 && (
-            <p className="text-center text-sm text-[#aeaeb2] py-4">
+            <p className="text-center text-sm text-[#aeaeb2] py-4" style={{ fontFamily: font }}>
               {lang === 'th' ? 'ไม่พบจังหวัด' : 'Province not found'}
             </p>
           )}
         </div>
 
         <p className="text-center">
-          <button onClick={() => setStep(4)} className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors">
+          <button
+            onClick={() => setStep(4)}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
         </p>
-      </Container>
+      </WizardContainer>
     );
   }
 
@@ -399,20 +428,19 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 4) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">💰</div>
-          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
             {lang === 'th' ? 'รายได้ครัวเรือนต่อเดือน' : 'Monthly household income'}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">
+          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ใช้กรองทุนที่มีเงื่อนไขรายได้' : 'Used to match income-restricted scholarships'}
           </p>
         </div>
 
         <div className="space-y-1.5 mb-5">
-          {INCOME_OPTIONS.map(opt => (
+          {INCOME_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setIncomeBracket(opt.value)}
@@ -421,7 +449,7 @@ export default function ProfileSetupPage() {
                   ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]'
                   : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#F0A500]/50'
               }`}
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              style={{ fontFamily: font }}
             >
               {lang === 'th' ? opt.th : opt.en}
             </button>
@@ -431,26 +459,36 @@ export default function ProfileSetupPage() {
         {/* Welfare card toggle */}
         <div className="flex items-center justify-between px-4 py-3.5 bg-[#F5F5F7] dark:bg-[#2c2c2e] rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] mb-6">
           <div>
-            <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+            <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]" style={{ fontFamily: font }}>
               {lang === 'th' ? 'บัตรสวัสดิการแห่งรัฐ' : 'State Welfare Card'}
             </p>
-            <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-0.5">
+            <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-0.5" style={{ fontFamily: font }}>
               {lang === 'th' ? 'มีบัตรสวัสดิการแห่งรัฐ' : 'I have a state welfare card'}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setWelfareCard(!welfareCard)}
-            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${welfareCard ? 'bg-[#F0A500]' : 'bg-[#D1D1D6] dark:bg-[#636366]'}`}
+            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${
+              welfareCard ? 'bg-[#F0A500]' : 'bg-[#D1D1D6] dark:bg-[#636366]'
+            }`}
           >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${welfareCard ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            <span
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                welfareCard ? 'translate-x-6' : 'translate-x-0.5'
+              }`}
+            />
           </button>
         </div>
 
-        <button onClick={nextStep} className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors">
+        <button
+          onClick={nextStep}
+          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors"
+          style={{ fontFamily: font }}
+        >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
         </button>
-      </Container>
+      </WizardContainer>
     );
   }
 
@@ -459,20 +497,19 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 5) {
     return (
-      <Container>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">📚</div>
-          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
             {lang === 'th' ? 'สนใจเรียนด้านไหน?' : 'What do you want to study?'}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">
+          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'เลือกได้หลายอย่าง' : 'Select all that apply'}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
-          {FIELDS_OF_STUDY.map(f => (
+          {FIELDS_OF_STUDY.map((f) => (
             <button
               key={f.th}
               type="button"
@@ -482,7 +519,7 @@ export default function ProfileSetupPage() {
                   ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500]'
                   : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#F0A500]/50'
               }`}
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              style={{ fontFamily: font }}
             >
               {lang === 'th' ? f.th : f.en}
             </button>
@@ -493,6 +530,7 @@ export default function ProfileSetupPage() {
           onClick={handleSave}
           disabled={saving}
           className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          style={{ fontFamily: font }}
         >
           {saving && <Spinner />}
           {lang === 'th' ? 'บันทึกและเริ่มค้นหาทุน →' : 'Save & Find Scholarships →'}
@@ -506,7 +544,7 @@ export default function ProfileSetupPage() {
             {lang === 'th' ? 'ข้ามก่อน ดูทุนเลย' : 'Skip, browse scholarships now'}
           </button>
         </p>
-      </Container>
+      </WizardContainer>
     );
   }
 

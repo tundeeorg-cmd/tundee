@@ -671,12 +671,7 @@ export default function BrowsePage() {
             grade_level:       profile.grade_level      ?? '',
           });
 
-          // Fire-and-forget last_active_at
-          supabase
-            .from('profiles')
-            .update({ last_active_at: new Date().toISOString() })
-            .eq('id', authUser.id)
-            .then(() => {/* silent */});
+          // (last_active_at removed — column does not exist in profiles table)
         }
       } catch {
         // silently ignore

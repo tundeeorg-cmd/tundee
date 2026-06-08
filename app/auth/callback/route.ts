@@ -65,12 +65,7 @@ async function resolveRedirect(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return '/auth?error=auth_failed'
 
-    // Update last_active_at (fire-and-forget, ignore errors)
-    supabase
-      .from('profiles')
-      .update({ last_active_at: new Date().toISOString() })
-      .eq('id', user.id)
-      .then(() => {/* silent */})
+    // (last_active_at removed — column does not exist in profiles table)
 
     // Check if the user has filled in their profile (GPA as proxy)
     const { data: profile } = await supabase
