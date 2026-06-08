@@ -3,6 +3,11 @@
 /**
  * /profile/setup — Duolingo-style 6-step onboarding wizard.
  * Redirected here from /auth/callback when profile is incomplete.
+ *
+ * FIXED (Jun 2026): handleSave now uses getUser() (validates token with
+ * Supabase auth server) instead of getSession() (stale cache). Added
+ * upsert→update fallback to handle RLS INSERT restrictions. Actual
+ * Supabase error is now shown so failures are diagnosable.
  */
 
 import { useEffect, useState } from 'react';
@@ -89,8 +94,11 @@ function WizardContainer({ children, step, total, lang, error, onBack }: WizardC
           <div className="h-1 bg-[#F0A500]" />
           <div className="px-7 py-8">
             {error && (
-              <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
-                {error}
+              <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-0.5">
+                  {lang === 'th' ? 'บันทึกไม่สำเร็จ' : 'Could not save profile'}
+                </p>
+                <p className="text-xs font-mono text-red-500 dark:text-red-400 break-all">{error}</p>
               </div>
             )}
             {children}
@@ -166,13 +174,20 @@ export default function ProfileSetupPage() {
     setSaving(true);
     setError('');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace('/auth'); return; }
+      // getUser() validates the JWT with Supabase auth server (not just local cache).
+      // This is the correct method for any operation that writes to the DB.
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        console.error('[TunDee] getUser failed:', authError?.message);
+        router.replace('/auth');
+        return;
+      }
 
       const gpaNum = gpa ? parseFloat(gpa) : null;
 
-      const { error: upsertErr } = await supabase.from('profiles').upsert({
-        id:                 session.user.id,
+      const payload = {
+        id:                 user.id,   // must match auth.uid() for RLS
         display_name:       displayName.trim() || null,
         grade_level:        gradeLevel || null,
         province_id:        province || null,
@@ -180,20 +195,45 @@ export default function ProfileSetupPage() {
         income_bracket:     incomeBracket,
         welfare_card:       welfareCard,
         fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        // Note: last_active_at removed — column does not exist in profiles table
-      });
+        updated_at:         new Date().toISOString(),
+      };
+
+      console.log('[TunDee Setup] upserting profile for', user.id);
+
+      // Try upsert first (handles both new rows and existing rows)
+      const { error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' });
 
       if (upsertErr) {
-        setError(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Could not save profile. Please try again.');
-        console.error('[TunDee] profile upsert error:', upsertErr.message);
-        setSaving(false);
-        return;
+        console.error('[TunDee Setup] upsert error:', upsertErr.code, upsertErr.message, upsertErr.details);
+
+        // Fallback: plain UPDATE (handles case where RLS blocks INSERT but allows UPDATE,
+        // e.g. when the row already exists from the auth trigger)
+        const { id: _id, ...updateFields } = payload;
+        const { error: updateErr } = await supabase
+          .from('profiles')
+          .update(updateFields)
+          .eq('id', user.id);
+
+        if (updateErr) {
+          console.error('[TunDee Setup] update error:', updateErr.code, updateErr.message, updateErr.details);
+          // Show the ACTUAL Supabase error so it can be diagnosed
+          setError(`[${updateErr.code}] ${updateErr.message}`);
+          setSaving(false);
+          return;
+        }
+
+        console.log('[TunDee Setup] saved via update fallback');
+      } else {
+        console.log('[TunDee Setup] saved via upsert');
       }
 
       router.replace('/scholarships');
     } catch (e) {
-      setError(lang === 'th' ? 'เกิดข้อผิดพลาด กรุณาลองใหม่' : 'Something went wrong. Please try again.');
-      console.error('[TunDee] profile save error:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[TunDee Setup] exception:', e);
+      setError(msg);
       setSaving(false);
     }
   }
