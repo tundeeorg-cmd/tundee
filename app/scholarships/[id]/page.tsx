@@ -498,8 +498,7 @@ export default function ScholarshipDetailPage() {
             <div ref={checklistRef}>
               <ApplicationChecklist
                 scholarshipId={id}
-                scholarshipName={s.name_th}
-                applicationUrl={s.application_url}
+                applicationUrl={s.application_url ?? null}
                 lang={lang as 'th' | 'en'}
               />
             </div>

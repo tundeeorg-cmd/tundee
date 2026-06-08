@@ -1,11 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
-import type { User } from '@supabase/supabase-js';
+/**
+ * ApplicationChecklist — 7-step scholarship application progress tracker.
+ *
+ * Key fixes (Jun 2026):
+ *  - Removed .select().single() from upsert (caused silent failure when
+ *    unique index was missing — the real root cause of "does nothing")
+ *  - Optimistic UI: state updates instantly, reverts on DB error
+ *  - Actual error shown in UI so failures are diagnosable
+ *  - No emojis — SVG only
+ *  - Full Thai/English support via lang prop
+ */
 
-// ── Step definitions ──────────────────────────────────────────────────────────
+import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
+// ─── Step definitions ──────────────────────────────────────────────────────────
 
 interface Step {
   id: number;
@@ -13,7 +23,6 @@ interface Step {
   en: string;
   desc_th: string;
   desc_en: string;
-  icon: string;
 }
 
 const STEPS: Step[] = [
@@ -21,113 +30,128 @@ const STEPS: Step[] = [
     id: 1,
     th: 'ยืนยันคุณสมบัติ',
     en: 'Confirm Eligibility',
-    desc_th: 'ตรวจสอบว่าคุณตรงตามเกณฑ์ทุกข้อ เกรด รายได้ สาขา และจังหวัด',
-    desc_en: 'Check that you meet all requirements: GPA, income, field, and province.',
-    icon: '✓',
+    desc_th: 'ตรวจสอบว่าคุณตรงตามเกณฑ์ทุกข้อ ได้แก่ เกรดเฉลี่ย รายได้ครัวเรือน สาขาวิชา และจังหวัดที่อยู่',
+    desc_en: 'Verify that you meet all requirements: GPA, household income, field of study, and province.',
   },
   {
     id: 2,
     th: 'รวบรวมเอกสาร',
     en: 'Gather Documents',
-    desc_th: 'เตรียมเอกสารทุกอย่างที่ต้องใช้ เช่น ใบแสดงผลการเรียน บัตรประชาชน หนังสือรับรองรายได้',
-    desc_en: 'Prepare all required documents: transcript, ID card, income certificate, etc.',
-    icon: '📄',
+    desc_th: 'เตรียมเอกสารที่ต้องใช้ทั้งหมด เช่น ใบแสดงผลการเรียน สำเนาบัตรประชาชน หนังสือรับรองรายได้ครัวเรือน และรูปถ่าย',
+    desc_en: 'Prepare all required documents: transcripts, national ID copy, income certificate, and photographs.',
   },
   {
     id: 3,
     th: 'เขียนเรียงความแนะนำตัว',
     en: 'Write Personal Statement',
-    desc_th: 'เขียนแนะนำตัว เป้าหมาย และเหตุผลที่ต้องการทุนนี้ ตรวจทานความถูกต้อง',
-    desc_en: 'Write about yourself, your goals, and why you need this scholarship. Proofread carefully.',
-    icon: '✏️',
+    desc_th: 'เขียนแนะนำตัวเอง เป้าหมายการศึกษา และเหตุผลที่ต้องการทุนนี้ ตรวจทานความถูกต้องและความสมบูรณ์',
+    desc_en: 'Write about yourself, your academic goals, and why you are applying. Proofread carefully.',
   },
   {
     id: 4,
     th: 'ขอจดหมายแนะนำ',
-    en: 'Get Recommendation Letter',
-    desc_th: 'ขอจดหมายแนะนำจากครูหรืออาจารย์ที่ปรึกษา แจ้งเส้นตายล่วงหน้าอย่างน้อย 2 สัปดาห์',
-    desc_en: 'Ask a teacher or advisor for a recommendation letter. Give at least 2 weeks notice.',
-    icon: '📬',
+    en: 'Request Recommendation Letter',
+    desc_th: 'ติดต่อครูหรืออาจารย์ที่ปรึกษาเพื่อขอจดหมายแนะนำ แจ้งกำหนดส่งล่วงหน้าอย่างน้อย 2 สัปดาห์',
+    desc_en: 'Contact a teacher or advisor for a recommendation letter. Give at least 2 weeks notice.',
   },
   {
     id: 5,
-    th: 'สมัครบนเว็บไซต์ทุน',
+    th: 'ส่งใบสมัครบนเว็บไซต์',
     en: 'Submit Application Online',
-    desc_th: 'กรอกใบสมัครบนเว็บไซต์ทุนให้ครบถ้วน อัปโหลดเอกสารทุกอย่าง และส่งใบสมัคร',
-    desc_en: 'Fill out the application form on the scholarship website, upload all documents, and submit.',
-    icon: '🌐',
+    desc_th: 'กรอกแบบฟอร์มใบสมัครบนเว็บไซต์ทุนให้ครบถ้วน อัปโหลดเอกสารทุกอย่าง แล้วกดส่งใบสมัคร',
+    desc_en: 'Complete the application form on the scholarship website, upload all documents, and submit.',
   },
   {
     id: 6,
-    th: 'ยืนยันการส่งใบสมัคร',
-    en: 'Confirm Submission',
-    desc_th: 'ตรวจสอบว่าได้รับอีเมลยืนยันการส่งใบสมัคร หรือ screenshot หน้าการยืนยัน',
-    desc_en: 'Check that you received a confirmation email or screenshot the confirmation page.',
-    icon: '✅',
+    th: 'ยืนยันการรับใบสมัคร',
+    en: 'Confirm Receipt',
+    desc_th: 'ตรวจสอบว่าได้รับอีเมลยืนยันจากผู้ให้ทุน หรือบันทึกหน้าจอการยืนยันการส่งใบสมัครเก็บไว้',
+    desc_en: 'Confirm you received a confirmation email or screenshot the submission confirmation page.',
   },
   {
     id: 7,
-    th: 'รายงานผล',
-    en: 'Report Outcome',
-    desc_th: 'แจ้งผลการสมัครเมื่อทราบ ไม่ว่าจะผ่านหรือไม่ผ่าน เพื่อช่วยพัฒนา TunDee',
-    desc_en: 'Report the outcome when you know it, win or lose. Helps TunDee improve.',
-    icon: '📊',
+    th: 'รายงานผลการสมัคร',
+    en: 'Report Application Outcome',
+    desc_th: 'เมื่อทราบผลการพิจารณา ไม่ว่าจะผ่านหรือไม่ผ่าน กรุณาแจ้งผลเพื่อช่วยปรับปรุงระบบ TunDee',
+    desc_en: 'Once you receive a decision, please report the outcome to help improve TunDee.',
   },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Props ─────────────────────────────────────────────────────────────────────
 
-function formatDate(isoString: string, lang: 'th' | 'en'): string {
-  const d = new Date(isoString);
-  if (lang === 'th') {
-    const thMonths = [
-      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-    ];
-    return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
-  }
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function deriveStatus(completed: number[]): string {
-  if (completed.length === 0) return 'viewing';
-  if (completed.includes(6)) return 'submitted';
-  if (completed.length >= 5) return 'in_progress';
-  if (completed.length > 0) return 'started';
-  return 'viewing';
-}
-
-// ── Props ─────────────────────────────────────────────────────────────────────
-
-interface ChecklistProps {
+interface Props {
   scholarshipId: string;
-  scholarshipName: string;
   applicationUrl: string | null;
   lang: 'th' | 'en';
+  // kept for backward compat — not used internally
+  scholarshipName?: string;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ─── SVG helpers ───────────────────────────────────────────────────────────────
+
+function Checkmark() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path
+        d="M2.5 6.5L5 9L10.5 3.5"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      className={`flex-shrink-0 text-[#aeaeb2] transition-transform duration-200 ${
+        open ? 'rotate-180' : ''
+      }`}
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function Spinner() {
+  return (
+    <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+  );
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function ApplicationChecklist({
   scholarshipId,
-  scholarshipName: _scholarshipName, // reserved for future use (logging/display)
   applicationUrl,
   lang,
-}: ChecklistProps) {
+}: Props) {
   const supabase = createClient();
 
-  const [user, setUser]               = useState<User | null>(null);
-  const [applicationId, setAppId]     = useState<string | null>(null);
-  const [completed, setCompleted]     = useState<number[]>([]);
-  const [dates, setDates]             = useState<Record<string, string>>({});
-  const [saving, setSaving]           = useState<number | null>(null);
-  const [expanded, setExpanded]       = useState<number | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [outcome, setOutcome]         = useState<string>('');
+  const [user,        setUser]        = useState<{ id: string } | null>(null);
+  const [completed,   setCompleted]   = useState<number[]>([]);
+  const [dates,       setDates]       = useState<Record<string, string>>({});
+  const [expanded,    setExpanded]    = useState<number | null>(null);
+  const [savingStep,  setSavingStep]  = useState<number | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [outcome,     setOutcome]     = useState('');
   const [showOutcome, setShowOutcome] = useState(false);
-  const expandRefs = useRef<Record<number, boolean>>({});
+  const [saveError,   setSaveError]   = useState('');
 
-  // ── Load progress on mount ───────────────────────────────────────────────
+  // ── Load saved progress ───────────────────────────────────────────────────
+
   useEffect(() => {
     let mounted = true;
     void (async () => {
@@ -137,26 +161,25 @@ export default function ApplicationChecklist({
         if (!u) { setLoading(false); return; }
         setUser(u);
 
-        const { data: app, error } = await supabase
+        const { data: app } = await supabase
           .from('applications')
-          .select('id, status, checklist_progress, checklist_dates')
+          .select('status, checklist_progress, checklist_dates')
           .eq('user_id', u.id)
           .eq('scholarship_id', scholarshipId)
           .maybeSingle();
 
         if (!mounted) return;
-
-        if (!error && app) {
-          setAppId(app.id as string);
+        if (app) {
           setCompleted((app.checklist_progress as number[] | null) ?? []);
           setDates((app.checklist_dates as Record<string, string> | null) ?? {});
-          const st = app.status as string ?? '';
-          if (!['viewing','started','in_progress','submitted'].includes(st)) {
+          const st = (app.status as string) ?? '';
+          // Only surface terminal outcomes (won/lost/no_reply) as persistent banner
+          if (['won', 'lost', 'no_reply'].includes(st)) {
             setOutcome(st);
           }
         }
       } catch {
-        /* silently ignore — checklist_dates column may not exist yet */
+        // Columns may not exist yet — silently degrade
       } finally {
         if (mounted) setLoading(false);
       }
@@ -166,338 +189,411 @@ export default function ApplicationChecklist({
   }, [scholarshipId]);
 
   // ── Toggle a step ─────────────────────────────────────────────────────────
-  async function toggleStep(stepId: number) {
-    if (!user) return;
-    setSaving(stepId);
 
-    const isNowDone = !completed.includes(stepId);
+  const toggleStep = useCallback(async (stepId: number) => {
+    if (!user || savingStep !== null) return;
+    setSavingStep(stepId);
+    setSaveError('');
+
+    const isNowDone   = !completed.includes(stepId);
+    const prevCompleted = completed;
+    const prevDates     = dates;
+
     const newCompleted = isNowDone
       ? [...completed, stepId].sort((a, b) => a - b)
       : completed.filter((s) => s !== stepId);
 
     const newDates = { ...dates };
     if (isNowDone) {
-      newDates[stepId.toString()] = new Date().toISOString();
+      newDates[String(stepId)] = new Date().toISOString();
     } else {
-      delete newDates[stepId.toString()];
+      delete newDates[String(stepId)];
     }
 
-    const status = deriveStatus(newCompleted);
+    // Derive status
+    let status = 'viewing';
+    if (newCompleted.length >= 1) status = 'started';
+    if (newCompleted.length >= 3) status = 'in_progress';
+    if (newCompleted.includes(6)) status = 'submitted';
 
-    const extraFields: Record<string, string> = {};
-    if (stepId === 5 && isNowDone) extraFields.clicked_through_at = new Date().toISOString();
-    if (stepId === 6 && isNowDone) extraFields.submitted_at = new Date().toISOString();
+    // Optimistic update — UI feels instant
+    setCompleted(newCompleted);
+    setDates(newDates);
 
-    try {
-      const { data: upserted, error } = await supabase
-        .from('applications')
-        .upsert(
-          {
-            user_id: user.id,
-            scholarship_id: scholarshipId,
-            status,
-            checklist_progress: newCompleted,
-            checklist_dates: newDates,
-            ...extraFields,
-          },
-          { onConflict: 'user_id,scholarship_id' }
-        )
-        .select('id')
-        .single();
+    const { error } = await supabase
+      .from('applications')
+      .upsert(
+        {
+          user_id:            user.id,
+          scholarship_id:     scholarshipId,
+          status,
+          checklist_progress: newCompleted,
+          checklist_dates:    newDates,
+          ...(stepId === 5 && isNowDone ? { clicked_through_at: new Date().toISOString() } : {}),
+          ...(stepId === 6 && isNowDone ? { submitted_at:       new Date().toISOString() } : {}),
+        },
+        { onConflict: 'user_id,scholarship_id' }
+        // NOTE: no .select().single() — that was the original bug.
+        // When the unique index didn't exist, .single() returned an error
+        // even on success, so setCompleted was never called.
+      );
 
-      if (!error) {
-        setCompleted(newCompleted);
-        setDates(newDates);
-        if (upserted && !applicationId) {
-          setAppId((upserted as { id: string }).id);
-        }
-        if (stepId === 6 && isNowDone) {
-          setShowOutcome(true);
-        }
-      } else {
-        console.error('[TunDee] Checklist save error:', error.message);
+    if (error) {
+      // Revert optimistic update
+      setCompleted(prevCompleted);
+      setDates(prevDates);
+      console.error('[TunDee] Checklist save error:', error.code, error.message);
+      setSaveError(`${error.code}: ${error.message}`);
+    } else {
+      if (stepId === 6 && isNowDone) {
+        setShowOutcome(true);
       }
-    } catch (err) {
-      console.error('[TunDee] Checklist unexpected error:', err);
-    } finally {
-      setSaving(null);
     }
-  }
 
-  // ── Update outcome ────────────────────────────────────────────────────────
-  async function updateOutcome(newOutcome: string) {
-    if (!user) return;
-    try {
-      await supabase
-        .from('applications')
-        .upsert(
-          {
-            user_id: user.id,
-            scholarship_id: scholarshipId,
-            status: newOutcome,
-            outcome_at: new Date().toISOString(),
-            outcome_source: 'self_report',
-          },
-          { onConflict: 'user_id,scholarship_id' }
-        );
-      setOutcome(newOutcome);
-    } catch (err) {
-      console.error('[TunDee] Outcome update error:', err);
-    } finally {
-      setShowOutcome(false);
+    setSavingStep(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, completed, dates, scholarshipId, savingStep]);
+
+  // ── Format date ───────────────────────────────────────────────────────────
+
+  function formatDate(iso: string): string {
+    const d = new Date(iso);
+    if (lang === 'th') {
+      const m = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                 'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear() + 543}`;
     }
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const completedCount = completed.length;
-  const progress = (completedCount / 7) * 100;
-  const allDone = completedCount === 7;
-  const canApply = applicationUrl && applicationUrl !== 'CHECK_WEBSITE';
+
+  const pct              = Math.round((completed.length / 7) * 100);
+  const font             = lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif';
+  const canApply         = applicationUrl && applicationUrl !== 'CHECK_WEBSITE';
+  const firstStepDate    = Object.keys(dates).sort()[0];
+  const showOutcomeForm  =
+    user &&
+    (showOutcome || (completed.includes(6) && !['won','lost','no_reply'].includes(outcome)));
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
+
   if (loading) {
     return (
-      <div className="animate-pulse space-y-2">
-        {[...Array(7)].map((_, i) => (
+      <div className="space-y-2 animate-pulse">
+        {[1,2,3,4,5,6,7].map((i) => (
           <div key={i} className="h-14 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-xl" />
         ))}
       </div>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+
   return (
     <div>
-      {/* Section title */}
+      {/* Section heading */}
       <h2
-        className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-1"
-        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+        className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4"
+        style={{ fontFamily: font }}
       >
         {lang === 'th' ? '7 ขั้นตอนการสมัครทุน' : '7-Step Application Guide'}
       </h2>
-      <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-5">
-        {lang === 'th'
-          ? 'ทำตามขั้นตอนเพื่อให้การสมัครสำเร็จ'
-          : 'Follow these steps to maximise your chances of success'}
-      </p>
 
-      {/* Progress bar */}
-      {user && (
-        <div className="mb-5 bg-[#FFF8E7] dark:bg-[#2C1F00] border border-[#F0A500]/20 rounded-[12px] p-4">
+      {/* Checklist card */}
+      <div className="border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl overflow-hidden">
+
+        {/* ── Sticky progress header ─────────────────────────────────────── */}
+        <div className="sticky top-[64px] z-10 bg-white dark:bg-[#1D1D1F]
+                        border-b border-[#e0e0e0] dark:border-[#3a3a3c] px-5 py-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
-              {lang === 'th' ? 'ความคืบหน้า' : 'Progress'}
+            <span
+              className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]"
+              style={{ fontFamily: font }}
+            >
+              {lang === 'th' ? 'ขั้นตอนการสมัคร' : 'Application Steps'}
             </span>
-            <span className={`text-sm font-bold ${allDone ? 'text-green-600 dark:text-green-400' : 'text-[#F0A500]'}`}>
-              {completedCount}/7 {lang === 'th' ? 'ขั้นตอน' : 'steps'}
+            <span className={`text-sm font-bold ${
+              completed.length === 7 ? 'text-green-600 dark:text-green-400' : 'text-[#F0A500]'
+            }`}>
+              {completed.length} / 7
             </span>
           </div>
-          <div className="h-2 bg-[#F5F5F7] dark:bg-[#3A3A3C] rounded-full overflow-hidden">
+
+          {/* Thin progress bar */}
+          <div className="h-[3px] bg-[#e0e0e0] dark:bg-[#3a3a3c] rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500"
+              className="h-full rounded-full transition-all duration-500 ease-out"
               style={{
-                width: `${progress}%`,
-                backgroundColor: allDone ? '#22C55E' : '#F0A500',
+                width: `${pct}%`,
+                backgroundColor: completed.length === 7 ? '#22C55E' : '#F0A500',
               }}
             />
           </div>
-          {allDone && (
-            <p className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">
-              🎉 {lang === 'th' ? 'ครบทุกขั้นตอนแล้ว!' : 'All steps complete!'}
+
+          {user && firstStepDate && completed.length > 0 && (
+            <p className="text-xs text-[#aeaeb2] mt-1.5">
+              {lang === 'th'
+                ? `เริ่มเมื่อ ${formatDate(dates[firstStepDate])}`
+                : `Started ${formatDate(dates[firstStepDate])}`}
             </p>
           )}
         </div>
-      )}
 
-      {/* Steps */}
-      <ol className="space-y-2">
-        {STEPS.map((step) => {
-          const isDone     = completed.includes(step.id);
-          const isOpen     = expanded === step.id;
-          const isSaving   = saving === step.id;
-          const dateStr    = dates[step.id.toString()];
-          const isLocked   = !user;
+        {/* ── Save error (only shown when save fails) ─────────────────────── */}
+        {saveError && (
+          <div className="px-5 py-2 bg-red-50 dark:bg-red-950
+                          border-b border-red-200 dark:border-red-800">
+            <p className="text-xs font-mono text-red-500 dark:text-red-400">{saveError}</p>
+            <p className="text-xs text-red-400 mt-0.5">
+              {lang === 'th'
+                ? 'กรุณารัน scripts/fix_checklist_columns.sql ใน Supabase SQL Editor'
+                : 'Please run scripts/fix_checklist_columns.sql in Supabase SQL Editor'}
+            </p>
+          </div>
+        )}
 
-          return (
-            <li key={step.id}>
+        {/* ── Steps ──────────────────────────────────────────────────────── */}
+        <div className="divide-y divide-[#f0f0f0] dark:divide-[#2c2c2e]">
+          {STEPS.map((step) => {
+            const done    = completed.includes(step.id);
+            const open    = expanded === step.id;
+            const saving  = savingStep === step.id;
+            const dateStr = dates[String(step.id)];
+
+            return (
               <div
-                className={`rounded-[12px] border transition-all duration-200 ${
-                  isDone
-                    ? 'border-[#F0A500]/40 bg-[#FFF8E7] dark:bg-[#2C1F00]/50'
-                    : isOpen
-                    ? 'border-[#E5E5EA] dark:border-[#38383A] bg-[#F9F9F9] dark:bg-[#2C2C2E]'
-                    : 'border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#1C1C1E]'
+                key={step.id}
+                className={`transition-colors ${
+                  done
+                    ? 'bg-[#FAFFF7] dark:bg-[#0a1a0a]'
+                    : 'bg-white dark:bg-[#1D1D1F]'
                 }`}
               >
-                {/* Header row */}
-                <div className="flex items-start gap-3 p-4">
-                  {/* Checkbox circle */}
-                  <button
-                    type="button"
-                    onClick={() => !isLocked && toggleStep(step.id)}
-                    disabled={isLocked || saving !== null}
-                    aria-label={isDone ? `Uncheck step ${step.id}` : `Check step ${step.id}`}
-                    className={`mt-0.5 w-7 h-7 rounded-full border-2 flex-shrink-0 flex items-center justify-center
-                      transition-all duration-200
-                      ${isLocked
-                        ? 'border-[#E5E5EA] dark:border-[#38383A] cursor-default'
-                        : isDone
-                        ? 'bg-[#F0A500] border-[#F0A500] text-white cursor-pointer'
-                        : 'bg-white dark:bg-[#1C1C1E] border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] cursor-pointer hover:border-[#F0A500]'
+                {/* ── Row header (click to expand/collapse) ── */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-5 py-4 text-left
+                             hover:bg-[#F9F9F9] dark:hover:bg-[#242424] transition-colors"
+                  onClick={() => setExpanded(open ? null : step.id)}
+                >
+                  {/* Circle — clicking toggles the step directly */}
+                  <div
+                    role="checkbox"
+                    aria-checked={done}
+                    aria-label={done
+                      ? (lang === 'th' ? `ยกเลิกขั้นที่ ${step.id}` : `Uncheck step ${step.id}`)
+                      : (lang === 'th' ? `ทำขั้นที่ ${step.id} เสร็จ` : `Complete step ${step.id}`)}
+                    tabIndex={user ? 0 : -1}
+                    onClick={(e) => {
+                      if (!user) return;
+                      e.stopPropagation();
+                      void toggleStep(step.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!user) return;
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void toggleStep(step.id);
+                      }
+                    }}
+                    className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
+                      border-2 transition-all duration-200
+                      ${!user
+                        ? 'border-[#e0e0e0] dark:border-[#3a3a3c] cursor-default'
+                        : done
+                          ? 'bg-[#F0A500] border-[#F0A500] cursor-pointer'
+                          : 'border-[#d0d0d0] dark:border-[#4a4a4a] cursor-pointer hover:border-[#F0A500]'
                       }`}
                   >
-                    {isSaving ? (
-                      <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                    ) : isDone ? (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                    {saving ? (
+                      <Spinner />
+                    ) : done ? (
+                      <Checkmark />
                     ) : (
-                      <span className="text-[11px] font-bold text-[#ADADB8]">{step.id}</span>
+                      <span className="text-[10px] font-bold text-[#aeaeb2]">{step.id}</span>
                     )}
-                  </button>
-
-                  {/* Name + date */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={`text-xs font-semibold ${isDone ? 'text-[#F0A500]' : 'text-[#ADADB8]'}`}>
-                        {lang === 'th' ? `ขั้นที่ ${step.id}` : `Step ${step.id}`}
-                      </span>
-                      {isDone && dateStr && (
-                        <span className="text-xs text-[#ADADB8]">· {formatDate(dateStr, lang)}</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        expandRefs.current[step.id] = !isOpen;
-                        setExpanded(isOpen ? null : step.id);
-                      }}
-                      className="w-full text-left mt-0.5"
-                    >
-                      <span
-                        className={`text-sm font-medium ${
-                          isDone
-                            ? 'line-through text-[#6E6E73] dark:text-[#8E8E93]'
-                            : 'text-[#1D1D1F] dark:text-white'
-                        }`}
-                        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
-                      >
-                        {lang === 'th' ? step.th : step.en}
-                      </span>
-                    </button>
                   </div>
 
-                  {/* Expand chevron */}
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(isOpen ? null : step.id)}
-                    aria-label="Toggle details"
-                    className="flex-shrink-0 p-0.5 mt-1 text-[#ADADB8] hover:text-[#6E6E73] dark:hover:text-[#8E8E93] transition-colors"
-                  >
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  {/* Step name + completion date */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium leading-snug ${
+                        done
+                          ? 'line-through text-[#aeaeb2]'
+                          : 'text-[#1D1D1F] dark:text-[#F5F5F7]'
+                      }`}
+                      style={{ fontFamily: font }}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
+                      {lang === 'th' ? step.th : step.en}
+                    </p>
+                    {done && dateStr && (
+                      <p className="text-xs text-[#aeaeb2] mt-0.5">{formatDate(dateStr)}</p>
+                    )}
+                  </div>
 
-                {/* Expanded body */}
-                {isOpen && (
-                  <div className="px-4 pb-4 pt-0">
-                    <div className="pl-10 space-y-3">
+                  <Chevron open={open} />
+                </button>
+
+                {/* ── Expanded content ── */}
+                {open && (
+                  <div className="px-5 pb-5 pt-0">
+                    <div className="ml-10 space-y-4">
                       <p
-                        className="text-sm text-[#6E6E73] dark:text-[#8E8E93] leading-relaxed"
-                        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                        className="text-sm text-[#6e6e73] dark:text-[#8e8e93] leading-relaxed"
+                        style={{ fontFamily: font }}
                       >
                         {lang === 'th' ? step.desc_th : step.desc_en}
                       </p>
 
-                      {/* Step 5: direct apply link */}
-                      {step.id === 5 && canApply && (
-                        <a
-                          href={applicationUrl!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => { if (!completed.includes(5)) void toggleStep(5); }}
-                          className="inline-flex items-center gap-2 bg-[#F0A500] hover:bg-[#D4920A] text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-                        >
-                          {lang === 'th' ? 'ไปสมัครที่เว็บไซต์ทุน →' : 'Apply on official website →'}
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M3 7h8M7 3l4 4-4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </a>
-                      )}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Apply link on step 5 */}
+                        {step.id === 5 && canApply && (
+                          <a
+                            href={applicationUrl!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => {
+                              if (!done) void toggleStep(step.id);
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-[#F0A500] text-white
+                                       text-sm font-semibold px-4 py-2 rounded-lg
+                                       hover:bg-[#d4920a] transition-colors"
+                          >
+                            {lang === 'th' ? 'ไปยังเว็บไซต์ทุน' : 'Go to scholarship website'}
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6h8M6 2l4 4-4 4" stroke="currentColor"
+                                    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </a>
+                        )}
 
-                      {/* Mark as done / Undo */}
-                      {user && !isDone && (
-                        <button
-                          type="button"
-                          onClick={() => void toggleStep(step.id)}
-                          disabled={saving !== null}
-                          className="text-sm text-[#F0A500] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M2 7l4 4 6-6" stroke="#F0A500" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          {lang === 'th' ? 'ทำขั้นตอนนี้เสร็จแล้ว' : 'Mark as done'}
-                        </button>
-                      )}
-                      {user && isDone && (
-                        <button
-                          type="button"
-                          onClick={() => void toggleStep(step.id)}
-                          disabled={saving !== null}
-                          className="text-xs text-[#ADADB8] hover:text-red-400 hover:underline transition-colors"
-                        >
-                          {lang === 'th' ? 'ยกเลิกขั้นตอนนี้' : 'Undo this step'}
-                        </button>
-                      )}
+                        {/* Mark as done / Undo */}
+                        {user && !done && (
+                          <button
+                            type="button"
+                            onClick={() => void toggleStep(step.id)}
+                            disabled={saving || savingStep !== null}
+                            className="text-sm font-semibold text-[#F0A500]
+                                       border border-[#F0A500] px-4 py-2 rounded-lg
+                                       hover:bg-[#FFF8E7] dark:hover:bg-[#2a2000]
+                                       transition-colors disabled:opacity-40"
+                          >
+                            {lang === 'th' ? 'ทำเสร็จแล้ว' : 'Mark as done'}
+                          </button>
+                        )}
+                        {user && done && (
+                          <button
+                            type="button"
+                            onClick={() => void toggleStep(step.id)}
+                            disabled={saving || savingStep !== null}
+                            className="text-xs text-[#aeaeb2] hover:text-red-400
+                                       transition-colors disabled:opacity-40"
+                          >
+                            {lang === 'th' ? 'ยกเลิกขั้นตอนนี้' : 'Undo this step'}
+                          </button>
+                        )}
+
+                        {/* Not logged in — nudge to sign in */}
+                        {!user && (
+                          <a
+                            href="/auth"
+                            className="text-xs text-[#F0A500] hover:underline"
+                          >
+                            {lang === 'th'
+                              ? 'เข้าสู่ระบบเพื่อบันทึกความคืบหน้า'
+                              : 'Sign in to save your progress'}
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-            </li>
-          );
-        })}
-      </ol>
+            );
+          })}
+        </div>
+      </div>
 
-      {/* Not logged in banner */}
+      {/* ── Not logged in banner (shown below steps, not inside) ─────────── */}
       {!user && (
-        <div className="mt-5 p-4 border border-[#F0A500]/30 rounded-[12px] bg-[#FFF8E7] dark:bg-[#2C1F00]/40 text-center">
-          <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-3">
-            {lang === 'th'
-              ? 'เข้าสู่ระบบเพื่อบันทึกความคืบหน้าของคุณ'
-              : 'Sign in to save your progress'}
-          </p>
-          <Link
-            href="/auth"
-            className="inline-block text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] px-5 py-2 rounded-full transition-colors"
+        <div className="mt-4 p-4 border border-[#e0e0e0] dark:border-[#3a3a3c]
+                        rounded-xl text-center">
+          <p
+            className="text-sm text-[#6e6e73] dark:text-[#8e8e93] mb-2"
+            style={{ fontFamily: font }}
           >
-            {lang === 'th' ? 'เข้าสู่ระบบ →' : 'Sign in →'}
-          </Link>
+            {lang === 'th'
+              ? 'เข้าสู่ระบบเพื่อบันทึกความคืบหน้าการสมัคร'
+              : 'Sign in to track your application progress'}
+          </p>
+          <a
+            href="/auth"
+            className="inline-block text-sm font-semibold text-white
+                       bg-[#F0A500] hover:bg-[#d4920a] px-5 py-2
+                       rounded-full transition-colors"
+          >
+            {lang === 'th' ? 'เข้าสู่ระบบ' : 'Sign in'}
+          </a>
         </div>
       )}
 
-      {/* Outcome selector (shown after step 6 is checked) */}
-      {showOutcome && (
-        <div className="mt-5 p-4 bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px]">
-          <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-3">
-            🎉 {lang === 'th' ? 'ส่งใบสมัครแล้ว! ผลเป็นยังไงบ้าง?' : 'Application submitted! What was the outcome?'}
+      {/* ── Outcome selector (shown after step 6 is completed) ─────────── */}
+      {showOutcomeForm && (
+        <div className="mt-4 p-4 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl">
+          <p
+            className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-3"
+            style={{ fontFamily: font }}
+          >
+            {lang === 'th'
+              ? 'ส่งใบสมัครแล้ว — ผลเป็นอย่างไรบ้าง?'
+              : 'Application submitted — what was the outcome?'}
           </p>
           <div className="flex flex-wrap gap-2">
             {[
-              { val: 'won',      th: '🏆 ได้รับทุน',          en: '🏆 I won!',          cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700' },
-              { val: 'no_reply', th: '⏳ รอผล',               en: '⏳ Still waiting',    cls: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700' },
-              { val: 'lost',     th: '✗ ไม่ผ่านการคัดเลือก', en: '✗ Not selected',     cls: 'bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] border-[#E5E5EA] dark:border-[#38383A]' },
+              {
+                val: 'won',
+                th:  'ได้รับทุน',
+                en:  'I received the scholarship',
+                cls: 'border-green-400 text-green-700 hover:bg-green-50 dark:hover:bg-green-950',
+              },
+              {
+                val: 'no_reply',
+                th:  'รอผลการพิจารณา',
+                en:  'Still waiting for result',
+                cls: 'border-orange-400 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950',
+              },
+              {
+                val: 'lost',
+                th:  'ไม่ผ่านการคัดเลือก',
+                en:  'Not selected',
+                cls: 'border-[#d0d0d0] dark:border-[#4a4a4a] text-[#6e6e73] hover:bg-[#F5F5F7] dark:hover:bg-[#2c2c2e]',
+              },
             ].map((o) => (
               <button
                 key={o.val}
                 type="button"
-                onClick={() => void updateOutcome(o.val)}
-                className={`px-3 py-2 rounded-[10px] border text-sm font-semibold transition-colors hover:opacity-80 ${o.cls}`}
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                onClick={async () => {
+                  if (!user) return;
+                  const { error } = await supabase.from('applications').upsert(
+                    {
+                      user_id:        user.id,
+                      scholarship_id: scholarshipId,
+                      status:         o.val,
+                      outcome_at:     new Date().toISOString(),
+                      outcome_source: 'self_report',
+                    },
+                    { onConflict: 'user_id,scholarship_id' }
+                  );
+                  if (!error) {
+                    setOutcome(o.val);
+                    setShowOutcome(false);
+                  }
+                }}
+                className={`px-4 py-2 border rounded-lg text-sm font-medium
+                            transition-colors ${o.cls}`}
+                style={{ fontFamily: font }}
               >
                 {lang === 'th' ? o.th : o.en}
               </button>
@@ -506,22 +602,21 @@ export default function ApplicationChecklist({
         </div>
       )}
 
-      {/* Outcome banner (persistent) */}
-      {outcome &&
-       !['', 'viewing', 'started', 'in_progress', 'submitted'].includes(outcome) &&
-       !showOutcome && (
+      {/* ── Persistent outcome banner ──────────────────────────────────── */}
+      {['won', 'lost', 'no_reply'].includes(outcome) && !showOutcomeForm && (
         <div
-          className={`mt-5 p-3 rounded-[12px] border text-sm font-semibold text-center ${
+          className={`mt-4 py-3 px-4 rounded-xl border text-sm font-semibold text-center ${
             outcome === 'won'
-              ? 'bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+              ? 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
               : outcome === 'lost'
-              ? 'bg-[#F5F5F7] dark:bg-[#2C2C2E] border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93]'
-              : 'bg-orange-100 dark:bg-orange-900/30 border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-400'
+                ? 'bg-[#F5F5F7] dark:bg-[#2c2c2e] border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73]'
+                : 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400'
           }`}
+          style={{ fontFamily: font }}
         >
-          {outcome === 'won'      && (lang === 'th' ? '🏆 ได้รับทุนนี้แล้ว' : '🏆 You won this scholarship!')}
-          {outcome === 'lost'     && (lang === 'th' ? '✗ ไม่ผ่านการคัดเลือก' : '✗ Not selected this time')}
-          {outcome === 'no_reply' && (lang === 'th' ? '⏳ รอผลอยู่' : '⏳ Waiting for result')}
+          {outcome === 'won'      && (lang === 'th' ? 'ได้รับทุนนี้แล้ว'               : 'Scholarship received')}
+          {outcome === 'lost'     && (lang === 'th' ? 'ไม่ผ่านการคัดเลือกในรอบนี้'    : 'Not selected this time')}
+          {outcome === 'no_reply' && (lang === 'th' ? 'รอผลการพิจารณาอยู่'             : 'Awaiting decision')}
         </div>
       )}
     </div>
