@@ -47,7 +47,12 @@ export interface Application {
   scholarship_id: string;
   status: ApplicationStatus;
   checklist_progress: number[];
+  /** Step timestamps: {"1": "2026-06-08T22:00:00Z", ...} */
+  checklist_dates: Record<string, string> | null;
   clicked_through_at: string | null;
+  submitted_at: string | null;
+  outcome_at: string | null;
+  outcome_source: string | null;
   created_at: string;
   updated_at?: string;
   scholarships?: Scholarship | null;

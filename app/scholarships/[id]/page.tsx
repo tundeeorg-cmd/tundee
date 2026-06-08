@@ -6,7 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 // Note: ChecklistStep type no longer needed — using InteractiveChecklist component
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import InteractiveChecklist from '@/components/InteractiveChecklist';
+import ApplicationChecklist from '@/components/ApplicationChecklist';
 import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
@@ -496,7 +496,12 @@ export default function ScholarshipDetailPage() {
 
             {/* Interactive checklist — saves progress to applications table */}
             <div ref={checklistRef}>
-              <InteractiveChecklist scholarshipId={id} />
+              <ApplicationChecklist
+                scholarshipId={id}
+                scholarshipName={s.name_th}
+                applicationUrl={s.application_url}
+                lang={lang as 'th' | 'en'}
+              />
             </div>
           </div>
 

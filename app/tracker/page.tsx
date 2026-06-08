@@ -17,13 +17,36 @@ interface Application {
   scholarship_id: string;
   status: 'viewing' | 'started' | 'in_progress' | 'submitted' | 'won' | 'lost' | 'no_reply';
   checklist_progress: number[];
+  checklist_dates: Record<string, string> | null;
   clicked_through_at: string | null;
+  submitted_at: string | null;
   created_at: string;
   updated_at?: string;
   scholarships?: Scholarship | null;
 }
 
 type SectionType = 'in_progress' | 'saved' | 'history';
+
+// ─── Static step names ────────────────────────────────────────────────────────
+
+const STEP_NAMES_TH = [
+  'ยืนยันคุณสมบัติ',
+  'รวบรวมเอกสาร',
+  'เขียนเรียงความแนะนำตัว',
+  'ขอจดหมายแนะนำ',
+  'สมัครบนเว็บไซต์ทุน',
+  'ยืนยันการส่งใบสมัคร',
+  'รายงานผล',
+];
+const STEP_NAMES_EN = [
+  'Confirm Eligibility',
+  'Gather Documents',
+  'Write Personal Statement',
+  'Get Recommendation Letter',
+  'Submit Application Online',
+  'Confirm Submission',
+  'Report Outcome',
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,12 +58,62 @@ function formatAmount(amount: number | null, type: string | null, lang: string):
   return `฿${formatted}`;
 }
 
+function formatDate(isoString: string, lang: string): string {
+  const d = new Date(isoString);
+  if (lang === 'th') {
+    const thMonths = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+    ];
+    return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+  }
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 const STATUS_CONFIG = {
-  won:       { emoji: '🏆', th: 'ได้รับทุน',  en: 'Won',        color: 'text-green-600  dark:text-green-400',  bg: 'bg-green-50  dark:bg-green-900/20' },
-  submitted: { emoji: '✓',  th: 'ส่งแล้ว',    en: 'Submitted',  color: 'text-blue-600   dark:text-blue-400',   bg: 'bg-blue-50   dark:bg-blue-900/20'  },
-  lost:      { emoji: '✗',  th: 'ไม่ผ่าน',   en: 'Not selected',color: 'text-[#6E6E73]  dark:text-[#8E8E93]', bg: 'bg-gray-100  dark:bg-gray-800/40'  },
-  no_reply:  { emoji: '⏳', th: 'รอผล',       en: 'Awaiting',   color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+  won:       { emoji: '🏆', th: 'ได้รับทุน',  en: 'Won',         color: 'text-green-600  dark:text-green-400',  bg: 'bg-green-50  dark:bg-green-900/20' },
+  submitted: { emoji: '✓',  th: 'ส่งแล้ว',    en: 'Submitted',   color: 'text-blue-600   dark:text-blue-400',   bg: 'bg-blue-50   dark:bg-blue-900/20'  },
+  lost:      { emoji: '✗',  th: 'ไม่ผ่าน',   en: 'Not selected', color: 'text-[#6E6E73]  dark:text-[#8E8E93]', bg: 'bg-gray-100  dark:bg-gray-800/40'  },
+  no_reply:  { emoji: '⏳', th: 'รอผล',       en: 'Awaiting',    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
 } as const;
+
+// ─── Summary stats ────────────────────────────────────────────────────────────
+
+interface SummaryStatsProps {
+  saved: number;
+  inProgress: number;
+  submitted: number;
+  total: number;
+  lang: string;
+}
+
+function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStatsProps) {
+  const stats = [
+    { n: saved,      th: 'บันทึก',     en: 'Saved',       icon: '🔖', color: 'text-[#F0A500]' },
+    { n: inProgress, th: 'กำลังสมัคร', en: 'In Progress',  icon: '📝', color: 'text-blue-600 dark:text-blue-400' },
+    { n: submitted,  th: 'ส่งแล้ว',    en: 'Submitted',    icon: '✅', color: 'text-green-600 dark:text-green-400' },
+    { n: total,      th: 'ทั้งหมด',    en: 'Total',        icon: '📋', color: 'text-[#1D1D1F] dark:text-[#F5F5F7]' },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-3 mb-8">
+      {stats.map((s) => (
+        <div
+          key={s.en}
+          className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-4 text-center"
+        >
+          <div className="text-xl mb-1">{s.icon}</div>
+          <div className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            {s.n}
+          </div>
+          <div className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5">
+            {lang === 'th' ? s.th : s.en}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +157,67 @@ function EmptyState({ emoji, th, en, lang, link }: EmptyStateProps) {
   );
 }
 
+// ─── Step list inside card ────────────────────────────────────────────────────
+
+interface StepListProps {
+  progress: number[];
+  dates: Record<string, string> | null;
+  lang: string;
+}
+
+function StepList({ progress, dates, lang }: StepListProps) {
+  const stepNames = lang === 'th' ? STEP_NAMES_TH : STEP_NAMES_EN;
+  const sortedDone = [...progress].sort((a, b) => a - b);
+
+  // Find next uncompleted step (1–7)
+  const nextStep = [1, 2, 3, 4, 5, 6, 7].find((n) => !progress.includes(n));
+
+  // Show up to 4 completed steps (most recent first) + next step
+  const LIMIT = 4;
+  const toShow = sortedDone.slice(-LIMIT);
+  const hiddenCount = sortedDone.length > LIMIT ? sortedDone.length - LIMIT : 0;
+
+  if (sortedDone.length === 0 && !nextStep) return null;
+
+  return (
+    <div className="space-y-1 mt-2">
+      {hiddenCount > 0 && (
+        <p className="text-xs text-[#ADADB8]">
+          +{hiddenCount} {lang === 'th' ? 'ขั้นตอนก่อนหน้า' : 'earlier steps'}
+        </p>
+      )}
+      {toShow.map((stepNum) => {
+        const dateStr = dates?.[stepNum.toString()];
+        return (
+          <div key={stepNum} className="flex items-center gap-2 text-xs">
+            <span className="w-4 h-4 rounded-full bg-[#F0A500] flex items-center justify-center shrink-0">
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                <path d="M1 4l2.5 2.5 3.5-3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="text-[#1D1D1F] dark:text-[#F5F5F7] truncate flex-1"
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+              {stepNames[stepNum - 1]}
+            </span>
+            {dateStr && (
+              <span className="text-[#ADADB8] shrink-0">{formatDate(dateStr, lang)}</span>
+            )}
+          </div>
+        );
+      })}
+      {nextStep && progress.length < 7 && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="w-4 h-4 rounded-full border-2 border-[#E5E5EA] dark:border-[#38383A] shrink-0" />
+          <span className="text-[#ADADB8] italic truncate flex-1"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+            {lang === 'th' ? `→ ${STEP_NAMES_TH[nextStep - 1]}` : `→ ${STEP_NAMES_EN[nextStep - 1]}`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Application Card ─────────────────────────────────────────────────────────
 
 interface AppCardProps {
@@ -109,8 +243,10 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
   const deadline = scholarship ? getDeadlineInfo(scholarship.deadline_date ?? null) : null;
   const deadlineColors = deadline ? DEADLINE_COLOR_MAP[deadline.color] ?? DEADLINE_COLOR_MAP['gray'] : null;
 
-  const progress = Array.isArray(app.checklist_progress) ? app.checklist_progress.length : 0;
-  const progressPct = Math.min(100, (progress / 7) * 100);
+  const progressArr = Array.isArray(app.checklist_progress) ? app.checklist_progress : [];
+  const progressCount = progressArr.length;
+  const progressPct = Math.min(100, (progressCount / 7) * 100);
+  const allDone = progressCount === 7;
 
   const actionLabel =
     section === 'in_progress'
@@ -127,51 +263,55 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2">
+          <h3
+            className="text-sm font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2"
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+          >
             {name}
           </h3>
           {funder && (
             <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5 truncate">{funder}</p>
           )}
         </div>
-      </div>
-
-      {/* Amount + Deadline */}
-      <div className="flex flex-wrap items-center gap-2">
-        {scholarship && (
-          <span className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+        {scholarship?.amount_thb && (
+          <span className="text-xs font-bold text-[#F0A500] shrink-0" style={{ fontFamily: 'DM Sans, sans-serif' }}>
             {formatAmount(scholarship.amount_thb, scholarship.amount_type, lang)}
           </span>
         )}
-        {deadline && deadlineColors && (
-          <span
-            className="text-xs font-medium px-2 py-0.5 rounded-full border"
-            style={{
-              backgroundColor: deadlineColors.bg,
-              color: deadlineColors.text,
-              borderColor: deadlineColors.border,
-            }}
-          >
-            {lang === 'th' ? deadline.label : deadline.labelEn}
-          </span>
-        )}
       </div>
 
-      {/* Checklist progress (only for in_progress / saved) */}
+      {/* Deadline */}
+      {deadline && deadlineColors && (
+        <span
+          className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border w-fit"
+          style={{ backgroundColor: deadlineColors.bg, color: deadlineColors.text, borderColor: deadlineColors.border }}
+        >
+          {lang === 'th' ? deadline.label : deadline.labelEn}
+        </span>
+      )}
+
+      {/* Progress bar + step list (in_progress and saved) */}
       {section !== 'history' && (
-        <div className="space-y-1">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-              {progress}/7 {lang === 'th' ? 'ขั้นตอน' : 'steps'}
+              {progressCount}/7 {lang === 'th' ? 'ขั้นตอน' : 'steps'}
             </span>
             <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{Math.round(progressPct)}%</span>
           </div>
           <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progressPct}%`, backgroundColor: '#F0A500' }}
+              style={{
+                width: `${progressPct}%`,
+                backgroundColor: allDone ? '#22C55E' : '#F0A500',
+              }}
             />
           </div>
+          {/* Step list with dates */}
+          {progressCount > 0 && (
+            <StepList progress={progressArr} dates={app.checklist_dates} lang={lang} />
+          )}
         </div>
       )}
 
@@ -192,7 +332,6 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
           {actionLabel}
         </Link>
 
-        {/* Saved section: delete button */}
         {section === 'saved' && onDelete && (
           <button
             type="button"
@@ -204,7 +343,6 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
           </button>
         )}
 
-        {/* History section: update result dropdown (for submitted/no_reply) */}
         {section === 'history' && (app.status === 'submitted' || app.status === 'no_reply') && onStatusUpdate && (
           <div className="relative">
             <button
@@ -217,9 +355,9 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
             {showStatusMenu && (
               <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[10px] shadow-lg overflow-hidden w-44">
                 {[
-                  { status: 'won'      as Application['status'], th: '🏆 ได้รับทุน',       en: '🏆 Won' },
-                  { status: 'lost'     as Application['status'], th: '✗ ไม่ผ่านการคัดเลือก', en: '✗ Not selected' },
-                  { status: 'no_reply' as Application['status'], th: '⏳ รอผลต่อ',          en: '⏳ Still waiting' },
+                  { status: 'won'      as Application['status'], th: '🏆 ได้รับทุน',          en: '🏆 Won' },
+                  { status: 'lost'     as Application['status'], th: '✗ ไม่ผ่านการคัดเลือก',  en: '✗ Not selected' },
+                  { status: 'no_reply' as Application['status'], th: '⏳ รอผลต่อ',            en: '⏳ Still waiting' },
                 ].map((opt) => (
                   <button
                     key={opt.status}
@@ -283,9 +421,9 @@ export default function TrackerPage() {
   const { lang } = useLang();
   const supabase = createClient();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [apps, setApps] = useState<Application[]>([]);
+  const [apps, setApps]         = useState<Application[]>([]);
 
   const fontFamily = lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif';
 
@@ -295,21 +433,26 @@ export default function TrackerPage() {
         const { data, error } = await supabase
           .from('applications')
           .select(
-            `*, scholarships(id, name_th, name_en, funder_name_th, funder_name_en, amount_thb, amount_type, deadline_date, application_url, tier, is_active)`
+            `id, user_id, scholarship_id, status,
+             checklist_progress, checklist_dates,
+             clicked_through_at, submitted_at, created_at,
+             scholarships(
+               id, name_th, name_en,
+               funder_name_th, funder_name_en,
+               amount_thb, amount_type,
+               deadline_date, application_url
+             )`
           )
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
         if (error) {
-          // Table may not exist yet — treat as empty
           console.warn('[TunDee] Tracker fetch error (non-fatal):', error.message);
           setApps([]);
           return;
         }
 
-        const normalized = (data ?? []) as Application[];
-        console.log('[TunDee] Tracker:', normalized.length, 'applications');
-        setApps(normalized);
+        setApps((data ?? []) as unknown as Application[]);
       } catch (err) {
         console.warn('[TunDee] Tracker unexpected error:', err);
         setApps([]);
@@ -324,7 +467,6 @@ export default function TrackerPage() {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-
       if (session?.user) {
         setLoggedIn(true);
         await fetchApps(session.user.id);
@@ -356,12 +498,10 @@ export default function TrackerPage() {
 
   // ── Delete handler ─────────────────────────────────────────────────────────
   async function handleDelete(appId: string) {
-    setApps((prev) => prev.filter((a) => a.id !== appId)); // optimistic
+    setApps((prev) => prev.filter((a) => a.id !== appId));
     try {
       await supabase.from('applications').delete().eq('id', appId);
-      console.log('[TunDee] Deleted application', appId);
     } catch {
-      // Refetch on error
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) fetchApps(session.user.id);
     }
@@ -369,10 +509,9 @@ export default function TrackerPage() {
 
   // ── Status update handler ──────────────────────────────────────────────────
   async function handleStatusUpdate(appId: string, status: Application['status']) {
-    setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a))); // optimistic
+    setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
     try {
       await supabase.from('applications').update({ status }).eq('id', appId);
-      console.log('[TunDee] Updated application status', appId, '->', status);
     } catch {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) fetchApps(session.user.id);
@@ -386,26 +525,11 @@ export default function TrackerPage() {
     ['submitted', 'won', 'lost', 'no_reply'].includes(a.status)
   );
 
-  // ── Counts label ──────────────────────────────────────────────────────────
-  const countParts: string[] = [];
-  if (inProgressApps.length > 0)
-    countParts.push(
-      lang === 'th'
-        ? `${inProgressApps.length} กำลังสมัคร`
-        : `${inProgressApps.length} in progress`
-    );
-  if (savedApps.length > 0)
-    countParts.push(
-      lang === 'th' ? `${savedApps.length} บันทึกไว้` : `${savedApps.length} saved`
-    );
-  const countLabel = countParts.join(' · ');
-
   // ─────────────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
-        {/* Header skeleton */}
         <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
           <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
             <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded w-48 animate-pulse mb-2" />
@@ -413,6 +537,11 @@ export default function TrackerPage() {
           </div>
         </div>
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
+          <div className="grid grid-cols-4 gap-3 mb-8">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] animate-pulse" />
+            ))}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
           </div>
@@ -423,10 +552,7 @@ export default function TrackerPage() {
 
   if (!loggedIn) {
     return (
-      <div
-        className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen flex items-center justify-center px-4"
-        style={{ fontFamily }}
-      >
+      <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen flex items-center justify-center px-4" style={{ fontFamily }}>
         <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[16px] p-10 max-w-sm w-full text-center shadow-sm">
           <span className="text-5xl mb-5 block">🔒</span>
           <h2 className="text-lg font-bold text-[#1D1D1F] dark:text-white mb-2">
@@ -449,6 +575,8 @@ export default function TrackerPage() {
     );
   }
 
+  const submittedApps = historyApps.filter((a) => a.status === 'submitted');
+
   return (
     <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -462,14 +590,21 @@ export default function TrackerPage() {
               ? 'ติดตามสถานะการสมัครทุนของคุณ'
               : 'Track your scholarship application status'}
           </p>
-          {countLabel && (
-            <p className="text-xs font-medium text-[#F0A500] mt-2">{countLabel}</p>
-          )}
         </div>
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
+
+        {/* Summary stats */}
+        <SummaryStats
+          saved={savedApps.length}
+          inProgress={inProgressApps.length}
+          submitted={submittedApps.length}
+          total={apps.length}
+          lang={lang}
+        />
+
         {/* In Progress */}
         <Section
           label={lang === 'th' ? 'กำลังสมัคร' : 'In Progress'}
