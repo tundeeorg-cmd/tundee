@@ -47,6 +47,7 @@ const ApplyIcon = () => (
 export default function HomePage() {
   const { lang } = useLang();
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   const h = translations.howItWorks;
@@ -55,6 +56,7 @@ export default function HomePage() {
 
   useEffect(() => {
     getScholarships().then((data) => {
+      setTotalCount(data.length);
       setScholarships(data.slice(0, 6));
       setLoading(false);
     });
@@ -63,7 +65,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
-      <StatsBar scholarshipCount={scholarships.length > 0 ? scholarships.length : undefined} />
+      <StatsBar scholarshipCount={totalCount > 0 ? totalCount : undefined} />
 
       {/* How It Works */}
       <section className="section-pad bg-white">
@@ -196,8 +198,8 @@ export default function HomePage() {
           </h2>
           <p className="text-white/80 text-sm mb-8">
             {lang === 'th'
-              ? `${scholarships.length > 0 ? scholarships.length : 34}+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด`
-              : `${scholarships.length > 0 ? scholarships.length : 34}+ real scholarships, AI-powered matching, always free`}
+              ? `${totalCount > 0 ? totalCount : 90}+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด`
+              : `${totalCount > 0 ? totalCount : 90}+ real scholarships, AI-powered matching, always free`}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link

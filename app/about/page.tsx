@@ -15,7 +15,7 @@ export default function AboutPage() {
     supabase
       .from('scholarships')
       .select('*', { count: 'exact', head: true })
-      .eq('is_active', true)
+      .neq('is_active', false)
       .then(({ count }) => { if (count !== null) setScholarshipCount(count); });
   }, []);
 

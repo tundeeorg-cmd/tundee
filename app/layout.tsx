@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
     template: '%s | TunDee ทุนดี',
   },
-  description: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 34 ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates Thai scholarships — AI-powered matching, free, bilingual.',
+  description: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 90 ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates 90+ real Thai scholarships — AI-powered matching, free, bilingual.',
   keywords: [
     'ทุนการศึกษา', 'scholarship', 'Thailand', 'thai scholarship', 'ทุนดี', 'tundee',
     'ทุนการศึกษาไทย', 'ทุนม.6', 'ทุนนักเรียน', 'Thai student scholarship',

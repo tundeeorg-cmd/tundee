@@ -16,11 +16,12 @@ export async function getScholarships(): Promise<Scholarship[]> {
     console.warn('[TunDee] Supabase not configured — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY')
     return []
   }
+  // Use neq(false) instead of eq(true) so rows where is_active IS NULL also appear
   const { data, error } = await supabase
     .from('scholarships')
     .select('*')
-    .eq('is_active', true)
-    .order('amount_thb', { ascending: false })
+    .neq('is_active', false)
+    .order('amount_thb', { ascending: false, nullsFirst: false })
 
   // ── Debug logging (keep until scholarships reliably load) ──────────────
   console.log('=== SCHOLARSHIPS DEBUG ===')

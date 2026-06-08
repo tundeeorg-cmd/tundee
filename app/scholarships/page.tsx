@@ -395,6 +395,14 @@ export default function BrowsePage() {
   // True only when load is done AND DB returned nothing (not just filtered to 0)
   const isDataEmpty = !loading && scholarships.length === 0;
 
+  // Deadline alerts: scholarships closing within 7 days
+  const urgentScholarships = useMemo(() => {
+    return scholarships.filter(s => {
+      const info = getDeadlineInfo(s.deadline_date);
+      return info.days !== null && info.days >= 0 && info.days <= 7;
+    });
+  }, [scholarships]);
+
   return (
     <div className="bg-white min-h-screen">
       {/* Page header */}
@@ -437,6 +445,23 @@ export default function BrowsePage() {
             <Link href="/auth" className="text-sm font-semibold text-[#F0A500] hover:underline shrink-0">
               {b.loginBannerCta[lang]}
             </Link>
+          </div>
+        )}
+
+        {/* ── Urgent deadline alert banner ─────────────────────── */}
+        {!loading && urgentScholarships.length > 0 && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-5 py-4 flex items-start gap-3">
+            <span className="text-xl shrink-0">⚡</span>
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                {lang === 'th'
+                  ? `${urgentScholarships.length} ทุนกำลังจะหมดเขตใน 7 วัน`
+                  : `${urgentScholarships.length} scholarship${urgentScholarships.length > 1 ? 's' : ''} closing within 7 days`}
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-500 mt-0.5 line-clamp-1">
+                {urgentScholarships.map(s => lang === 'th' ? s.name_th : (s.name_en ?? s.name_th)).join(' · ')}
+              </p>
+            </div>
           </div>
         )}
 

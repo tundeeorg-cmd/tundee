@@ -35,7 +35,7 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h4 className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-widest mb-4">{f.contact_title[lang]}</h4>
-            <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">hello@tundee.org</p>
+            <a href="mailto:hello@tundee.org" className="text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors">hello@tundee.org</a>
             <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mt-2">tundee.org</p>
             <a
               href="https://github.com/jenissavichiansin/tundee"
