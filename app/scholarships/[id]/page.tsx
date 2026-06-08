@@ -259,7 +259,7 @@ export default function ScholarshipDetailPage() {
   const isExpired = s.deadline_date !== null && new Date(s.deadline_date) < new Date();
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-white dark:bg-[#000000] min-h-screen">
       <style>{`
         @media print {
           nav, .no-print, button:not(.print-keep), .sticky { display: none !important; }

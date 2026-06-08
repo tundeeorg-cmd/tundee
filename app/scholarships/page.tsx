@@ -7,7 +7,7 @@ import Link from 'next/link';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import ScholarshipFilters from '@/components/ScholarshipFilters';
 import { useLang } from '@/lib/LanguageContext';
-import { supabase, getScholarships } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { translations } from '@/lib/translations';
 import { getDeadlineInfo } from '@/lib/deadline';
 import { getMatchedScholarships, classifyDemographic } from '@/lib/matching';
@@ -265,6 +265,7 @@ function EmptyState({ lang }: { lang: string }) {
 export default function BrowsePage() {
   const { lang } = useLang();
   const b = translations.browse;
+  const supabase = createClient();
 
   const [user, setUser] = useState<User | null>(null);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
@@ -281,19 +282,29 @@ export default function BrowsePage() {
 
   // Auth + data load
   useEffect(() => {
-    // Load all scholarships
-    getScholarships()
-      .then((data) => {
-        setScholarships(data);
-        if (data.length === 0) {
-          setFetchError('no_data');
+    // Load all scholarships — no server-side is_active filter; filter client-side so
+    // rows with is_active = NULL are also included (avoids RLS NULL-exclusion edge case)
+    void (async () => {
+      try {
+        const { data, error: fetchErr } = await supabase
+          .from('scholarships')
+          .select('*')
+          .order('amount_thb', { ascending: false, nullsFirst: false });
+        if (fetchErr) {
+          console.error('[TunDee] scholarships fetch error:', fetchErr.message);
+          setFetchError('exception');
+        } else {
+          const active = (data || []).filter((s) => (s as { is_active?: boolean | null }).is_active !== false) as Scholarship[];
+          setScholarships(active);
+          if (active.length === 0) setFetchError('no_data');
         }
-      })
-      .catch((err) => {
-        console.error('[TunDee] getScholarships threw:', err);
+      } catch (err) {
+        console.error('[TunDee] scholarships unexpected error:', err);
         setFetchError('exception');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    })();
 
     // Check auth — use getSession() (reads localStorage, no network round-trip)
     supabase.auth.getSession().then(async ({ data }) => {
@@ -404,17 +415,17 @@ export default function BrowsePage() {
   }, [scholarships]);
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-white dark:bg-[#000000] min-h-screen">
       {/* Page header */}
-      <div className="bg-[#F5F5F7] border-b border-[#E5E5EA]">
+      <div className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
         <div className="max-w-[1200px] mx-auto px-6 py-12">
           <h1
-            className="text-3xl md:text-4xl text-[#1D1D1F] mb-3"
+            className="text-3xl md:text-4xl text-[#1D1D1F] dark:text-white mb-3"
             style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
           >
             {b.title[lang]}
           </h1>
-          <p className="text-[#6E6E73]">{b.subtitle[lang]}</p>
+          <p className="text-[#6E6E73] dark:text-[#8E8E93]">{b.subtitle[lang]}</p>
 
           {/* Tabs (only show to logged-in users) */}
           {user && (

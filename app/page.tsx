@@ -8,7 +8,8 @@ import HeroSection from '@/components/HeroSection';
 import StatsBar from '@/components/StatsBar';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import { useLang } from '@/lib/LanguageContext';
-import { getScholarships } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
+import { useScholarshipCount } from '@/lib/useScholarshipCount';
 import { translations } from '@/lib/translations';
 import type { Scholarship } from '@/lib/types';
 
@@ -46,8 +47,8 @@ const ApplyIcon = () => (
 
 export default function HomePage() {
   const { lang } = useLang();
+  const totalCount = useScholarshipCount(90);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
-  const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   const h = translations.howItWorks;
@@ -55,17 +56,23 @@ export default function HomePage() {
   const f = translations.featured;
 
   useEffect(() => {
-    getScholarships().then((data) => {
-      setTotalCount(data.length);
-      setScholarships(data.slice(0, 6));
-      setLoading(false);
-    });
+    const supabase = createClient();
+    supabase
+      .from('scholarships')
+      .select('*')
+      .order('amount_thb', { ascending: false, nullsFirst: false })
+      .limit(6)
+      .then(({ data }) => {
+        const active = (data ?? []).filter((s) => s.is_active !== false) as Scholarship[];
+        setScholarships(active.slice(0, 6));
+        setLoading(false);
+      });
   }, []);
 
   return (
     <>
       <HeroSection />
-      <StatsBar scholarshipCount={totalCount > 0 ? totalCount : undefined} />
+      <StatsBar scholarshipCount={totalCount} />
 
       {/* How It Works */}
       <section className="section-pad bg-white">
@@ -198,8 +205,8 @@ export default function HomePage() {
           </h2>
           <p className="text-white/80 text-sm mb-8">
             {lang === 'th'
-              ? `${totalCount > 0 ? totalCount : 90}+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด`
-              : `${totalCount > 0 ? totalCount : 90}+ real scholarships, AI-powered matching, always free`}
+              ? `${totalCount}+ ทุนจริง จับคู่อัตโนมัติ ฟรีตลอด`
+              : `${totalCount}+ real scholarships, AI-powered matching, always free`}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useLang } from '@/lib/LanguageContext';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AboutPage() {
   const { lang } = useLang();
@@ -12,11 +12,11 @@ export default function AboutPage() {
   const [scholarshipCount, setScholarshipCount] = useState<number | null>(null);
 
   useEffect(() => {
+    const supabase = createClient();
     supabase
       .from('scholarships')
-      .select('*', { count: 'exact', head: true })
-      .neq('is_active', false)
-      .then(({ count }) => { if (count !== null) setScholarshipCount(count); });
+      .select('id', { count: 'exact', head: true })
+      .then(({ count }) => { if (count !== null && count > 0) setScholarshipCount(count); });
   }, []);
 
   return (
