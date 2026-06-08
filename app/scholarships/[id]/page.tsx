@@ -7,7 +7,6 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import InteractiveChecklist from '@/components/InteractiveChecklist';
-import TierBadge from '@/components/TierBadge';
 import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
@@ -296,9 +295,6 @@ export default function ScholarshipDetailPage() {
             {/* Header */}
             <div>
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                {(s as Scholarship & { tier?: 'SAFETY' | 'TARGET' | 'REACH' }).tier && (
-                  <TierBadge tier={(s as Scholarship & { tier: 'SAFETY' | 'TARGET' | 'REACH' }).tier} lang={lang} size="md" />
-                )}
                 {s.funder_type && (
                   <Pill className={funderColor}>{funderTypeLabel}</Pill>
                 )}
@@ -410,13 +406,6 @@ export default function ScholarshipDetailPage() {
                   <InfoRow
                     label={d.gradeLevelsLabel[lang]}
                     value={sx.grade_levels.map(g => GRADE_LABEL[g]?.[lang as 'th' | 'en'] ?? g).join(', ')}
-                  />
-                )}
-                {/* Tier */}
-                {sx.tier && (
-                  <InfoRow
-                    label={d.tierLabel[lang]}
-                    value={<TierBadge tier={sx.tier} lang={lang} size="md" />}
                   />
                 )}
                 {/* Renewable */}

@@ -76,7 +76,6 @@ interface TopScholarship {
   name_th: string;
   name_en: string | null;
   funder_name_th: string | null;
-  tier: string | null;
   amount_thb: number | null;
   is_active: boolean;
   total_saves: number;
@@ -783,7 +782,7 @@ export default function AdminPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C]">
-                        {['#', 'ชื่อทุน', 'Tier', 'จำนวนเงิน', 'บันทึก', 'กำลังสมัคร', 'ส่งแล้ว', 'ได้ทุน'].map(h => (
+                        {['#', 'ชื่อทุน', 'จำนวนเงิน', 'บันทึก', 'กำลังสมัคร', 'ส่งแล้ว', 'ได้ทุน'].map(h => (
                           <th key={h} className={`pb-3 pt-1 font-medium text-[#6E6E73] dark:text-[#8E8E93] text-xs ${h === '#' ? 'text-left' : h === 'ชื่อทุน' ? 'text-left' : 'text-center'}`}>
                             {h}
                           </th>
@@ -798,17 +797,6 @@ export default function AdminPage() {
                           <td className="py-3 pr-4 min-w-[160px]">
                             <div className="font-medium text-[#1D1D1F] dark:text-white leading-tight line-clamp-2">{s.name_th}</div>
                             {s.funder_name_th && <div className="text-xs text-[#6E6E73] mt-0.5">{s.funder_name_th}</div>}
-                          </td>
-                          <td className="py-3 text-center">
-                            {s.tier ? (
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                s.tier === 'SAFETY' ? 'bg-green-50 text-green-700'
-                                  : s.tier === 'TARGET' ? 'bg-amber-50 text-amber-700'
-                                  : 'bg-red-50 text-red-600'
-                              }`}>
-                                {s.tier === 'SAFETY' ? '🟢' : s.tier === 'TARGET' ? '🟡' : '🔴'}
-                              </span>
-                            ) : '—'}
                           </td>
                           <td className="py-3 text-center text-[#F0A500] font-medium">
                             {s.amount_thb != null ? `${s.amount_thb.toLocaleString()}฿` : '—'}

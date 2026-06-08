@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 import { translations } from '@/lib/translations';
-import TierBadge from '@/components/TierBadge';
 import SaveButton from '@/components/SaveButton';
 import { getDeadlineInfo, DEADLINE_COLOR_MAP } from '@/lib/deadline';
 import type { Scholarship } from '@/lib/types';
@@ -80,7 +79,6 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
           {funder && <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mt-1 truncate">{funder}</p>}
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          {s.tier && <TierBadge tier={s.tier} lang={lang} />}
           {s.funder_type && (
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${colorClass}`}>
               {funderTypeLabel}

@@ -6,7 +6,6 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import ScholarshipCard from '@/components/ScholarshipCard';
 import ScholarshipFilters from '@/components/ScholarshipFilters';
-import TierBadge from '@/components/TierBadge';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarships } from '@/lib/supabase';
 import { translations } from '@/lib/translations';
@@ -18,9 +17,7 @@ import type { User } from '@supabase/supabase-js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
-type Tier = 'SAFETY' | 'TARGET' | 'REACH';
 type SortKey = 'amount' | 'deadline' | 'name';
-const ALL_TIERS: Tier[] = ['SAFETY', 'TARGET', 'REACH'];
 
 const EMPTY_FILTERS: FilterState = {
   funderType: '',
@@ -190,7 +187,6 @@ function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          {s.tier && <TierBadge tier={s.tier} lang={lang} />}
           {s.amount_thb && (
             <span className="text-sm font-semibold text-[#F0A500]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
               {s.amount_thb.toLocaleString('th-TH')}
@@ -277,7 +273,6 @@ export default function BrowsePage() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('browse');
-  const [selectedTiers, setSelectedTiers] = useState<Tier[]>([...ALL_TIERS]);
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
@@ -389,35 +384,13 @@ export default function BrowsePage() {
     }
   }
 
-  function toggleTier(tier: Tier) {
-    setSelectedTiers(prev =>
-      prev.includes(tier)
-        ? prev.length === 1 ? prev : prev.filter(t => t !== tier) // keep at least one
-        : [...prev, tier]
-    );
-  }
-
-  // Normalise tier from DB (may be lowercase, unexpected, or missing)
-  function getTier(s: Scholarship): Tier {
-    const raw = (s as Scholarship & { tier?: string }).tier?.toUpperCase();
-    return (raw && ALL_TIERS.includes(raw as Tier)) ? (raw as Tier) : 'TARGET';
-  }
-
-  // Tier counts (before search, before sort — just filtering)
-  const tierCounts = useMemo(() => {
-    const base = applyFilters(scholarships, filters);
-    return Object.fromEntries(
-      ALL_TIERS.map((t) => [t, base.filter((s) => getTier(s) === t).length])
-    ) as Record<Tier, number>;
-  }, [scholarships, filters]);
-
   const filtered = useMemo(() => {
-    let base = applyFilters(scholarships, filters).filter(s => selectedTiers.includes(getTier(s)));
+    let base = applyFilters(scholarships, filters);
     base = searchFilter(base, searchQuery, lang);
     if (sortKey === 'deadline') return sortByDeadline(base);
     if (sortKey === 'amount') return sortByAmount(base);
     return sortByName(base, lang);
-  }, [scholarships, filters, selectedTiers, sortKey, searchQuery, lang]);
+  }, [scholarships, filters, sortKey, searchQuery, lang]);
 
   // True only when load is done AND DB returned nothing (not just filtered to 0)
   const isDataEmpty = !loading && scholarships.length === 0;
@@ -595,55 +568,6 @@ export default function BrowsePage() {
                   )}
                 </div>
 
-                {/* Tier filter */}
-                <div className="mb-5">
-                  <p className="text-xs font-semibold text-[#6E6E73] uppercase tracking-wider mb-2">
-                    {b.tierFilterLabel[lang]}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_TIERS.map(tier => {
-                      const styles = { SAFETY: { bg: '#EAFAF1', active: '#1E8449', dot: '🟢' }, TARGET: { bg: '#FFF8E7', active: '#D35400', dot: '🟡' }, REACH: { bg: '#FDEDEC', active: '#C0392B', dot: '🔴' } }[tier];
-                      const label = translations.tier[tier][lang as 'th' | 'en'];
-                      const isOn = selectedTiers.includes(tier);
-                      const count = tierCounts[tier] ?? 0;
-                      return (
-                        <button
-                          key={tier}
-                          onClick={() => toggleTier(tier)}
-                          style={{
-                            background: isOn ? styles.bg : '#F5F5F7',
-                            color: isOn ? styles.active : '#ADADB8',
-                            border: `1.5px solid ${isOn ? styles.active : 'transparent'}`,
-                            borderRadius: '20px',
-                            padding: '6px 14px',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                          }}
-                        >
-                          <span>{styles.dot}</span>
-                          {label}
-                          <span style={{
-                            background: isOn ? styles.active : '#ADADB8',
-                            color: '#fff',
-                            borderRadius: '10px',
-                            padding: '1px 6px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            marginLeft: '2px',
-                          }}>
-                            {count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 {/* Results header + sort toggle */}
                 <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
                   <span className="text-sm text-[#6E6E73]">
@@ -687,7 +611,7 @@ export default function BrowsePage() {
                     <h3 className="text-lg font-semibold text-[#1D1D1F] mb-2">{b.noResults[lang]}</h3>
                     <p className="text-[#6E6E73] text-sm mb-6">{b.noResultsSub[lang]}</p>
                     <button
-                      onClick={() => { setFilters(EMPTY_FILTERS); setSelectedTiers([...ALL_TIERS]); }}
+                      onClick={() => { setFilters(EMPTY_FILTERS); }}
                       className="text-sm text-[#F0A500] font-medium hover:underline"
                     >
                       {b.clearFilters[lang]}

@@ -125,15 +125,9 @@ function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
         </ul>
       )}
 
-      {/* Tier badge */}
-      {s.tier && (
+      {s.amount_thb && (
         <div className="mt-3 flex gap-2">
-          <Pill color={s.tier === 'SAFETY' ? 'green' : s.tier === 'TARGET' ? 'gold' : 'blue'}>
-            {s.tier}
-          </Pill>
-          {s.amount_thb && (
-            <Pill color="gray">฿{s.amount_thb.toLocaleString()}</Pill>
-          )}
+          <Pill color="gray">฿{s.amount_thb.toLocaleString()}</Pill>
         </div>
       )}
     </div>

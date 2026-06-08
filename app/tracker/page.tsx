@@ -6,7 +6,6 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
-import TierBadge from '@/components/TierBadge';
 import { getDeadlineInfo, DEADLINE_COLOR_MAP } from '@/lib/deadline';
 import type { Scholarship } from '@/lib/types';
 
@@ -135,11 +134,6 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
             <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5 truncate">{funder}</p>
           )}
         </div>
-        {scholarship?.tier && (
-          <div className="flex-shrink-0 mt-0.5">
-            <TierBadge tier={scholarship.tier} lang={lang} size="sm" />
-          </div>
-        )}
       </div>
 
       {/* Amount + Deadline */}
