@@ -812,9 +812,9 @@ export default function BrowsePage() {
                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
               {b.loginBanner[lang]}
             </p>
-            <Link href="/auth" className="text-sm font-semibold text-[#F0A500] hover:underline shrink-0">
+            <a href="/auth?from=signup" className="text-sm font-semibold text-[#F0A500] hover:underline shrink-0">
               {b.loginBannerCta[lang]}
-            </Link>
+            </a>
           </div>
         )}
 

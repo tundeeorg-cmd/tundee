@@ -36,6 +36,8 @@ function AuthForm() {
   const [cooldown,      setCooldown]      = useState(0);
   const [lang,          setLang]          = useState<'th' | 'en'>('th');
 
+  const isSignup = searchParams.get('from') === 'signup';
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.tundee.org';
 
   useEffect(() => {
@@ -225,10 +227,23 @@ function AuthForm() {
                 TUNDEE.ORG
               </div>
             </a>
-            <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]"
-               style={{ fontFamily: 'Sarabun, sans-serif' }}>
-              {lang === 'th' ? 'ค้นหาทุนการศึกษาที่เหมาะกับคุณ' : 'Find the scholarship you deserve'}
-            </p>
+            {isSignup ? (
+              <>
+                <h1 className="text-lg font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1"
+                    style={{ fontFamily: 'Sarabun, sans-serif' }}>
+                  {lang === 'th' ? 'สร้างบัญชีฟรี' : 'Create a free account'}
+                </h1>
+                <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]"
+                   style={{ fontFamily: 'Sarabun, sans-serif' }}>
+                  {lang === 'th' ? 'เพื่อดูทุนที่ตรงกับโปรไฟล์ของคุณ' : 'To see scholarships matched to your profile'}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]"
+                 style={{ fontFamily: 'Sarabun, sans-serif' }}>
+                {lang === 'th' ? 'ค้นหาทุนการศึกษาที่เหมาะกับคุณ' : 'Find the scholarship you deserve'}
+              </p>
+            )}
           </div>
 
           <div className="px-8 pb-8">
@@ -257,7 +272,9 @@ function AuthForm() {
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
               )}
-              {lang === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google'}
+              {isSignup
+                ? (lang === 'th' ? 'สร้างบัญชีด้วย Google' : 'Sign up with Google')
+                : (lang === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google')}
             </button>
 
             {/* Divider */}
@@ -297,6 +314,8 @@ function AuthForm() {
                     <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     {lang === 'th' ? 'กำลังส่ง...' : 'Sending…'}
                   </>
+                ) : isSignup ? (
+                  lang === 'th' ? '✉️  สร้างบัญชีด้วยอีเมล' : '✉️  Create account with email'
                 ) : (
                   lang === 'th' ? '✉️  ส่งลิงก์เข้าสู่ระบบ' : '✉️  Send sign-in link'
                 )}
@@ -305,9 +324,9 @@ function AuthForm() {
 
             <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-4 leading-relaxed"
                style={{ fontFamily: 'Sarabun, sans-serif' }}>
-              {lang === 'th'
-                ? 'ถ้ายังไม่มีบัญชี ระบบจะสร้างให้อัตโนมัติ ฟรีตลอด'
-                : "No account yet? We'll create one automatically. Always free."}
+              {isSignup
+                ? (lang === 'th' ? 'ฟรีตลอด ไม่มีค่าใช้จ่าย' : 'Always free. No credit card required.')
+                : (lang === 'th' ? 'ถ้ายังไม่มีบัญชี ระบบจะสร้างให้อัตโนมัติ ฟรีตลอด' : "No account yet? We'll create one automatically. Always free.")}
             </p>
           </div>
         </div>
