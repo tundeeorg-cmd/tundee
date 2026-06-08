@@ -92,7 +92,7 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
         {formatAmount()}
       </div>
 
-      {/* Tags */}
+      {/* Tags — max 3 visible */}
       <div className="flex flex-wrap gap-2">
         {s.welfare_card_priority && (
           <span className="text-xs bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#B8860B] dark:text-[#F0A500] border border-[#F0A500]/30 px-2 py-0.5 rounded-full">
@@ -105,6 +105,11 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
         <span className="text-xs bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
           {isAnyField ? c.anyField[lang] : s.field_of_study?.[0] ?? ''}
         </span>
+        {s.min_gpa !== null && s.min_gpa !== undefined && (
+          <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
+            GPA {s.min_gpa.toFixed(1)}+
+          </span>
+        )}
       </div>
 
       {/* Footer */}

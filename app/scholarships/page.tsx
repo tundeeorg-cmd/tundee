@@ -63,11 +63,20 @@ function searchFilter(scholarships: Scholarship[], query: string, lang: string):
   if (!query.trim()) return scholarships;
   const q = query.trim().toLowerCase();
   return scholarships.filter((s) => {
-    const nameTh = (s.name_th ?? '').toLowerCase();
-    const nameEn = (s.name_en ?? '').toLowerCase();
-    const funderTh = (s.funder_name_th ?? '').toLowerCase();
-    const funderEn = (s.funder_name_en ?? '').toLowerCase();
-    return nameTh.includes(q) || nameEn.includes(q) || funderTh.includes(q) || funderEn.includes(q);
+    const nameTh    = (s.name_th ?? '').toLowerCase();
+    const nameEn    = (s.name_en ?? '').toLowerCase();
+    const funderTh  = (s.funder_name_th ?? '').toLowerCase();
+    const funderEn  = (s.funder_name_en ?? '').toLowerCase();
+    const descTh    = ((s as Scholarship & { description_th?: string }).description_th ?? '').toLowerCase();
+    const descEn    = ((s as Scholarship & { description_en?: string }).description_en ?? '').toLowerCase();
+    return (
+      nameTh.includes(q)   ||
+      nameEn.includes(q)   ||
+      funderTh.includes(q) ||
+      funderEn.includes(q) ||
+      descTh.includes(q)   ||
+      descEn.includes(q)
+    );
   });
 }
 
