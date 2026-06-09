@@ -34,7 +34,8 @@ export default function HealthPage() {
       .then(({ count, error }) => {
         if (error) update(0, 'error', error.message);
         else update(0, 'ok', `Connected — ${count} scholarships`);
-      });
+      })
+      .catch((e: unknown) => update(0, 'error', e instanceof Error ? e.message : 'Unexpected error'));
 
     // Check 1: Scholarships loading
     supabase
@@ -47,20 +48,23 @@ export default function HealthPage() {
         else if (!data || data.length === 0)
           update(1, 'error', 'No scholarships returned — check RLS');
         else update(1, 'ok', `Loading OK — first: ${data[0].name_th}`);
-      });
+      })
+      .catch((e: unknown) => update(1, 'error', e instanceof Error ? e.message : 'Unexpected error'));
 
     // Check 2: Auth system
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) update(2, 'error', error.message);
-      else
-        update(
-          2,
-          'ok',
-          data.session
-            ? `Logged in as ${data.session.user.email}`
-            : 'Not logged in (auth system working)',
-        );
-    });
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (error) update(2, 'error', error.message);
+        else
+          update(
+            2,
+            'ok',
+            data.session
+              ? `Logged in as ${data.session.user.email}`
+              : 'Not logged in (auth system working)',
+          );
+      })
+      .catch((e: unknown) => update(2, 'error', e instanceof Error ? e.message : 'Unexpected error'));
 
     // Check 3: OG image — prefer .svg, fall back to .png
     fetch('/og-image.svg', { method: 'HEAD' })
