@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
@@ -42,13 +43,13 @@ export const metadata: Metadata = {
     siteName: 'TunDee ทุนดี',
     locale: 'th_TH',
     type: 'website',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'TunDee — ทุนการศึกษาไทย' }],
+    images: [{ url: '/og-image.svg', width: 1200, height: 630, alt: 'TunDee — ทุนการศึกษาไทย' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ทุนดี (TunDee) — ค้นหาทุนการศึกษาไทย',
     description: 'รวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติ ฟรีตลอด',
-    images: ['/og-image.png'],
+    images: ['/og-image.svg'],
   },
   verification: {
     google: 'tundee-google-site-verification',
@@ -60,6 +61,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+
   return (
     <html lang="th">
       <head>
@@ -75,6 +78,18 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
+      {/* Google Analytics */}
+      {GA_ID && (
+        <>
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+            strategy="afterInteractive"
+          />
+          <Script id="ga-init" strategy="afterInteractive">
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}',{page_path:window.location.pathname});`}
+          </Script>
+        </>
+      )}
       <body className="min-h-screen flex flex-col">
         <ThemeProvider>
           <LanguageProvider>

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1D1D1F"/>
+      <stop offset="100%" stop-color="#2C2C2E"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F0A500"/>
+      <stop offset="100%" stop-color="#F5C842"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2C2C2E"/>
+      <stop offset="100%" stop-color="#242426"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle grid texture -->
+  <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+    <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#FFFFFF" stroke-width="0.3" opacity="0.04"/>
+  </pattern>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Gold accent bar top -->
+  <rect x="0" y="0" width="1200" height="5" fill="url(#gold)"/>
+
+  <!-- Left accent glow -->
+  <ellipse cx="0" cy="315" rx="300" ry="400" fill="#F0A500" opacity="0.05"/>
+
+  <!-- Right subtle glow -->
+  <ellipse cx="1200" cy="315" rx="200" ry="300" fill="#F5C842" opacity="0.04"/>
+
+  <!-- Main card -->
+  <rect x="80" y="80" width="1040" height="470" rx="24" fill="url(#card)" stroke="#3A3A3C" stroke-width="1.5"/>
+
+  <!-- Brand mark — circle -->
+  <circle cx="180" cy="185" r="40" fill="#F0A500" opacity="0.15"/>
+  <circle cx="180" cy="185" r="28" fill="none" stroke="#F0A500" stroke-width="2.5"/>
+  <text x="180" y="192" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="700" fill="#F0A500">ท</text>
+
+  <!-- TunDee wordmark -->
+  <text x="232" y="175" font-family="'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="300" fill="#FFFFFF" letter-spacing="3" opacity="0.5">TUNDEE</text>
+  <text x="232" y="202" font-family="'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="600" fill="#FFFFFF" letter-spacing="0.5">ทุนดี</text>
+
+  <!-- Divider -->
+  <line x1="120" y1="235" x2="1080" y2="235" stroke="#3A3A3C" stroke-width="1"/>
+
+  <!-- Main headline Thai -->
+  <text x="120" y="322" font-family="'Helvetica Neue', Arial, sans-serif" font-size="62" font-weight="700" fill="#FFFFFF" letter-spacing="-1">ค้นหาทุนการศึกษาไทย</text>
+
+  <!-- Main headline English -->
+  <text x="120" y="388" font-family="'Helvetica Neue', Arial, sans-serif" font-size="38" font-weight="300" fill="#ADADB8" letter-spacing="0.5">Find scholarships matched to you</text>
+
+  <!-- Stats row -->
+  <rect x="120" y="430" width="200" height="72" rx="12" fill="#F0A500" opacity="0.12"/>
+  <text x="220" y="462" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="32" font-weight="700" fill="#F0A500">90+</text>
+  <text x="220" y="488" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" fill="#F0A500" opacity="0.8">ทุนการศึกษา</text>
+
+  <rect x="340" y="430" width="200" height="72" rx="12" fill="#FFFFFF" opacity="0.05"/>
+  <text x="440" y="462" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF">AI</text>
+  <text x="440" y="488" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" fill="#ADADB8">Smart Matching</text>
+
+  <rect x="560" y="430" width="200" height="72" rx="12" fill="#FFFFFF" opacity="0.05"/>
+  <text x="660" y="462" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF">ฟรี</text>
+  <text x="660" y="488" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" fill="#ADADB8">Always Free</text>
+
+  <!-- URL badge -->
+  <rect x="852" y="442" width="228" height="48" rx="24" fill="#F0A500"/>
+  <text x="966" y="472" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="600" fill="#1D1D1F" letter-spacing="0.5">tundee.org</text>
+</svg>
