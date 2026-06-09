@@ -28,32 +28,39 @@ export default function HealthPage() {
     const supabase = createClient();
 
     // Check 0: Database connection
-    supabase
-      .from('scholarships')
-      .select('count', { count: 'exact', head: true })
-      .then(({ count, error }) => {
+    void (async () => {
+      try {
+        const { count, error } = await supabase
+          .from('scholarships')
+          .select('count', { count: 'exact', head: true });
         if (error) update(0, 'error', error.message);
         else update(0, 'ok', `Connected — ${count} scholarships`);
-      })
-      .catch((e: unknown) => update(0, 'error', e instanceof Error ? e.message : 'Unexpected error'));
+      } catch (e: unknown) {
+        update(0, 'error', e instanceof Error ? e.message : 'Unexpected error');
+      }
+    })();
 
     // Check 1: Scholarships loading
-    supabase
-      .from('scholarships')
-      .select('id, name_th')
-      .eq('is_active', true)
-      .limit(3)
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('scholarships')
+          .select('id, name_th')
+          .eq('is_active', true)
+          .limit(3);
         if (error) update(1, 'error', error.message);
         else if (!data || data.length === 0)
           update(1, 'error', 'No scholarships returned — check RLS');
         else update(1, 'ok', `Loading OK — first: ${data[0].name_th}`);
-      })
-      .catch((e: unknown) => update(1, 'error', e instanceof Error ? e.message : 'Unexpected error'));
+      } catch (e: unknown) {
+        update(1, 'error', e instanceof Error ? e.message : 'Unexpected error');
+      }
+    })();
 
     // Check 2: Auth system
-    supabase.auth.getSession()
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
         if (error) update(2, 'error', error.message);
         else
           update(
@@ -63,8 +70,10 @@ export default function HealthPage() {
               ? `Logged in as ${data.session.user.email}`
               : 'Not logged in (auth system working)',
           );
-      })
-      .catch((e: unknown) => update(2, 'error', e instanceof Error ? e.message : 'Unexpected error'));
+      } catch (e: unknown) {
+        update(2, 'error', e instanceof Error ? e.message : 'Unexpected error');
+      }
+    })();
 
     // Check 3: OG image — prefer .svg, fall back to .png
     fetch('/og-image.svg', { method: 'HEAD' })
