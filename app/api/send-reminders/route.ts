@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     let failed = 0;
     const errors: string[] = [];
 
-    for (const [userId, userApps] of byUser) {
+    for (const [userId, userApps] of Array.from(byUser.entries())) {
       // Fetch user email from auth.users via admin API
       const { data: adminUser, error: userErr } = await supabase.auth.admin.getUserById(userId);
       if (userErr || !adminUser?.user?.email) {
