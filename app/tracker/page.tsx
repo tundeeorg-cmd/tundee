@@ -509,9 +509,23 @@ export default function TrackerPage() {
 
   // ── Status update handler ──────────────────────────────────────────────────
   async function handleStatusUpdate(appId: string, status: Application['status']) {
+    const app = apps.find((a) => a.id === appId);
     setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
     try {
       await supabase.from('applications').update({ status }).eq('id', appId);
+
+      // Update research outcome fields on matching recommendations row
+      if (app?.scholarship_id && app?.user_id) {
+        await supabase
+          .from('recommendations')
+          .update({
+            led_to_application: status !== 'viewing',
+            led_to_win:         status === 'won',
+            led_to_clickthrough: !!app.clicked_through_at,
+          })
+          .eq('user_id', app.user_id)
+          .eq('scholarship_id', app.scholarship_id);
+      }
     } catch {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) fetchApps(session.user.id);

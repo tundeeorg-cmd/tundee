@@ -10,6 +10,7 @@ import ApplicationChecklist from '@/components/ApplicationChecklist';
 import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
+import { logScholarshipViewed, logScholarshipApplied } from '@/lib/research/events';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import type { Scholarship } from '@/lib/types';
 
@@ -176,6 +177,9 @@ export default function ScholarshipDetailPage() {
       setScholarship(s);
       setLoading(false);
     });
+
+    // Research: log that this scholarship was viewed (fire-and-forget)
+    logScholarshipViewed(id);
   }, [id]);
 
   if (loading) {
@@ -515,17 +519,28 @@ export default function ScholarshipDetailPage() {
                   : `https://www.google.com/search?q=${encodeURIComponent((s.name_th ?? '') + ' สมัคร')}`;
                 const trackClick = async () => {
                   try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.user) {
+                    const { data: { user: clickUser } } = await supabase.auth.getUser();
+                    if (clickUser) {
+                      // Fetch GPA at time of click — key variable for Regression Discontinuity analysis
+                      const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('gpa')
+                        .eq('id', clickUser.id)
+                        .maybeSingle();
+
                       await supabase.from('applications').upsert(
                         {
-                          user_id: session.user.id,
-                          scholarship_id: s.id,
-                          status: 'started',
-                          clicked_through_at: new Date().toISOString(),
+                          user_id:             clickUser.id,
+                          scholarship_id:      s.id,
+                          status:              'started',
+                          clicked_through_at:  new Date().toISOString(),
+                          gpa_at_application:  profile?.gpa ?? null,
                         },
                         { onConflict: 'user_id,scholarship_id' }
                       );
+
+                      // Research: log apply event (fire-and-forget)
+                      logScholarshipApplied(s.id);
                     }
                   } catch { /* silent */ }
                 };

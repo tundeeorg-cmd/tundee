@@ -6,6 +6,7 @@ import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
 import BottomNav from '@/components/BottomNav';
 import BackToTop from '@/components/BackToTop';
+import SessionStartLogger from '@/components/SessionStartLogger';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider } from '@/contexts/UserContext';
@@ -106,6 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <LanguageProvider>
             <UserProvider>
+              <SessionStartLogger />
               <Nav />
               <main className="flex-1 pt-16 pb-[70px] md:pb-0">
                 {children}

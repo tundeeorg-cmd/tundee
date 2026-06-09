@@ -13,6 +13,7 @@ import { getDeadlineInfo } from '@/lib/deadline';
 import type { FilterState, Scholarship } from '@/lib/types';
 import type { User } from '@supabase/supabase-js';
 import SaveButton from '@/components/SaveButton';
+import { logMatchingResultsViewed, logSearchPerformed } from '@/lib/research/events';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
@@ -725,23 +726,47 @@ export default function BrowsePage() {
     return sorted.map((s, i) => ({ ...s, displayRank: i + 1 }));
   }, [allMatches, matchSortBy, matchMinScore]);
 
-  // ── Log recommendations ─────────────────────────────────────────────────────
+  // ── Log recommendations + research tracking ─────────────────────────────────
   useEffect(() => {
     if (allMatches.length === 0) return;
     void (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
+
+        const top10 = allMatches.slice(0, 10);
+
+        // Upsert recommendations with full research metadata (IV treatment variable)
         const rows = allMatches.map((s, i) => ({
-          user_id:                  session.user.id,
-          scholarship_id:           s.id,
-          score_raw:                s.rawScore,
-          score_fairness_adjusted:  s.fairnessScore,
-          rank:                     i + 1,
-          reasons_json:             { reasons: s.reasons, reasons_en: s.reasons_en, boosted: s.boosted },
-          generated_at:             new Date().toISOString(),
+          user_id:                    session.user.id,
+          scholarship_id:             s.id,
+          score_raw:                  s.rawScore,
+          score_fairness_adjusted:    s.fairnessScore,
+          rank:                       i + 1,
+          reasons_json:               { reasons: s.reasons, reasons_en: s.reasons_en, boosted: s.boosted },
+          fairness_correction_applied: s.boosted ?? false,
+          correction_multiplier:      s.boosted ? s.fairnessScore / s.rawScore : null,
+          algorithm_version:          'v1',
+          generated_at:               new Date().toISOString(),
         }));
         await supabase.from('recommendations').upsert(rows, { onConflict: 'user_id,scholarship_id' });
+
+        // Mark applications as "was_recommended" for top 10 — key PSM variable
+        for (const s of top10) {
+          const rank = allMatches.findIndex((m) => m.id === s.id) + 1;
+          await supabase.from('applications').upsert(
+            {
+              user_id:             session.user.id,
+              scholarship_id:      s.id,
+              was_recommended:     true,
+              recommendation_rank: rank,
+            },
+            { onConflict: 'user_id,scholarship_id' }
+          );
+        }
+
+        // Research: log matching results viewed (fire-and-forget)
+        logMatchingResultsViewed(allMatches.length, allMatches[0]?.id);
       } catch { /* silently ignore */ }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -755,6 +780,14 @@ export default function BrowsePage() {
     if (browseSortKey === 'amount')   return sortByAmount(base);
     return sortByName(base, lang);
   }, [scholarships, filters, browseSortKey, searchQuery, lang]);
+
+  // ── Research: log search queries ────────────────────────────────────────────
+  useEffect(() => {
+    if (searchQuery.length >= 2) {
+      logSearchPerformed(searchQuery, filtered.length);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filtered.length]);
 
   const isDataEmpty = !loading && scholarships.length === 0;
 

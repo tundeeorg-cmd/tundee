@@ -1,13 +1,18 @@
 'use client';
 
 /**
- * /profile/setup Duolingo-style 6-step onboarding wizard.
+ * /profile/setup Duolingo-style 8-step onboarding wizard.
  * Redirected here from /auth/callback when profile is incomplete.
  *
- * FIXED (Jun 2026): handleSave now uses getUser() (validates token with
- * Supabase auth server) instead of getSession() (stale cache). Added
- * upsert→update fallback to handle RLS INSERT restrictions. Actual
- * Supabase error is now shown so failures are diagnosable.
+ * Steps:
+ *   0  Name
+ *   1  Prior scholarship knowledge (research)
+ *   2  Grade level
+ *   3  GPA
+ *   4  Province
+ *   5  Income & welfare card
+ *   6  Fields of interest
+ *   7  Recruitment source (research) + save
  */
 
 import { useEffect, useState } from 'react';
@@ -18,7 +23,7 @@ import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 8;
 
 const GRADE_OPTIONS = [
   { value: 'M1-M3',     th: 'ม.1–3',        en: 'Grade 7–9' },
@@ -37,6 +42,58 @@ const INCOME_OPTIONS = [
   { value: 6, th: '30,000 – 50,000 บาท/เดือน', en: '฿30,000 – ฿50,000/month' },
   { value: 7, th: 'มากกว่า 50,000 บาท/เดือน',  en: 'Over ฿50,000/month' },
 ];
+
+// Prior knowledge: display label → stored numeric value
+const PRIOR_KNOWLEDGE_OPTIONS = [
+  { label: '0',    th: 'ไม่รู้เลย',       en: 'None',       value: 0  },
+  { label: '1–3',  th: 'รู้บ้าง 1–3 ทุน', en: '1–3 known',  value: 2  },
+  { label: '4–10', th: 'รู้ 4–10 ทุน',    en: '4–10 known', value: 6  },
+  { label: '10+',  th: 'รู้มากกว่า 10',   en: '10+ known',  value: 15 },
+];
+
+const RECRUITMENT_SOURCE_OPTIONS = [
+  { value: 'school_teacher', th: 'ครู/อาจารย์แนะนำ',   en: 'Teacher / advisor' },
+  { value: 'friend_referral', th: 'เพื่อนบอกต่อ',      en: 'Friend referral' },
+  { value: 'google_search',  th: 'ค้นหาจาก Google',    en: 'Google search' },
+  { value: 'social_media',   th: 'โซเชียลมีเดีย',       en: 'Social media' },
+];
+
+// ─── Helper: determine signup cohort from Thai province name or TH-XX code ───
+
+function determineSignupCohort(provinceId: string): string {
+  const v = provinceId.trim();
+
+  // Bangkok
+  if (v === 'TH-10' || v === 'กรุงเทพมหานคร') return 'wave_1_bangkok';
+
+  // TH-XX codes — Northeast: 30–49, North: 50–58
+  const codeMatch = v.match(/^TH-(\d+)$/);
+  if (codeMatch) {
+    const n = parseInt(codeMatch[1], 10);
+    if (n >= 30 && n <= 49) return 'wave_2_northeast';
+    if (n >= 50 && n <= 58) return 'wave_2_north';
+    return 'wave_3_national';
+  }
+
+  // Thai province names — Northeast (อีสาน)
+  const northeast = [
+    'นครราชสีมา','ขอนแก่น','อุดรธานี','อุบลราชธานี','นครพนม','บึงกาฬ',
+    'หนองคาย','หนองบัวลำภู','เลย','ชัยภูมิ','กาฬสินธุ์','มหาสารคาม',
+    'ร้อยเอ็ด','ยโสธร','ศรีสะเกษ','อำนาจเจริญ','มุกดาหาร','สุรินทร์',
+    'บุรีรัมย์','สกลนคร',
+  ];
+  if (northeast.includes(v)) return 'wave_2_northeast';
+
+  // Thai province names — North
+  const north = [
+    'เชียงใหม่','เชียงราย','แม่ฮ่องสอน','ลำปาง','ลำพูน','พะเยา',
+    'แพร่','น่าน','พิษณุโลก','สุโขทัย','ตาก','อุตรดิตถ์',
+    'กำแพงเพชร','พิจิตร','เพชรบูรณ์','นครสวรรค์','อุทัยธานี',
+  ];
+  if (north.includes(v)) return 'wave_2_north';
+
+  return 'wave_3_national';
+}
 
 // ─── Sub-components (defined OUTSIDE page to prevent remount on re-render) ────
 
@@ -62,9 +119,6 @@ function Spinner() {
   return <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />;
 }
 
-// WizardContainer is intentionally outside the page component.
-// If defined inside, React treats it as a new component type on every render,
-// causing full unmount → remount → input focus loss + language flash.
 interface WizardContainerProps {
   children: React.ReactNode;
   step: number;
@@ -123,13 +177,16 @@ export default function ProfileSetupPage() {
   const [provinceQuery, setProvinceQuery] = useState('');
 
   // Form values
-  const [displayName,    setDisplayName]    = useState('');
-  const [gradeLevel,     setGradeLevel]     = useState('');
-  const [gpa,            setGpa]            = useState('');
-  const [province,       setProvince]       = useState('');
-  const [incomeBracket,  setIncomeBracket]  = useState(4);
-  const [welfareCard,    setWelfareCard]    = useState(false);
-  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [displayName,       setDisplayName]       = useState('');
+  const [gradeLevel,        setGradeLevel]        = useState('');
+  const [gpa,               setGpa]               = useState('');
+  const [province,          setProvince]          = useState('');
+  const [incomeBracket,     setIncomeBracket]     = useState(4);
+  const [welfareCard,       setWelfareCard]       = useState(false);
+  const [selectedFields,    setSelectedFields]    = useState<string[]>([]);
+  // Research fields
+  const [priorKnowledge,    setPriorKnowledge]    = useState<number | null>(null);
+  const [recruitmentSource, setRecruitmentSource] = useState('');
 
   // Auth guard
   useEffect(() => {
@@ -155,7 +212,8 @@ export default function ProfileSetupPage() {
 
   function nextStep() {
     setError('');
-    if (step === 2 && gpa) {
+    // GPA is now step 3
+    if (step === 3 && gpa) {
       const n = parseFloat(gpa);
       if (isNaN(n) || n < 0 || n > 4) {
         setError(lang === 'th' ? 'GPA ต้องอยู่ระหว่าง 0.00 – 4.00' : 'GPA must be between 0.00 and 4.00');
@@ -174,8 +232,6 @@ export default function ProfileSetupPage() {
     setSaving(true);
     setError('');
     try {
-      // getUser() validates the JWT with Supabase auth server (not just local cache).
-      // This is the correct method for any operation that writes to the DB.
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
@@ -187,20 +243,23 @@ export default function ProfileSetupPage() {
       const gpaNum = gpa ? parseFloat(gpa) : null;
 
       const payload = {
-        id:                 user.id,   // must match auth.uid() for RLS
-        display_name:       displayName.trim() || null,
-        grade_level:        gradeLevel || null,
-        province_id:        province || null,
-        gpa:                gpaNum,
-        income_bracket:     incomeBracket,
-        welfare_card:       welfareCard,
-        fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        updated_at:         new Date().toISOString(),
+        id:                          user.id,
+        display_name:                displayName.trim() || null,
+        grade_level:                 gradeLevel || null,
+        province_id:                 province || null,
+        gpa:                         gpaNum,
+        income_bracket:              incomeBracket,
+        welfare_card:                welfareCard,
+        fields_of_interest:          selectedFields.length > 0 ? selectedFields : ['any'],
+        // Research fields
+        prior_scholarship_knowledge: priorKnowledge !== null ? priorKnowledge : null,
+        recruitment_source:          recruitmentSource || 'unknown',
+        signup_cohort:               province ? determineSignupCohort(province) : 'wave_3_national',
+        updated_at:                  new Date().toISOString(),
       };
 
       console.log('[TunDee Setup] upserting profile for', user.id);
 
-      // Try upsert first (handles both new rows and existing rows)
       const { error: upsertErr } = await supabase
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
@@ -208,8 +267,6 @@ export default function ProfileSetupPage() {
       if (upsertErr) {
         console.error('[TunDee Setup] upsert error:', upsertErr.code, upsertErr.message, upsertErr.details);
 
-        // Fallback: plain UPDATE (handles case where RLS blocks INSERT but allows UPDATE,
-        // e.g. when the row already exists from the auth trigger)
         const { id: _id, ...updateFields } = payload;
         const { error: updateErr } = await supabase
           .from('profiles')
@@ -218,7 +275,6 @@ export default function ProfileSetupPage() {
 
         if (updateErr) {
           console.error('[TunDee Setup] update error:', updateErr.code, updateErr.message, updateErr.details);
-          // Show the ACTUAL Supabase error so it can be diagnosed
           setError(`[${updateErr.code}] ${updateErr.message}`);
           setSaving(false);
           return;
@@ -303,9 +359,60 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 1 Grade level
+  // STEP 1 Prior scholarship knowledge (research)
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
+    return (
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">🔍</div>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'ก่อนใช้ทุนดี คุณรู้จักทุนการศึกษากี่ทุน?'
+              : 'Before TunDee, how many scholarships did you know?'}
+          </h1>
+          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-1" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'ข้อมูลนี้ใช้เพื่องานวิจัยเท่านั้น ไม่กระทบการจับคู่ทุน'
+              : 'For research purposes only — does not affect matching'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {PRIOR_KNOWLEDGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => { setPriorKnowledge(opt.value); nextStep(); }}
+              className={`flex flex-col items-center justify-center px-4 py-5 rounded-xl border-2 transition-all ${
+                priorKnowledge === opt.value
+                  ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
+                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] hover:border-[#2E6BE6]/50'
+              }`}
+            >
+              <span className="text-2xl font-bold text-[#2E6BE6] mb-1">{opt.label}</span>
+              <span className="text-xs text-[#6e6e73] dark:text-[#aeaeb2] text-center" style={{ fontFamily: font }}>
+                {lang === 'th' ? opt.th : opt.en}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-center">
+          <button
+            onClick={nextStep}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
+            {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
+          </button>
+        </p>
+      </WizardContainer>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 2 Grade level
+  // ══════════════════════════════════════════════════════════════════════════
+  if (step === 2) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -319,7 +426,7 @@ export default function ProfileSetupPage() {
           {GRADE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => { setGradeLevel(opt.value); setStep(2); }}
+              onClick={() => { setGradeLevel(opt.value); setStep(3); }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all ${
                 gradeLevel === opt.value
                   ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
@@ -339,7 +446,7 @@ export default function ProfileSetupPage() {
 
         <p className="text-center">
           <button
-            onClick={() => setStep(2)}
+            onClick={() => setStep(3)}
             className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
@@ -350,9 +457,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 2 GPA
+  // STEP 3 GPA
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 2) {
+  if (step === 3) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-8">
@@ -403,9 +510,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 3 Province
+  // STEP 4 Province
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 3) {
+  if (step === 4) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -432,7 +539,7 @@ export default function ProfileSetupPage() {
           {filteredProvinces.slice(0, 20).map((pv) => (
             <button
               key={pv}
-              onClick={() => { setProvince(pv); setStep(4); }}
+              onClick={() => { setProvince(pv); setStep(5); }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                 province === pv
                   ? 'bg-[#EFF4FF] dark:bg-[#162552] text-[#2E6BE6] font-semibold'
@@ -453,7 +560,7 @@ export default function ProfileSetupPage() {
 
         <p className="text-center">
           <button
-            onClick={() => setStep(4)}
+            onClick={() => setStep(5)}
             className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
@@ -464,9 +571,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 4 Income & welfare card
+  // STEP 5 Income & welfare card
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 4) {
+  if (step === 5) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -533,9 +640,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 5 Fields of interest
+  // STEP 6 Fields of interest
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 5) {
+  if (step === 6) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -562,6 +669,65 @@ export default function ProfileSetupPage() {
               style={{ fontFamily: font }}
             >
               {lang === 'th' ? f.th : f.en}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={nextStep}
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
+          style={{ fontFamily: font }}
+        >
+          {lang === 'th' ? 'ถัดไป →' : 'Next →'}
+        </button>
+        <p className="text-center mt-3">
+          <button
+            onClick={nextStep}
+            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+          >
+            {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
+          </button>
+        </p>
+      </WizardContainer>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 7 Recruitment source (research) + final save
+  // ══════════════════════════════════════════════════════════════════════════
+  if (step === 7) {
+    return (
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">📣</div>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
+            {lang === 'th' ? 'คุณรู้จักทุนดีจากที่ไหน?' : 'How did you hear about TunDee?'}
+          </h1>
+          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-1" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'ข้อมูลนี้ใช้เพื่องานวิจัยเท่านั้น ไม่กระทบการจับคู่ทุน'
+              : 'For research purposes only — does not affect matching'}
+          </p>
+        </div>
+
+        <div className="space-y-2 mb-6">
+          {RECRUITMENT_SOURCE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setRecruitmentSource(opt.value)}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all ${
+                recruitmentSource === opt.value
+                  ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
+                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] hover:border-[#2E6BE6]/50 bg-white dark:bg-[#2c2c2e]'
+              }`}
+            >
+              <span
+                className="flex-1 font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]"
+                style={{ fontFamily: font }}
+              >
+                {lang === 'th' ? opt.th : opt.en}
+              </span>
+              {recruitmentSource === opt.value && <span className="text-[#2E6BE6] font-bold">✓</span>}
             </button>
           ))}
         </div>

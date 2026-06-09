@@ -191,8 +191,13 @@ export default function AdminPage() {
   const [trendRange,     setTrendRange]     = useState<Range>('30');
   const [topScholarships, setTopScholarships] = useState<TopScholarship[]>([]);
   const [provinces,      setProvinces]      = useState<ProvinceRow[]>([]);
-  const [recentProfiles, setRecentProfiles] = useState<RecentProfile[]>([]);
-  const [mounted,        setMounted]        = useState(false);   // hydration guard for recharts
+  const [recentProfiles,    setRecentProfiles]    = useState<RecentProfile[]>([]);
+  const [mounted,           setMounted]           = useState(false);   // hydration guard for recharts
+  // Research data
+  const [eventCount,        setEventCount]        = useState(0);
+  const [outcomesTracked,   setOutcomesTracked]   = useState(0);
+  const [priorKnowledgeCount, setPriorKnowledgeCount] = useState(0);
+  const [recruitmentSources, setRecruitmentSources] = useState<{ source: string; count: number }[]>([]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -293,6 +298,32 @@ export default function AdminPage() {
 
       // Recent profiles
       setRecentProfiles((recentRes.data ?? []) as RecentProfile[]);
+
+      // Research data (separate queries — don't fail main analytics if these tables are empty)
+      try {
+        const [eventsRes, outcomesRes, priorRes, recruitRes] = await Promise.all([
+          supabase.from('user_events').select('*', { count: 'exact', head: true }),
+          supabase.from('recommendations').select('*', { count: 'exact', head: true }).eq('led_to_application', true),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).not('prior_scholarship_knowledge', 'is', null),
+          supabase.from('profiles').select('recruitment_source').not('recruitment_source', 'is', null),
+        ]);
+        setEventCount(eventsRes.count ?? 0);
+        setOutcomesTracked(outcomesRes.count ?? 0);
+        setPriorKnowledgeCount(priorRes.count ?? 0);
+        // Group recruitment sources
+        const sourceMap = new Map<string, number>();
+        ((recruitRes.data ?? []) as { recruitment_source: string }[]).forEach((row) => {
+          const src = row.recruitment_source || 'unknown';
+          sourceMap.set(src, (sourceMap.get(src) ?? 0) + 1);
+        });
+        setRecruitmentSources(
+          Array.from(sourceMap.entries())
+            .map(([source, count]) => ({ source, count }))
+            .sort((a, b) => b.count - a.count)
+        );
+      } catch {
+        // Research queries failed silently — tables may not exist yet
+      }
     } catch (err) {
       console.error('[TunDee] Admin analytics load error:', err);
       setStatsError('Could not load analytics data. Check console for details.');
@@ -899,6 +930,54 @@ export default function AdminPage() {
                   </table>
                 </div>
               )}
+            </div>
+
+            {/* ── SECTION 7: Research Data ─────────────────────────────────── */}
+            <div className="bg-white dark:bg-[#1D1D1F] border border-[#E5E5EA] dark:border-[#3A3A3C] rounded-2xl p-6">
+              <SectionHead>🔬 Research Data (Causal Inference)</SectionHead>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                <StatCard label="Total Events Logged" value={eventCount}                icon="📡" accent />
+                <StatCard label="Outcomes Tracked"    value={outcomesTracked}           icon="📊" />
+                <StatCard label="Prior Knowledge"     value={priorKnowledgeCount}       icon="📚" />
+                <StatCard label="Recruitment Sources" value={recruitmentSources.length} icon="📣" />
+              </div>
+
+              {recruitmentSources.length > 0 && (
+                <div className="pt-4 border-t border-[#F5F5F7] dark:border-[#3A3A3C]">
+                  <p className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider mb-3">
+                    Recruitment Source Breakdown
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C]">
+                          {['Source', 'Count', '%'].map((h, i) => (
+                            <th key={h} className={`pb-2 pt-1 text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] ${i === 0 ? 'text-left' : 'text-center'}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const total = recruitmentSources.reduce((s, r) => s + r.count, 0);
+                          return recruitmentSources.map((r) => (
+                            <tr key={r.source} className="border-b border-[#F5F5F7] dark:border-[#3A3A3C]">
+                              <td className="py-2 text-[#1D1D1F] dark:text-white">{r.source}</td>
+                              <td className="py-2 text-center font-semibold text-[#1D1D1F] dark:text-white">{r.count}</td>
+                              <td className="py-2 text-center text-[#6E6E73] dark:text-[#8E8E93]">
+                                {total > 0 ? `${((r.count / total) * 100).toFixed(1)}%` : '—'}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-[#ADADB8] mt-4">
+                DID / PSM / IV / RD causal inference variables — see <code>user_events</code>, <code>recommendations</code>, and <code>profiles</code> tables.
+              </p>
             </div>
 
           </div>

@@ -205,6 +205,7 @@ export default function ProfilePage() {
   const [welfareCard, setWelfareCard] = useState(false);
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>('M6');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [schoolType, setSchoolType] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Toast
@@ -240,6 +241,7 @@ export default function ProfilePage() {
         setSelectedFields(
           data.fields_of_interest?.filter((f: string) => f !== 'any') ?? []
         );
+        setSchoolType(data.school_type ?? '');
       }
     } catch { /* row may not exist yet */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,6 +344,7 @@ export default function ProfilePage() {
         welfare_card: welfareCard,
         grade_level: gradeLevel,
         fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
+        school_type: schoolType || null,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -660,6 +663,40 @@ export default function ProfilePage() {
                   {lang === 'th' ? '  ไม่ได้เลือก จะแสดงทุนทุกสาขา  ' : '  None selected shows all fields  '}
                 </p>
               )}
+            </div>
+
+            {/* School type */}
+            <div>
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+                {lang === 'th' ? 'ประเภทโรงเรียน' : 'School Type'}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'government',    th: 'รัฐบาล',        en: 'Government'    },
+                  { value: 'private',       th: 'เอกชน',         en: 'Private'       },
+                  { value: 'international', th: 'นานาชาติ',      en: 'International' },
+                  { value: 'vocational',    th: 'อาชีวศึกษา',    en: 'Vocational'    },
+                ] as { value: string; th: string; en: string }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSchoolType(schoolType === opt.value ? '' : opt.value)}
+                    className={`py-2.5 px-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                      schoolType === opt.value
+                        ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552] text-[#1E57CC] dark:text-[#5B8EF0]'
+                        : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/50'
+                    }`}
+                  >
+                    {lang === 'th' ? opt.th : opt.en}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-[#AEAEB2] dark:text-[#636366] mt-2 flex items-center gap-1">
+                <span>🔬</span>
+                {lang === 'th'
+                  ? 'ข้อมูลนี้ใช้เพื่องานวิจัยการศึกษา ไม่กระทบการแสดงทุน'
+                  : 'Used for educational research only, doesn\'t affect matching'}
+              </p>
             </div>
 
             {/* Welfare card toggle */}

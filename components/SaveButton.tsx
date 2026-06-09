@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Toast from '@/components/Toast';
 import { useLang } from '@/lib/LanguageContext';
+import { logScholarshipSaved } from '@/lib/research/events';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ export default function SaveButton({ scholarshipId, size = 'sm' }: SaveButtonPro
         } else {
           if (data) setAppId(data.id);
           showToast(lang === 'th' ? 'บันทึกแล้ว ♥' : 'Saved ♥', 'success');
+          logScholarshipSaved(scholarshipId);
         }
       } else {
         // ── Unsave ────────────────────────────────────────────────────────
