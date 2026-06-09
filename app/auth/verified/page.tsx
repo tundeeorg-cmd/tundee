@@ -59,13 +59,13 @@ export default function VerifiedPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center px-4">
       <div className="w-full max-w-[420px]">
 
         <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl shadow-sm border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden">
 
           {/* Gold bar */}
-          <div className="h-1 bg-[#F0A500]" />
+          <div className="h-1 bg-[#2E6BE6]" />
 
           <div className="px-8 py-12 text-center">
 
@@ -90,7 +90,7 @@ export default function VerifiedPage() {
 
             {/* Countdown ring */}
             <div className="flex flex-col items-center gap-3 mb-8">
-              <div className="w-14 h-14 rounded-full border-4 border-[#F0A500]/20 border-t-[#F0A500] animate-spin" />
+              <div className="w-14 h-14 rounded-full border-4 border-[#2E6BE6]/20 border-t-[#2E6BE6] animate-spin" />
               <p className="text-sm text-[#aeaeb2] dark:text-[#6e6e73]">
                 {lang === 'th'
                   ? `กำลังพาไปหน้าต่อไป... (${countdown})`
@@ -101,7 +101,7 @@ export default function VerifiedPage() {
             {/* Manual link */}
             <button
               onClick={() => router.replace('/scholarships')}
-              className="text-sm text-[#F0A500] hover:underline"
+              className="text-sm text-[#2E6BE6] hover:underline"
             >
               {lang === 'th'
                 ? 'ไปหน้าทุนการศึกษาเลย →'

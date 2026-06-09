@@ -41,7 +41,7 @@ export default function SaveButton({ scholarshipId, size = 'sm' }: SaveButtonPro
   // ── Auth + saved-state check on mount ─────────────────────────────────────
   const init = useCallback(async () => {
     try {
-      // getUser() hits the server — more reliable than getSession() for auth checks
+      // getUser() hits the server more reliable than getSession() for auth checks
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setReady(true);
@@ -181,7 +181,7 @@ export default function SaveButton({ scholarshipId, size = 'sm' }: SaveButtonPro
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  // Not ready yet — invisible placeholder to prevent layout shift
+  // Not ready yet invisible placeholder to prevent layout shift
   if (!ready) {
     return (
       <div
@@ -212,9 +212,9 @@ export default function SaveButton({ scholarshipId, size = 'sm' }: SaveButtonPro
           className={[
             'p-1.5 rounded-full transition-all duration-200 flex items-center gap-1',
             isSaved
-              ? 'text-[#F0A500] bg-[#FFF8E7]'
+              ? 'text-[#2E6BE6] bg-[#EFF4FF]'
               : userId
-                ? 'text-[#ADADB8] hover:text-[#F0A500] hover:bg-[#FFF8E7]'
+                ? 'text-[#ADADB8] hover:text-[#2E6BE6] hover:bg-[#EFF4FF]'
                 : 'text-[#ADADB8] hover:text-[#6E6E73]',
             loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
           ].join(' ')}

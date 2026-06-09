@@ -53,9 +53,9 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
   }
 
   return (
-    <article className="scholarship-card-hover bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-6 flex flex-col gap-4 group relative">
+    <article className="scholarship-card-hover bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-6 flex flex-col gap-4 group relative">
 
-      {/* Save button — top-right absolute */}
+      {/* Save button top-right absolute */}
       <div className="absolute top-4 right-4 z-10">
         <SaveButton scholarshipId={s.id} size="sm" />
       </div>
@@ -65,8 +65,8 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2 flex-wrap mb-0.5">
             <h3
-              className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#F0A500] transition-colors"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              className="text-base font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2 group-hover:text-[#2E6BE6] transition-colors"
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
             >
               {name}
             </h3>
@@ -88,21 +88,21 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
       </div>
 
       {/* Amount */}
-      <div className="text-[#F0A500] font-semibold text-sm" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+      <div className="text-[#2E6BE6] font-semibold text-sm" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
         {formatAmount()}
       </div>
 
-      {/* Tags — max 3 visible */}
+      {/* Tags max 3 visible */}
       <div className="flex flex-wrap gap-2">
         {s.welfare_card_priority && (
-          <span className="text-xs bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#B8860B] dark:text-[#F0A500] border border-[#F0A500]/30 px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-[#EFF4FF] dark:bg-[#162552] text-[#2E6BE6] dark:text-[#5B8EF0] border border-[#2E6BE6]/30 px-2 py-0.5 rounded-full">
             {c.welfareTag[lang]}
           </span>
         )}
-        <span className="text-xs bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
+        <span className="text-xs bg-[#F7F9FC] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
           {isNational ? c.national[lang] : s.province_restriction?.[0] ?? ''}
         </span>
-        <span className="text-xs bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
+        <span className="text-xs bg-[#F7F9FC] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] px-2 py-0.5 rounded-full">
           {isAnyField ? c.anyField[lang] : s.field_of_study?.[0] ?? ''}
         </span>
         {s.min_gpa !== null && s.min_gpa !== undefined && (
@@ -113,7 +113,7 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#F5F5F7] dark:border-[#38383A]">
+      <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#F5F5F7] dark:border-[#232B3E]">
         {/* Deadline urgency pill */}
         <span
           className="text-xs font-semibold px-2.5 py-1 rounded-full border"
@@ -125,7 +125,7 @@ export default function ScholarshipCard({ scholarship: s }: Props) {
         >
           {deadlineLabel}
         </span>
-        <Link href={`/scholarships/${s.id}`} className="text-sm text-[#F0A500] font-medium hover:underline shrink-0">
+        <Link href={`/scholarships/${s.id}`} className="text-sm text-[#2E6BE6] font-medium hover:underline shrink-0">
           {c.viewDetail[lang]}
         </Link>
       </div>

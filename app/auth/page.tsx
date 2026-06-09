@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Suspense wrapper ─────────────────────────────────────────────────────────
-// useSearchParams() REQUIRES Suspense — without a fallback prop the page is blank
+// useSearchParams() REQUIRES Suspense without a fallback prop the page is blank
 
 export default function AuthPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-[#F0A500] border-t-transparent rounded-full animate-spin" />
+        <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-[#2E6BE6] border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >
@@ -127,16 +127,16 @@ function AuthForm() {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // SUCCESS STATE — email sent
+  // SUCCESS STATE email sent
   // ════════════════════════════════════════════════════════════════════════════
   if (sent) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-[420px]">
           <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
-            <div className="h-1 bg-[#F0A500]" />
+            <div className="h-1 bg-[#2E6BE6]" />
             <div className="px-8 py-10 text-center">
-              <div className="w-20 h-20 bg-[#FFF8E7] rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+              <div className="w-20 h-20 bg-[#EFF4FF] rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
                 ✉️
               </div>
               <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
@@ -146,19 +146,19 @@ function AuthForm() {
               <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93] mb-3">
                 {lang === 'th' ? 'เราส่งลิงก์เข้าสู่ระบบไปที่' : 'We sent a sign-in link to'}
               </p>
-              <div className="inline-block bg-[#FFF8E7] dark:bg-[#2C1F00] border border-[#F0A500]/30 text-[#D4920A] dark:text-[#F0A500] font-semibold text-sm px-5 py-2.5 rounded-full mb-6 break-all">
+              <div className="inline-block bg-[#EFF4FF] dark:bg-[#162552] border border-[#2E6BE6]/30 text-[#1E57CC] dark:text-[#5B8EF0] font-semibold text-sm px-5 py-2.5 rounded-full mb-6 break-all">
                 {email}
               </div>
 
               {/* Steps */}
-              <div className="text-left bg-[#F5F5F7] dark:bg-[#2c2c2e] rounded-xl p-4 mb-6 space-y-3">
+              <div className="text-left bg-[#F7F9FC] dark:bg-[#2c2c2e] rounded-xl p-4 mb-6 space-y-3">
                 {[
                   { n: 1, th: 'เปิดแอป Gmail หรือ Email ของคุณ', en: 'Open your Gmail or email app' },
                   { n: 2, th: 'หาอีเมลจาก TunDee ทุนดี',         en: 'Find the email from TunDee ทุนดี' },
                   { n: 3, th: 'กดปุ่ม "เข้าสู่ระบบ" ในอีเมล',    en: 'Tap the sign-in button in the email' },
                 ].map((s) => (
                   <div key={s.n} className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-[#F0A500] text-white rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    <div className="w-5 h-5 bg-[#2E6BE6] text-white rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                       {s.n}
                     </div>
                     <p className="text-xs text-[#3a3a3c] dark:text-[#aeaeb2] leading-relaxed">
@@ -171,10 +171,10 @@ function AuthForm() {
               <button
                 onClick={resend}
                 disabled={cooldown > 0 || loading}
-                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73] dark:text-[#8e8e93] text-sm font-medium py-3 rounded-xl hover:bg-[#F5F5F7] dark:hover:bg-[#2c2c2e] disabled:opacity-40 transition-colors mb-3 flex items-center justify-center gap-2"
+                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73] dark:text-[#8e8e93] text-sm font-medium py-3 rounded-xl hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] disabled:opacity-40 transition-colors mb-3 flex items-center justify-center gap-2"
               >
                 {loading && (
-                  <div className="w-4 h-4 border-2 border-[#e0e0e0] border-t-[#F0A500] rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-[#e0e0e0] border-t-[#2E6BE6] rounded-full animate-spin" />
                 )}
                 {cooldown > 0
                   ? (lang === 'th' ? `ส่งอีกครั้งใน ${cooldown} วินาที` : `Resend in ${cooldown}s`)
@@ -183,7 +183,7 @@ function AuthForm() {
 
               <button
                 onClick={() => { setSent(false); setError(''); setCooldown(0); }}
-                className="text-sm text-[#F0A500] hover:underline"
+                className="text-sm text-[#2E6BE6] hover:underline"
               >
                 {lang === 'th' ? 'เปลี่ยนอีเมล' : 'Use a different email'}
               </button>
@@ -208,12 +208,12 @@ function AuthForm() {
   // MAIN FORM
   // ════════════════════════════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-[420px]">
         <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
 
-          {/* Gold accent bar */}
-          <div className="h-1 bg-[#F0A500]" />
+          {/* Blue accent bar */}
+          <div className="h-1 bg-[#2E6BE6]" />
 
           {/* Logo */}
           <div className="px-8 pt-8 pb-6 text-center">
@@ -223,7 +223,7 @@ function AuthForm() {
                 ทุนดี
               </div>
               <div className="text-[10px] text-[#aeaeb2] dark:text-[#6e6e73] tracking-[3px] uppercase mb-3"
-                   style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                   style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
                 TUNDEE.ORG
               </div>
             </a>
@@ -260,10 +260,10 @@ function AuthForm() {
               type="button"
               onClick={signInWithGoogle}
               disabled={googleLoading || loading}
-              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-3.5 px-4 text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-4"
+              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-3.5 px-4 text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-4"
             >
               {googleLoading ? (
-                <div className="w-4 h-4 border-2 border-[#e0e0e0] border-t-[#F0A500] rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#e0e0e0] border-t-[#2E6BE6] rounded-full animate-spin" />
               ) : (
                 <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -302,12 +302,12 @@ function AuthForm() {
                 autoFocus
                 disabled={loading || googleLoading}
                 style={{ fontSize: '16px' }}
-                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#2c2c2e] placeholder-[#aeaeb2] focus:outline-none focus:border-[#F0A500] focus:ring-2 focus:ring-[#F0A500]/20 transition-colors mb-4 disabled:opacity-50"
+                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#2c2c2e] placeholder-[#aeaeb2] focus:outline-none focus:border-[#2E6BE6] focus:ring-2 focus:ring-[#2E6BE6]/20 transition-colors mb-4 disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full bg-[#F0A500] hover:bg-[#d4920a] active:bg-[#c07a00] text-white py-4 rounded-xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] active:bg-[#1848B0] text-white py-4 rounded-xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>

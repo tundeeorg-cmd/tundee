@@ -1,14 +1,14 @@
 /**
  * /api/send-reminders
  *
- * Vercel Cron job — runs daily at 09:00 Thailand time (02:00 UTC).
+ * Vercel Cron job runs daily at 09:00 Thailand time (02:00 UTC).
  * Finds users who have saved scholarships with deadlines within 7 days
  * and sends a reminder email via Resend.
  *
  * Required env vars:
- *   RESEND_API_KEY      — Resend API key
- *   CRON_SECRET         — shared secret Vercel sends in Authorization header
- *   NEXT_PUBLIC_SITE_URL — e.g. https://www.tundee.org
+ *   RESEND_API_KEY      Resend API key
+ *   CRON_SECRET         shared secret Vercel sends in Authorization header
+ *   NEXT_PUBLIC_SITE_URL e.g. https://www.tundee.org
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!process.env.RESEND_API_KEY) {
-    console.warn('[send-reminders] RESEND_API_KEY not set — skipping');
+    console.warn('[send-reminders] RESEND_API_KEY not set skipping');
     return NextResponse.json({ ok: true, skipped: true, reason: 'no RESEND_API_KEY' });
   }
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     // Find all saved/tracked scholarships with upcoming deadlines.
     // Join applications → scholarships → auth.users (via user_id → email from auth.users).
-    // We use a raw SQL query via rpc or a view — here we query applications then fetch details.
+    // We use a raw SQL query via rpc or a view here we query applications then fetch details.
     const { data: apps, error: appsErr } = await supabase
       .from('applications')
       .select(`
@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
       }).sort((a, b) => a.days_left - b.days_left);
 
       const subject = schList.length === 1
-        ? `⏰ ทุน "${schList[0].name_th}" จะหมดเขตใน ${schList[0].days_left} วัน — TunDee`
-        : `⏰ ${schList.length} ทุนกำลังจะหมดเขต — TunDee`;
+        ? `⏰ ทุน "${schList[0].name_th}" จะหมดเขตใน ${schList[0].days_left} วัน TunDee`
+        : `⏰ ${schList.length} ทุนกำลังจะหมดเขต TunDee`;
 
       const scholarshipRows = schList.map((s) => `
         <tr>

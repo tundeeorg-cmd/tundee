@@ -48,7 +48,7 @@ const EMPTY_FILTERS: FilterState = {
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
-// Northeast Thai provinces (Isan) — Thai names matching what profiles table stores
+// Northeast Thai provinces (Isan) Thai names matching what profiles table stores
 const NORTHEAST = new Set([
   'นครราชสีมา', 'บุรีรัมย์', 'สุรินทร์', 'ศรีสะเกษ', 'อุบลราชธานี',
   'ยโสธร', 'ชัยภูมิ', 'อำนาจเจริญ', 'หนองบัวลำภู', 'ขอนแก่น',
@@ -70,7 +70,7 @@ const INCOME_CEILING: Record<number, number> = {
 // ── Score colour helper ───────────────────────────────────────────────────────
 function getScoreColor(score: number) {
   if (score >= 0.85) return { bar: '#22C55E', text: '#16A34A', label: { th: 'ตรงมาก', en: 'Excellent' } };
-  if (score >= 0.70) return { bar: '#F0A500', text: '#D4920A', label: { th: 'ตรงดี',  en: 'Good'      } };
+  if (score >= 0.70) return { bar: '#2E6BE6', text: '#1E57CC', label: { th: 'ตรงดี',  en: 'Good'      } };
   if (score >= 0.50) return { bar: '#F97316', text: '#EA580C', label: { th: 'พอดี',   en: 'Fair'      } };
   return               { bar: '#94A3B8', text: '#64748B', label: { th: 'น้อย',   en: 'Low'       } };
 }
@@ -95,16 +95,16 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
   // ── GPA (0–3 pts) ──────────────────────────────────────────────────────────
   if (minGpa === 0) {
     score += 1.5;
-    reasons.push('ไม่มีเกณฑ์เกรดขั้นต่ำ — เปิดรับทุกคน');
-    reasons_en.push('No minimum GPA — open to all');
+    reasons.push('ไม่มีเกณฑ์เกรดขั้นต่ำ เปิดรับทุกคน');
+    reasons_en.push('No minimum GPA open to all');
   } else {
     const margin = p.gpa - minGpa;
     score += 2.0 + Math.min(margin * 1.5, 1.0);
     reasons.push(`เกรด ${p.gpa.toFixed(2)} ผ่านเกณฑ์ขั้นต่ำ ${minGpa}`);
     reasons_en.push(`GPA ${p.gpa.toFixed(2)} meets the ${minGpa} minimum`);
     if (margin >= 0.5) {
-      reasons.push(`เกรดสูงกว่าเกณฑ์ ${margin.toFixed(2)} — โอกาสสูง`);
-      reasons_en.push(`GPA exceeds minimum by ${margin.toFixed(2)} — strong chance`);
+      reasons.push(`เกรดสูงกว่าเกณฑ์ ${margin.toFixed(2)} โอกาสสูง`);
+      reasons_en.push(`GPA exceeds minimum by ${margin.toFixed(2)} strong chance`);
     }
   }
 
@@ -117,8 +117,8 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
     const ratio = inc / maxIncome;
     if (ratio <= 0.5) {
       score += 2.0;
-      reasons.push('รายได้ครัวเรือนต่ำกว่าเกณฑ์มาก — โอกาสสูง');
-      reasons_en.push('Income well below limit — strong match');
+      reasons.push('รายได้ครัวเรือนต่ำกว่าเกณฑ์มาก โอกาสสูง');
+      reasons_en.push('Income well below limit strong match');
     } else {
       score += 1.5;
       reasons.push('รายได้ครัวเรือนผ่านเกณฑ์');
@@ -186,7 +186,7 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
 
   const raw = Math.min(score / MAX, 1.0);
 
-  // ── Equalized odds correction (Hardt, Price, Srebro — NeurIPS 2016) ────────
+  // ── Equalized odds correction (Hardt, Price, Srebro NeurIPS 2016) ────────
   const isRural = NORTHEAST.has(p.province_id ?? '');
   const isLow   = (p.income_bracket ?? 7) <= 3;
   const bias    = (s.historical_bias_score as number | null) ?? 0.5;
@@ -294,16 +294,16 @@ function EmptyState({ lang }: { lang: string }) {
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
       <div className="text-6xl mb-6">🎓</div>
       <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-3"
-          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
         {lang === 'th' ? 'ยังไม่พบทุนการศึกษา' : 'No scholarships found'}
       </h2>
       <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-sm leading-relaxed mb-6"
-         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
         {lang === 'th' ? 'กรุณา refresh หน้า หรือติดต่อผู้ดูแลระบบ' : 'Try refreshing the page, or contact the site admin.'}
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] transition-colors px-6 py-2.5 rounded-full"
+        className="text-sm font-semibold text-white bg-[#2E6BE6] hover:bg-[#1E57CC] transition-colors px-6 py-2.5 rounded-full"
       >
         {lang === 'th' ? 'รีเฟรชหน้านี้' : 'Refresh page'}
       </button>
@@ -331,7 +331,7 @@ function ScoreTooltip({ lang }: { lang: string }) {
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        className="w-4 h-4 rounded-full bg-[#E5E5EA] dark:bg-[#3a3a3c] text-[#6E6E73] dark:text-[#8E8E93] text-[10px] font-bold flex items-center justify-center hover:bg-[#F0A500]/20 hover:text-[#F0A500] transition-colors ml-1 shrink-0"
+        className="w-4 h-4 rounded-full bg-[#E5E5EA] dark:bg-[#3a3a3c] text-[#6E6E73] dark:text-[#8E8E93] text-[10px] font-bold flex items-center justify-center hover:bg-[#2E6BE6]/20 hover:text-[#2E6BE6] transition-colors ml-1 shrink-0"
         aria-label="Score info"
       >
         i
@@ -363,7 +363,7 @@ function MatchScoreBar({ scholarship, lang }: { scholarship: ScoredScholarship; 
   const color = getScoreColor(scholarship.fairnessScore);
 
   return (
-    <div className="mt-2 pt-3 border-t border-[#F5F5F7] dark:border-[#38383A]">
+    <div className="mt-2 pt-3 border-t border-[#F5F5F7] dark:border-[#232B3E]">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center">
           <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
@@ -379,14 +379,14 @@ function MatchScoreBar({ scholarship, lang }: { scholarship: ScoredScholarship; 
           </span>
         </div>
       </div>
-      <div className="h-1.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: color.bar }}
         />
       </div>
       {scholarship.boosted && (
-        <p className="mt-1.5 text-[10px] text-[#F0A500] font-medium">
+        <p className="mt-1.5 text-[10px] text-[#2E6BE6] font-medium">
           ⚖️ {lang === 'th' ? 'ปรับความเป็นธรรมแล้ว' : 'Fairness-adjusted'}
         </p>
       )}
@@ -425,19 +425,19 @@ function MatchCard({
   }
 
   return (
-    <article className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-5 flex flex-col gap-3 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow duration-200">
+    <article className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 flex flex-col gap-3 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow duration-200">
 
       {/* Header row: rank + name + amount + save */}
       <div className="flex items-start gap-2">
         {/* Rank circle */}
-        <span className="w-6 h-6 rounded-full bg-[#F0A500] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+        <span className="w-6 h-6 rounded-full bg-[#2E6BE6] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
           {rank}
         </span>
 
         {/* Name + funder */}
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
             {name}
           </h3>
           {funder && (
@@ -448,7 +448,7 @@ function MatchCard({
         {/* Amount + score badge + save */}
         <div className="flex flex-col items-end gap-1 shrink-0">
           {s.amount_thb ? (
-            <span className="text-sm font-bold text-[#F0A500]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            <span className="text-sm font-bold text-[#2E6BE6]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
               ฿{s.amount_thb.toLocaleString('th-TH')}
             </span>
           ) : (
@@ -473,8 +473,8 @@ function MatchCard({
           <ul className="space-y-0.5">
             {reasons.slice(0, 3).map((r, i) => (
               <li key={i} className="flex items-start gap-1.5 text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-                <span className="text-[#F0A500] mt-0.5 shrink-0">✓</span>
-                <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>{r}</span>
+                <span className="text-[#2E6BE6] mt-0.5 shrink-0">✓</span>
+                <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>{r}</span>
               </li>
             ))}
           </ul>
@@ -490,7 +490,7 @@ function MatchCard({
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
             deadlineColorKey === 'red' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
             deadlineColorKey === 'orange' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' :
-            'bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93]'
+            'bg-[#F7F9FC] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93]'
           }`}>
             {lang === 'th' ? deadlineLabel : deadlineLabelEn}
           </span>
@@ -502,7 +502,7 @@ function MatchCard({
         <Link
           href={`/scholarships/${s.id}`}
           onClick={storeMatchData}
-          className="text-xs text-[#F0A500] font-semibold hover:underline"
+          className="text-xs text-[#2E6BE6] font-semibold hover:underline"
         >
           {lang === 'th' ? 'ดูรายละเอียด →' : 'View details →'}
         </Link>
@@ -538,10 +538,10 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
   ];
 
   return (
-    <div className="mb-6 space-y-4 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-xl p-4 border border-[#E5E5EA] dark:border-[#38383A]">
+    <div className="mb-6 space-y-4 bg-[#F7F9FC] dark:bg-[#161B27] rounded-xl p-4 border border-[#E5E5EA] dark:border-[#232B3E]">
       {/* Result summary */}
       <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]"
-         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+         style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
         {visibleCount === total ? (
           lang === 'th'
             ? `พบ ${total} ทุนที่ตรงกับคุณ`
@@ -565,10 +565,10 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
               onClick={() => setSortBy(opt.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 sortBy === opt.key
-                  ? 'bg-[#F0A500] text-white shadow-sm'
-                  : 'bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500]'
+                  ? 'bg-[#2E6BE6] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6]'
               }`}
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
             >
               {lang === 'th' ? opt.th : opt.en}
             </button>
@@ -588,8 +588,8 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
               onClick={() => setMinScore(opt.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 minScore === opt.key
-                  ? 'bg-[#1D1D1F] dark:bg-[#F5F5F7] text-white dark:text-[#1D1D1F]'
-                  : 'bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1D1D1F] dark:hover:border-[#F5F5F7]'
+                  ? 'bg-[#1D1D1F] dark:bg-[#F7F9FC] text-white dark:text-[#1D1D1F]'
+                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1D1D1F] dark:hover:border-[#F5F5F7]'
               }`}
             >
               {lang === 'th' ? opt.th : opt.en}
@@ -671,7 +671,7 @@ export default function BrowsePage() {
             grade_level:       profile.grade_level      ?? '',
           });
 
-          // (last_active_at removed — column does not exist in profiles table)
+          // (last_active_at removed column does not exist in profiles table)
         }
       } catch {
         // silently ignore
@@ -772,28 +772,28 @@ export default function BrowsePage() {
     <div className="bg-white dark:bg-[#000000] min-h-screen">
 
       {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
+      <div className="bg-[#F7F9FC] dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
         <div className="max-w-[1200px] mx-auto px-6 py-12">
           <h1
             className="text-3xl md:text-4xl text-[#1D1D1F] dark:text-white mb-3"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 300 }}
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif', fontWeight: 300 }}
           >
             {b.title[lang]}
           </h1>
           <p className="text-[#6E6E73] dark:text-[#8E8E93]">{b.subtitle[lang]}</p>
 
           {user && (
-            <div className="flex gap-1 mt-6 bg-[#EAEAEC] dark:bg-[#2C2C2E] rounded-[10px] p-1 w-fit">
+            <div className="flex gap-1 mt-6 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
               {(['matches', 'browse'] as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
                     activeTab === t
-                      ? 'bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white shadow-sm'
+                      ? 'bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white shadow-sm'
                       : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                 >
                   {t === 'matches' ? b.tabMatches[lang] : b.tabBrowse[lang]}
                 </button>
@@ -807,12 +807,12 @@ export default function BrowsePage() {
 
         {/* ── Login banner ─────────────────────────────────────────────────── */}
         {!user && !loading && scholarships.length > 0 && (
-          <div className="mb-8 flex items-center justify-between gap-4 bg-[#FFF8E7] dark:bg-[#2C1F00] border border-[#F0A500]/30 rounded-[12px] px-6 py-4">
+          <div className="mb-8 flex items-center justify-between gap-4 bg-[#EFF4FF] dark:bg-[#162552] border border-[#2E6BE6]/30 rounded-[12px] px-6 py-4">
             <p className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7]"
-               style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+               style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
               {b.loginBanner[lang]}
             </p>
-            <a href="/auth?from=signup" className="text-sm font-semibold text-[#F0A500] hover:underline shrink-0">
+            <a href="/auth?from=signup" className="text-sm font-semibold text-[#2E6BE6] hover:underline shrink-0">
               {b.loginBannerCta[lang]}
             </a>
           </div>
@@ -844,7 +844,7 @@ export default function BrowsePage() {
               /* Skeleton */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-64 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-[12px] animate-pulse" />
+                  <div key={i} className="h-64 bg-[#F7F9FC] dark:bg-[#161B27] rounded-[12px] animate-pulse" />
                 ))}
               </div>
 
@@ -853,12 +853,12 @@ export default function BrowsePage() {
               <div className="flex flex-col items-center py-24 text-center">
                 <div className="text-5xl mb-5">📋</div>
                 <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2"
-                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                   {b.completeProfile[lang]}
                 </h3>
                 <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-xs mb-6">{b.completeProfileSub[lang]}</p>
                 <Link href="/profile/setup"
-                      className="bg-[#F0A500] text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-[#D4920A] transition-colors">
+                      className="bg-[#2E6BE6] text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-[#1E57CC] transition-colors">
                   {lang === 'th' ? 'กรอกโปรไฟล์' : 'Set up profile'}
                 </Link>
               </div>
@@ -868,7 +868,7 @@ export default function BrowsePage() {
               <div className="flex flex-col items-center py-20 text-center">
                 <div className="text-5xl mb-5">🔍</div>
                 <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2"
-                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                   {lang === 'th' ? 'ไม่พบทุนที่ตรงกับโปรไฟล์ปัจจุบัน' : 'No matches for your current profile'}
                 </h3>
                 <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-xs mb-6 leading-relaxed">
@@ -878,12 +878,12 @@ export default function BrowsePage() {
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   <Link href="/profile/setup"
-                        className="px-5 py-2.5 bg-[#F0A500] text-white rounded-full text-sm font-semibold hover:bg-[#D4920A] transition-colors">
+                        className="px-5 py-2.5 bg-[#2E6BE6] text-white rounded-full text-sm font-semibold hover:bg-[#1E57CC] transition-colors">
                     {lang === 'th' ? 'อัปเดตโปรไฟล์' : 'Update Profile'}
                   </Link>
                   <button
                     onClick={() => setActiveTab('browse')}
-                    className="px-5 py-2.5 border border-[#E5E5EA] dark:border-[#38383A] rounded-full text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors"
+                    className="px-5 py-2.5 border border-[#E5E5EA] dark:border-[#232B3E] rounded-full text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors"
                   >
                     {lang === 'th' ? 'ดูทุนทั้งหมด' : 'Browse All'}
                   </button>
@@ -908,7 +908,7 @@ export default function BrowsePage() {
                   <div className="flex flex-col items-center py-16 text-center">
                     <div className="text-5xl mb-5">🔍</div>
                     <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2"
-                        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                       {lang === 'th'
                         ? `ไม่มีทุนที่ตรงถึง ${Math.round(matchMinScore * 100)}%`
                         : `No scholarships match ${Math.round(matchMinScore * 100)}%+ for your profile`}
@@ -918,7 +918,7 @@ export default function BrowsePage() {
                     </p>
                     <button
                       onClick={() => setMatchMinScore(matchMinScore === 0.9 ? 0.7 : matchMinScore === 0.7 ? 0.5 : 0)}
-                      className="px-5 py-2.5 bg-[#F0A500] text-white rounded-full text-sm font-semibold hover:bg-[#D4920A] transition-colors"
+                      className="px-5 py-2.5 bg-[#2E6BE6] text-white rounded-full text-sm font-semibold hover:bg-[#1E57CC] transition-colors"
                     >
                       {matchMinScore === 0.9
                         ? (lang === 'th' ? 'ดูทุน 70%+' : 'Show 70%+ matches')
@@ -948,7 +948,7 @@ export default function BrowsePage() {
             <EmptyState lang={lang} />
           ) : (
             <div className="flex gap-8">
-              {/* Sidebar — desktop */}
+              {/* Sidebar desktop */}
               <aside className="hidden md:block w-72 shrink-0">
                 <div className="sticky top-24">
                   <ScholarshipFilters filters={filters} onChange={setFilters} resultCount={filtered.length} />
@@ -958,7 +958,7 @@ export default function BrowsePage() {
               <div className="flex-1 min-w-0">
                 {/* Mobile filter toggle */}
                 <button
-                  className="md:hidden flex items-center gap-2 text-sm font-medium text-[#1D1D1F] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-4 py-2 mb-6 w-full justify-center"
+                  className="md:hidden flex items-center gap-2 text-sm font-medium text-[#1D1D1F] dark:text-white border border-[#E5E5EA] dark:border-[#232B3E] rounded-lg px-4 py-2 mb-6 w-full justify-center"
                   onClick={() => setFiltersOpen(!filtersOpen)}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -984,8 +984,8 @@ export default function BrowsePage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search by scholarship or funder name...'}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#38383A] rounded-[10px] bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#F0A500] transition-colors"
-                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#232B3E] rounded-[10px] bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
+                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                     />
                     {searchQuery && (
                       <button
@@ -1002,9 +1002,9 @@ export default function BrowsePage() {
                   {searchQuery && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs text-[#6E6E73]">{lang === 'th' ? 'ค้นหา:' : 'Searching:'}</span>
-                      <span className="inline-flex items-center gap-1 text-xs bg-[#FFF8E7] border border-[#F0A500]/30 text-[#F0A500] px-2.5 py-0.5 rounded-full font-medium">
+                      <span className="inline-flex items-center gap-1 text-xs bg-[#EFF4FF] border border-[#2E6BE6]/30 text-[#2E6BE6] px-2.5 py-0.5 rounded-full font-medium">
                         {searchQuery}
-                        <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-[#D4920A]">×</button>
+                        <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-[#1E57CC]">×</button>
                       </span>
                     </div>
                   )}
@@ -1020,14 +1020,14 @@ export default function BrowsePage() {
                   {!loading && (
                     <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
                       <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
-                      <div className="flex gap-1 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-lg p-0.5">
+                      <div className="flex gap-1 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-lg p-0.5">
                         {(['deadline', 'amount', 'name'] as BrowseSortKey[]).map((key) => (
                           <button
                             key={key}
                             onClick={() => setBrowseSortKey(key)}
                             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                               browseSortKey === key
-                                ? 'bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white shadow-sm'
+                                ? 'bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white shadow-sm'
                                 : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
                             }`}
                           >
@@ -1042,7 +1042,7 @@ export default function BrowsePage() {
                 {loading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-52 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-[12px] animate-pulse" />
+                      <div key={i} className="h-52 bg-[#F7F9FC] dark:bg-[#161B27] rounded-[12px] animate-pulse" />
                     ))}
                   </div>
                 ) : filtered.length === 0 ? (
@@ -1052,7 +1052,7 @@ export default function BrowsePage() {
                     <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm mb-6">{b.noResultsSub[lang]}</p>
                     <button
                       onClick={() => { setFilters(EMPTY_FILTERS); setSearchQuery(''); }}
-                      className="text-sm text-[#F0A500] font-medium hover:underline"
+                      className="text-sm text-[#2E6BE6] font-medium hover:underline"
                     >
                       {b.clearFilters[lang]}
                     </button>

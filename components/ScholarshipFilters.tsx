@@ -44,11 +44,11 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
     <div className="bg-white border border-[#E5E5EA] rounded-[12px] p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-[#1D1D1F]" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+        <h2 className="font-semibold text-[#1D1D1F]" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
           {b.filters[lang]}
         </h2>
         {hasActiveFilters && (
-          <button onClick={clearAll} className="text-xs text-[#F0A500] hover:underline">
+          <button onClick={clearAll} className="text-xs text-[#2E6BE6] hover:underline">
             {b.clearFilters[lang]}
           </button>
         )}
@@ -65,7 +65,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => update({ funderType: '' })}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filters.funderType === '' ? 'bg-[#F0A500] text-white border-[#F0A500]' : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'}`}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filters.funderType === '' ? 'bg-[#2E6BE6] text-white border-[#2E6BE6]' : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#2E6BE6]'}`}
           >
             {b.funderAll[lang]}
           </button>
@@ -73,7 +73,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
             <button
               key={ft.value}
               onClick={() => update({ funderType: ft.value })}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filters.funderType === ft.value ? 'bg-[#F0A500] text-white border-[#F0A500]' : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'}`}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filters.funderType === ft.value ? 'bg-[#2E6BE6] text-white border-[#2E6BE6]' : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#2E6BE6]'}`}
             >
               {lang === 'th' ? ft.th : ft.en}
             </button>
@@ -90,7 +90,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
           id="gpa-filter"
           value={filters.minGpa ?? ''}
           onChange={(e) => update({ minGpa: e.target.value === '' ? null : Number(e.target.value) })}
-          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#F0A500]"
+          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#2E6BE6]"
         >
           {GPA_OPTIONS.map((g) => (
             <option key={String(g.value)} value={g.value ?? ''}>{lang === 'th' ? g.th : g.en}</option>
@@ -117,10 +117,10 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
               onClick={() => update({ gradeLevel: g.value })}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 filters.gradeLevel === g.value
-                  ? 'bg-[#F0A500] text-white border-[#F0A500]'
-                  : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#F0A500]'
+                  ? 'bg-[#2E6BE6] text-white border-[#2E6BE6]'
+                  : 'border-[#E5E5EA] text-[#6E6E73] hover:border-[#2E6BE6]'
               }`}
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
             >
               {lang === 'th' ? g.th : g.en}
             </button>
@@ -137,7 +137,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
           id="field-filter"
           value={filters.fieldOfStudy}
           onChange={(e) => update({ fieldOfStudy: e.target.value })}
-          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#F0A500]"
+          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#2E6BE6]"
         >
           <option value="">{b.fieldAny[lang]}</option>
           {FIELDS_OF_STUDY.map((f) => (
@@ -155,7 +155,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
           id="province-filter"
           value={filters.province}
           onChange={(e) => update({ province: e.target.value })}
-          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#F0A500]"
+          className="w-full text-sm border border-[#E5E5EA] rounded-lg px-3 py-2 bg-white text-[#1D1D1F] focus:outline-none focus:border-[#2E6BE6]"
         >
           <option value="">{b.provinceAll[lang]}</option>
           {PROVINCES_TH.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -169,7 +169,7 @@ export default function ScholarshipFilters({ filters, onChange, resultCount }: P
             type="checkbox"
             checked={filters.welfareCard}
             onChange={(e) => update({ welfareCard: e.target.checked })}
-            className="mt-0.5 w-4 h-4 accent-[#F0A500] shrink-0"
+            className="mt-0.5 w-4 h-4 accent-[#2E6BE6] shrink-0"
           />
           <div>
             <div className="text-sm font-medium text-[#1D1D1F]">{b.welfareCard[lang]}</div>

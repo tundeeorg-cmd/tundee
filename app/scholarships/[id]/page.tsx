@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-// Note: ChecklistStep type no longer needed — using InteractiveChecklist component
+// Note: ChecklistStep type no longer needed using InteractiveChecklist component
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ApplicationChecklist from '@/components/ApplicationChecklist';
@@ -40,16 +40,16 @@ function FairnessTooltip({ lang }: { lang: string }) {
     <div className="relative inline-block">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="ml-1.5 w-4 h-4 rounded-full bg-[#F0A500]/20 text-[#F0A500] text-[10px] font-bold flex items-center justify-center hover:bg-[#F0A500]/30 transition-colors"
+        className="ml-1.5 w-4 h-4 rounded-full bg-[#2E6BE6]/20 text-[#2E6BE6] text-[10px] font-bold flex items-center justify-center hover:bg-[#2E6BE6]/30 transition-colors"
         aria-label="Fairness info"
       >
         i
       </button>
       {open && (
         <div className="absolute bottom-6 left-0 z-20 w-72 bg-white border border-[#E5E5EA] rounded-[10px] shadow-lg p-3 text-xs text-[#6E6E73] leading-relaxed"
-          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
           {d.fairnessTooltip[lang as 'th' | 'en']}
-          <button onClick={() => setOpen(false)} className="block mt-2 text-[#F0A500] font-medium">
+          <button onClick={() => setOpen(false)} className="block mt-2 text-[#2E6BE6] font-medium">
             {lang === 'th' ? 'ปิด' : 'Close'}
           </button>
         </div>
@@ -64,7 +64,7 @@ function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; 
   const reasons = lang === 'th' ? matchData.reasons : matchData.reasons_en;
   const rawPct = Math.round(matchData.raw_score * 100);
   const fairPct = Math.round(matchData.fairness_score * 100);
-  const color = matchData.fairness_boosted ? '#F0A500' : '#0066CC';
+  const color = matchData.fairness_boosted ? '#2E6BE6' : '#0066CC';
 
   return (
     <div className="bg-[#FAFAFA] border border-[#E5E5EA] rounded-[12px] p-5 space-y-4">
@@ -72,7 +72,7 @@ function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; 
       <div className="flex items-center gap-2">
         <span className="text-base">🎯</span>
         <h3 className="text-sm font-semibold text-[#1D1D1F]"
-          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
           {d.whyMatch[lang as 'th' | 'en']}
         </h3>
       </div>
@@ -82,8 +82,8 @@ function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; 
         <ul className="space-y-1.5">
           {reasons.map((r, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-[#6E6E73]">
-              <span className="text-[#F0A500] mt-0.5 shrink-0">✓</span>
-              <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>{r}</span>
+              <span className="text-[#2E6BE6] mt-0.5 shrink-0">✓</span>
+              <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>{r}</span>
             </li>
           ))}
         </ul>
@@ -98,7 +98,7 @@ function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; 
           </div>
           <span className="text-sm font-bold" style={{ color }}>{fairPct}%</span>
         </div>
-        <div className="h-2 bg-[#F5F5F7] rounded-full overflow-hidden">
+        <div className="h-2 bg-[#F7F9FC] rounded-full overflow-hidden">
           <div className="h-full rounded-full" style={{ width: `${fairPct}%`, background: color }} />
         </div>
       </div>
@@ -107,7 +107,7 @@ function ExplainabilityPanel({ matchData, lang }: { matchData: StoredMatchData; 
       {matchData.fairness_boosted && (
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-[#F0A500] bg-[#FFF8E7] border border-[#F0A500]/30 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-medium text-[#2E6BE6] bg-[#EFF4FF] border border-[#2E6BE6]/30 px-2.5 py-0.5 rounded-full">
               {d.fairnessBadgeDetail[lang as 'th' | 'en']}
             </span>
           </div>
@@ -181,9 +181,9 @@ export default function ScholarshipDetailPage() {
   if (loading) {
     return (
       <div className="max-w-[1200px] mx-auto px-6 py-20">
-        <div className="h-8 w-32 bg-[#F5F5F7] rounded animate-pulse mb-8" />
-        <div className="h-12 w-3/4 bg-[#F5F5F7] rounded animate-pulse mb-4" />
-        <div className="h-6 w-1/2 bg-[#F5F5F7] rounded animate-pulse" />
+        <div className="h-8 w-32 bg-[#F7F9FC] rounded animate-pulse mb-8" />
+        <div className="h-12 w-3/4 bg-[#F7F9FC] rounded animate-pulse mb-4" />
+        <div className="h-6 w-1/2 bg-[#F7F9FC] rounded animate-pulse" />
       </div>
     );
   }
@@ -192,7 +192,7 @@ export default function ScholarshipDetailPage() {
     return (
       <div className="max-w-[1200px] mx-auto px-6 py-20 text-center">
         <p className="text-[#6E6E73]">ไม่พบทุนนี้ / Scholarship not found</p>
-        <Link href="/scholarships" className="mt-4 inline-block text-[#F0A500] hover:underline">
+        <Link href="/scholarships" className="mt-4 inline-block text-[#2E6BE6] hover:underline">
           {d.back[lang]}
         </Link>
       </div>
@@ -272,7 +272,7 @@ export default function ScholarshipDetailPage() {
         {/* Back */}
         <Link
           href="/scholarships"
-          className="inline-flex items-center text-sm text-[#6E6E73] hover:text-[#F0A500] transition-colors mb-8"
+          className="inline-flex items-center text-sm text-[#6E6E73] hover:text-[#2E6BE6] transition-colors mb-8"
         >
           {d.back[lang]}
         </Link>
@@ -283,8 +283,8 @@ export default function ScholarshipDetailPage() {
             <span className="text-lg shrink-0">⚠️</span>
             <p className="text-red-700 dark:text-red-400 font-semibold text-sm">
               {lang === 'th'
-                ? 'ทุนนี้หมดเขตรับสมัครแล้ว — ตรวจสอบเว็บไซต์ทุนสำหรับรอบถัดไป'
-                : 'This scholarship deadline has passed — check the funder\'s website for the next cycle'}
+                ? 'ทุนนี้หมดเขตรับสมัครแล้ว ตรวจสอบเว็บไซต์ทุนสำหรับรอบถัดไป'
+                : 'This scholarship deadline has passed check the funder\'s website for the next cycle'}
             </p>
           </div>
         )}
@@ -299,7 +299,7 @@ export default function ScholarshipDetailPage() {
                   <Pill className={funderColor}>{funderTypeLabel}</Pill>
                 )}
                 {s.welfare_card_priority && (
-                  <Pill className="bg-[#FFF8E7] text-[#B8860B] border-[#F0A500]/40">
+                  <Pill className="bg-[#EFF4FF] text-[#2E6BE6] border-[#2E6BE6]/40">
                     {d.welfareCardPill[lang]}
                   </Pill>
                 )}
@@ -307,7 +307,7 @@ export default function ScholarshipDetailPage() {
               <h1
                 className="text-2xl md:text-4xl text-[#1D1D1F] mb-2 leading-tight"
                 style={{
-                  fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif',
+                  fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif',
                   fontWeight: 400,
                 }}
               >
@@ -323,20 +323,20 @@ export default function ScholarshipDetailPage() {
 
             {/* Key stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-[#FFF8E7] border border-[#F0A500]/20 rounded-[12px] p-5">
+              <div className="bg-[#EFF4FF] border border-[#2E6BE6]/20 rounded-[12px] p-5">
                 <div className="text-xs text-[#6E6E73] mb-1">{d.amount[lang]}</div>
                 <div
-                  className="text-lg font-semibold text-[#F0A500]"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
+                  className="text-lg font-semibold text-[#2E6BE6]"
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                 >
                   {formatAmount()}
                 </div>
               </div>
-              <div className="bg-[#F5F5F7] rounded-[12px] p-5">
+              <div className="bg-[#F7F9FC] rounded-[12px] p-5">
                 <div className="text-xs text-[#6E6E73] mb-1">{d.deadline[lang]}</div>
                 <div className="text-sm font-semibold text-[#1D1D1F]">{formatDeadline()}</div>
               </div>
-              <div className="bg-[#F5F5F7] rounded-[12px] p-5">
+              <div className="bg-[#F7F9FC] rounded-[12px] p-5">
                 <div className="text-xs text-[#6E6E73] mb-1">{d.funderType[lang]}</div>
                 <div className="text-sm font-semibold text-[#1D1D1F]">{funderTypeLabel}</div>
               </div>
@@ -347,13 +347,13 @@ export default function ScholarshipDetailPage() {
               <div>
                 <h2
                   className="text-lg font-semibold text-[#1D1D1F] mb-3"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                 >
                   {d.description[lang]}
                 </h2>
                 <p
                   className="text-[#6E6E73] leading-relaxed text-[15px]"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                 >
                   {description}
                 </p>
@@ -364,7 +364,7 @@ export default function ScholarshipDetailPage() {
             <div>
               <h2
                 className="text-lg font-semibold text-[#1D1D1F] mb-4"
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
               >
                 {d.eligibility[lang]}
               </h2>
@@ -443,7 +443,7 @@ export default function ScholarshipDetailPage() {
                     value={
                       <div className="flex flex-wrap gap-1.5">
                         {sx.special_skills.map((skill, i) => (
-                          <span key={i} className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
+                          <span key={i} className="text-xs bg-[#F7F9FC] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
                             {skill}
                           </span>
                         ))}
@@ -458,7 +458,7 @@ export default function ScholarshipDetailPage() {
                     value={
                       <div className="flex flex-wrap gap-1.5">
                         {sx.talents.map((t, i) => (
-                          <span key={i} className="text-xs bg-[#F5F5F7] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
+                          <span key={i} className="text-xs bg-[#F7F9FC] text-[#6E6E73] px-2.5 py-1 rounded-full border border-[#E5E5EA]">
                             {t}
                           </span>
                         ))}
@@ -477,14 +477,14 @@ export default function ScholarshipDetailPage() {
               <div>
                 <h2
                   className="text-lg font-semibold text-[#1D1D1F] mb-4"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                 >
                   {d.documents[lang]}
                 </h2>
                 <ul className="space-y-2">
                   {s.documents_required.map((doc, i) => (
                     <li key={i} className="flex items-start gap-3">
-                      <svg className="w-4 h-4 text-[#F0A500] mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 text-[#2E6BE6] mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                       <span className="text-sm text-[#1D1D1F]">{translateDocument(doc, lang)}</span>
@@ -494,7 +494,7 @@ export default function ScholarshipDetailPage() {
               </div>
             )}
 
-            {/* Interactive checklist — saves progress to applications table */}
+            {/* Interactive checklist saves progress to applications table */}
             <div ref={checklistRef}>
               <ApplicationChecklist
                 scholarshipId={id}
@@ -537,10 +537,10 @@ export default function ScholarshipDetailPage() {
                     onClick={trackClick}
                     className={`flex items-center justify-center gap-2 w-full font-semibold py-4 px-6 rounded-full transition-colors duration-200 text-sm ${
                       canApply
-                        ? 'bg-[#F0A500] text-white hover:bg-[#D4920A]'
-                        : 'bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] border border-[#E5E5EA] dark:border-[#38383A]'
+                        ? 'bg-[#2E6BE6] text-white hover:bg-[#1E57CC]'
+                        : 'bg-[#F7F9FC] dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] border border-[#E5E5EA] dark:border-[#232B3E]'
                     }`}
-                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                    style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                   >
                     {canApply
                       ? <>
@@ -580,7 +580,7 @@ export default function ScholarshipDetailPage() {
                       setTimeout(() => setLinkCopied(false), 2500);
                     }
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#38383A] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors no-print"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#232B3E] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors no-print"
                 >
                   {linkCopied ? '✓ ' : '🔗 '}
                   {linkCopied
@@ -589,7 +589,7 @@ export default function ScholarshipDetailPage() {
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#38383A] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors no-print"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-[#E5E5EA] dark:border-[#232B3E] text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors no-print"
                 >
                   🖨️ {lang === 'th' ? 'พิมพ์' : 'Print'}
                 </button>
@@ -605,17 +605,17 @@ export default function ScholarshipDetailPage() {
                 onClick={() => {
                   checklistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                className="flex items-center justify-center gap-2 w-full border border-[#F0A500] text-[#F0A500] font-semibold py-4 px-6 rounded-full hover:bg-[#FFF8E7] transition-colors duration-200 text-sm"
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                className="flex items-center justify-center gap-2 w-full border border-[#2E6BE6] text-[#2E6BE6] font-semibold py-4 px-6 rounded-full hover:bg-[#EFF4FF] transition-colors duration-200 text-sm"
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
               >
                 {d.startChecklist[lang]}
               </button>
 
               {/* Quick info card */}
-              <div className="bg-[#F5F5F7] rounded-[12px] p-5 space-y-3 text-sm">
+              <div className="bg-[#F7F9FC] rounded-[12px] p-5 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-[#6E6E73]">{d.amount[lang]}</span>
-                  <span className="font-semibold text-[#F0A500]">{formatAmount()}</span>
+                  <span className="font-semibold text-[#2E6BE6]">{formatAmount()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[#6E6E73]">{d.deadline[lang]}</span>

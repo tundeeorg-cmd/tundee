@@ -29,7 +29,7 @@ export default function ChecklistUI({ steps }: Props) {
     <div>
       <h2
         className="text-xl md:text-2xl text-[#1D1D1F] mb-2"
-        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif', fontWeight: 400 }}
+        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif', fontWeight: 400 }}
       >
         {d.checklist[lang]}
       </h2>
@@ -43,11 +43,11 @@ export default function ChecklistUI({ steps }: Props) {
           return (
             <li key={step.id}>
               <button className="w-full text-left" onClick={() => setExpanded(isOpen ? null : step.step_number)}>
-                <div className={`flex items-center gap-4 p-4 rounded-[12px] border transition-all duration-200 ${isOpen ? 'border-[#F0A500] bg-[#FFF8E7]' : 'border-[#E5E5EA] bg-white hover:border-[#F0A500]/50'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${isOpen ? 'bg-[#F0A500] text-white' : 'bg-[#F5F5F7] text-[#6E6E73]'}`}>
+                <div className={`flex items-center gap-4 p-4 rounded-[12px] border transition-all duration-200 ${isOpen ? 'border-[#2E6BE6] bg-[#EFF4FF]' : 'border-[#E5E5EA] bg-white hover:border-[#2E6BE6]/50'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${isOpen ? 'bg-[#2E6BE6] text-white' : 'bg-[#F7F9FC] text-[#6E6E73]'}`}>
                     {step.step_number}
                   </div>
-                  <span className="font-medium flex-1 text-[#1D1D1F]" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                  <span className="font-medium flex-1 text-[#1D1D1F]" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                     {name}
                   </span>
                   <svg className={`w-4 h-4 text-[#6E6E73] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +57,7 @@ export default function ChecklistUI({ steps }: Props) {
               </button>
               {isOpen && desc && (
                 <div className="px-4 pt-2 pb-4">
-                  <p className="text-sm text-[#6E6E73] leading-relaxed pl-12" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                  <p className="text-sm text-[#6E6E73] leading-relaxed pl-12" style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                     {desc}
                   </p>
                 </div>

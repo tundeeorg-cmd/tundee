@@ -1,5 +1,5 @@
 /**
- * TunDee Matching Engine — Content-Based Filtering
+ * TunDee Matching Engine Content-Based Filtering
  * + Fairness-Aware Post-Processing (Equalized Odds)
  *
  * Fairness implementation based on:
@@ -24,7 +24,7 @@
 import { StudentProfile, ScholarshipRow, MatchResult } from './types'
 
 // ── Protected group definition ─────────────────────────────────────────────
-// Northeastern provinces (ภาคอีสาน) — historically underrepresented in
+// Northeastern provinces (ภาคอีสาน) historically underrepresented in
 // scholarship winners relative to Bangkok and Central region.
 // Using Thai province names to match scholarship province_restriction data.
 const NORTHEAST_PROVINCES = new Set([
@@ -42,7 +42,7 @@ const INCOME_CEILING: Record<number, number> = {
 
 // ── Step 1: Classify demographic group ────────────────────────────────────
 // Based on Hardt et al.: A=1 (protected) if rural AND low-income.
-// Both conditions required — rural alone or low-income alone is insufficient
+// Both conditions required rural alone or low-income alone is insufficient
 // to trigger the correction, avoiding over-correction.
 export function classifyDemographic(profile: StudentProfile): 'disadvantaged' | 'advantaged' {
   const isRural = NORTHEAST_PROVINCES.has(profile.province_id)
@@ -124,12 +124,12 @@ function scoreScholarship(
     reasons.push(`เกรด ${profile.gpa.toFixed(2)} ผ่านเกณฑ์ขั้นต่ำ ${minGpa.toFixed(1)}`)
     reasons_en.push(`GPA ${profile.gpa.toFixed(2)} meets the ${minGpa.toFixed(1)} minimum`)
     if (gpaMargin >= 0.5) {
-      reasons.push(`เกรดสูงกว่าเกณฑ์ขั้นต่ำ ${gpaMargin.toFixed(2)} — โอกาสสูง`)
-      reasons_en.push(`GPA exceeds minimum by ${gpaMargin.toFixed(2)} — strong match`)
+      reasons.push(`เกรดสูงกว่าเกณฑ์ขั้นต่ำ ${gpaMargin.toFixed(2)} โอกาสสูง`)
+      reasons_en.push(`GPA exceeds minimum by ${gpaMargin.toFixed(2)} strong match`)
     }
   } else {
-    reasons.push('ไม่มีเกณฑ์เกรดขั้นต่ำ — เปิดรับทุกคน')
-    reasons_en.push('No minimum GPA required — open to all')
+    reasons.push('ไม่มีเกณฑ์เกรดขั้นต่ำ เปิดรับทุกคน')
+    reasons_en.push('No minimum GPA required open to all')
   }
 
   // 2. Income match (0–1 point)

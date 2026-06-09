@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * /profile/setup — Duolingo-style 6-step onboarding wizard.
+ * /profile/setup Duolingo-style 6-step onboarding wizard.
  * Redirected here from /auth/callback when profile is incomplete.
  *
  * FIXED (Jun 2026): handleSave now uses getUser() (validates token with
@@ -50,7 +50,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
       </div>
       <div className="h-1.5 bg-[#E5E5EA] dark:bg-[#3a3a3c] rounded-full overflow-hidden">
         <div
-          className="h-full bg-[#F0A500] rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-[#2E6BE6] rounded-full transition-all duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -75,7 +75,7 @@ interface WizardContainerProps {
 }
 function WizardContainer({ children, step, total, lang, error, onBack }: WizardContainerProps) {
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         {/* Back + progress */}
         <div className="mb-6">
@@ -91,7 +91,7 @@ function WizardContainer({ children, step, total, lang, error, onBack }: WizardC
         </div>
 
         <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl shadow-sm border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden">
-          <div className="h-1 bg-[#F0A500]" />
+          <div className="h-1 bg-[#2E6BE6]" />
           <div className="px-7 py-8">
             {error && (
               <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
@@ -241,8 +241,8 @@ export default function ProfileSetupPage() {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#F0A500]/30 border-t-[#F0A500] rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#2E6BE6]/30 border-t-[#2E6BE6] rounded-full animate-spin" />
       </div>
     );
   }
@@ -252,11 +252,11 @@ export default function ProfileSetupPage() {
   );
 
   const fontTh = 'Sarabun, sans-serif';
-  const fontEn = 'DM Sans, sans-serif';
+  const fontEn = 'Inter, system-ui, sans-serif';
   const font   = lang === 'th' ? fontTh : fontEn;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 0 — Name
+  // STEP 0 Name
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 0) {
     return (
@@ -278,14 +278,14 @@ export default function ProfileSetupPage() {
           placeholder={lang === 'th' ? 'ชื่อของคุณ' : 'Your name'}
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
-          className="w-full text-center text-2xl font-light border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#F0A500] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-3 mb-8 transition-colors"
+          className="w-full text-center text-2xl font-light border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#2E6BE6] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-3 mb-8 transition-colors"
           style={{ fontFamily: font }}
           onKeyDown={(e) => { if (e.key === 'Enter') nextStep(); }}
         />
 
         <button
           onClick={nextStep}
-          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors"
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
           style={{ fontFamily: font }}
         >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
@@ -303,7 +303,7 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 1 — Grade level
+  // STEP 1 Grade level
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
@@ -322,8 +322,8 @@ export default function ProfileSetupPage() {
               onClick={() => { setGradeLevel(opt.value); setStep(2); }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all ${
                 gradeLevel === opt.value
-                  ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00]'
-                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] hover:border-[#F0A500]/50 bg-white dark:bg-[#2c2c2e]'
+                  ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
+                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] hover:border-[#2E6BE6]/50 bg-white dark:bg-[#2c2c2e]'
               }`}
             >
               <span
@@ -332,7 +332,7 @@ export default function ProfileSetupPage() {
               >
                 {lang === 'th' ? opt.th : opt.en}
               </span>
-              {gradeLevel === opt.value && <span className="text-[#F0A500] font-bold">✓</span>}
+              {gradeLevel === opt.value && <span className="text-[#2E6BE6] font-bold">✓</span>}
             </button>
           ))}
         </div>
@@ -350,7 +350,7 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 2 — GPA
+  // STEP 2 GPA
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 2) {
     return (
@@ -377,7 +377,7 @@ export default function ProfileSetupPage() {
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             inputMode="decimal"
-            className="text-center text-4xl font-light w-40 border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#F0A500] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-2 transition-colors"
+            className="text-center text-4xl font-light w-40 border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#2E6BE6] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-2 transition-colors"
             onKeyDown={(e) => { if (e.key === 'Enter') nextStep(); }}
           />
           <p className="text-xs text-[#aeaeb2] mt-2">0.00 – 4.00</p>
@@ -385,7 +385,7 @@ export default function ProfileSetupPage() {
 
         <button
           onClick={nextStep}
-          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors mb-3"
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors mb-3"
           style={{ fontFamily: font }}
         >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
@@ -403,7 +403,7 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 3 — Province
+  // STEP 3 Province
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 3) {
     return (
@@ -423,7 +423,7 @@ export default function ProfileSetupPage() {
             placeholder={lang === 'th' ? 'ค้นหาจังหวัด...' : 'Search province...'}
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
-            className="w-full px-4 py-3 text-base border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#F0A500] focus:ring-2 focus:ring-[#F0A500]/20 placeholder-[#aeaeb2]"
+            className="w-full px-4 py-3 text-base border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] focus:ring-2 focus:ring-[#2E6BE6]/20 placeholder-[#aeaeb2]"
             style={{ fontFamily: fontTh }}
           />
         </div>
@@ -435,13 +435,13 @@ export default function ProfileSetupPage() {
               onClick={() => { setProvince(pv); setStep(4); }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                 province === pv
-                  ? 'bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#F0A500] font-semibold'
-                  : 'bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#3a3a3c]'
+                  ? 'bg-[#EFF4FF] dark:bg-[#162552] text-[#2E6BE6] font-semibold'
+                  : 'bg-white dark:bg-[#2c2c2e] text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#3a3a3c]'
               }`}
               style={{ fontFamily: fontTh }}
             >
               {pv}
-              {province === pv && <span className="float-right text-[#F0A500]">✓</span>}
+              {province === pv && <span className="float-right text-[#2E6BE6]">✓</span>}
             </button>
           ))}
           {filteredProvinces.length === 0 && (
@@ -464,7 +464,7 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 4 — Income & welfare card
+  // STEP 4 Income & welfare card
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 4) {
     return (
@@ -486,8 +486,8 @@ export default function ProfileSetupPage() {
               onClick={() => setIncomeBracket(opt.value)}
               className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm transition-all ${
                 incomeBracket === opt.value
-                  ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]'
-                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#F0A500]/50'
+                  ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]'
+                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#2E6BE6]/50'
               }`}
               style={{ fontFamily: font }}
             >
@@ -497,7 +497,7 @@ export default function ProfileSetupPage() {
         </div>
 
         {/* Welfare card toggle */}
-        <div className="flex items-center justify-between px-4 py-3.5 bg-[#F5F5F7] dark:bg-[#2c2c2e] rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] mb-6">
+        <div className="flex items-center justify-between px-4 py-3.5 bg-[#F7F9FC] dark:bg-[#2c2c2e] rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] mb-6">
           <div>
             <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]" style={{ fontFamily: font }}>
               {lang === 'th' ? 'บัตรสวัสดิการแห่งรัฐ' : 'State Welfare Card'}
@@ -510,7 +510,7 @@ export default function ProfileSetupPage() {
             type="button"
             onClick={() => setWelfareCard(!welfareCard)}
             className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${
-              welfareCard ? 'bg-[#F0A500]' : 'bg-[#D1D1D6] dark:bg-[#636366]'
+              welfareCard ? 'bg-[#2E6BE6]' : 'bg-[#D1D1D6] dark:bg-[#636366]'
             }`}
           >
             <span
@@ -523,7 +523,7 @@ export default function ProfileSetupPage() {
 
         <button
           onClick={nextStep}
-          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors"
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
           style={{ fontFamily: font }}
         >
           {lang === 'th' ? 'ถัดไป →' : 'Next →'}
@@ -533,7 +533,7 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 5 — Fields of interest
+  // STEP 5 Fields of interest
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 5) {
     return (
@@ -556,8 +556,8 @@ export default function ProfileSetupPage() {
               onClick={() => toggleField(f.th)}
               className={`px-3.5 py-2 rounded-full text-sm font-medium border-2 transition-all ${
                 selectedFields.includes(f.th)
-                  ? 'border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2C1F00] text-[#D4920A] dark:text-[#F0A500]'
-                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#F0A500]/50'
+                  ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552] text-[#1E57CC] dark:text-[#5B8EF0]'
+                  : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] text-[#6e6e73] dark:text-[#aeaeb2] hover:border-[#2E6BE6]/50'
               }`}
               style={{ fontFamily: font }}
             >
@@ -569,7 +569,7 @@ export default function ProfileSetupPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full bg-[#F0A500] hover:bg-[#d4920a] text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           style={{ fontFamily: font }}
         >
           {saving && <Spinner />}

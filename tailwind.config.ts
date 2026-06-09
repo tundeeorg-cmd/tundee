@@ -10,14 +10,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        saffron: "#F0A500",
-        "apple-black": "#1D1D1F",
-        "apple-white": "#F5F5F7",
-        "apple-gray": "#6E6E73",
+        primary: {
+          DEFAULT: '#2E6BE6',
+          hover:   '#1E57CC',
+          light:   '#EFF4FF',
+          tint:    '#DDEAFF',
+          dark:    '#1B3A6B',
+        },
+        surface: {
+          light: '#F7F9FC',
+          dark:  '#0D1117',
+        },
+        // Legacy aliases kept for backward compat
+        saffron:       "#2E6BE6",
+        "apple-black": "#0F1C33",
+        "apple-white": "#F7F9FC",
+        "apple-gray":  "#4A5568",
       },
       fontFamily: {
-        sarabun: ["Sarabun", "sans-serif"],
-        dm: ["DM Sans", "sans-serif"],
+        display:    ["var(--font-display)", "Cormorant Garamond", "Georgia", "serif"],
+        sarabun:    ["Sarabun", "system-ui", "sans-serif"],
+        inter:      ["Inter", "system-ui", "sans-serif"],
+        dm:         ["DM Sans", "sans-serif"],
       },
       maxWidth: {
         content: "1200px",

@@ -31,13 +31,13 @@ export default function GlobalError({
       <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
         <button
           onClick={reset}
-          className="px-6 py-2.5 rounded-full text-sm font-semibold bg-[#F0A500] text-white hover:bg-[#D4920A] transition-colors"
+          className="px-6 py-2.5 rounded-full text-sm font-semibold bg-[#2E6BE6] text-white hover:bg-[#1E57CC] transition-colors"
         >
           ลองใหม่อีกครั้ง / Try Again
         </button>
         <Link
           href="/"
-          className="px-6 py-2.5 rounded-full text-sm font-semibold border border-[#E5E5EA] text-[#1D1D1F] dark:text-white hover:border-[#F0A500] transition-colors"
+          className="px-6 py-2.5 rounded-full text-sm font-semibold border border-[#E5E5EA] text-[#1D1D1F] dark:text-white hover:border-[#2E6BE6] transition-colors"
         >
           กลับหน้าแรก / Home
         </Link>

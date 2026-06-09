@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * /admin — TunDee Admin Dashboard
+ * /admin TunDee Admin Dashboard
  *
- * Tab 1 — 📋 Scholarships: manage active/inactive scholarships
- * Tab 2 — ➕ Add New:     add a scholarship to the DB
- * Tab 3 — 📊 Analytics:   user stats, trend chart, province distribution
+ * Tab 1 📋 Scholarships: manage active/inactive scholarships
+ * Tab 2 ➕ Add New:     add a scholarship to the DB
+ * Tab 3 📊 Analytics:   user stats, trend chart, province distribution
  *
  * Access guard: NEXT_PUBLIC_ADMIN_EMAIL env var.
  * Non-admins are redirected to / instantly.
@@ -127,7 +127,7 @@ const ZERO_STATS: SummaryStats = {
 
 function Spinner({ size = 5 }: { size?: number }) {
   return (
-    <svg className={`animate-spin w-${size} h-${size} text-[#F0A500]`} fill="none" viewBox="0 0 24 24">
+    <svg className={`animate-spin w-${size} h-${size} text-[#2E6BE6]`} fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
@@ -137,7 +137,7 @@ function Spinner({ size = 5 }: { size?: number }) {
 function SectionHead({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4"
-        style={{ borderLeft: '3px solid #F0A500', paddingLeft: 12 }}>
+        style={{ borderLeft: '3px solid #2E6BE6', paddingLeft: 12 }}>
       {children}
     </h2>
   );
@@ -152,7 +152,7 @@ function StatCard({ label, value, icon, accent = false }: {
         <span className="text-xl">{icon}</span>
         <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{label}</span>
       </div>
-      <div className={`text-3xl font-bold ${accent ? 'text-[#F0A500]' : 'text-[#1D1D1F] dark:text-white'}`}>
+      <div className={`text-3xl font-bold ${accent ? 'text-[#2E6BE6]' : 'text-[#1D1D1F] dark:text-white'}`}>
         {value}
       </div>
     </div>
@@ -261,12 +261,12 @@ export default function AdminPage() {
           welfare_card_users:  d.welfare_card_users ?? 0,
         });
       } else {
-        // View doesn't exist yet — show zeros (developer needs to run admin_views.sql)
+        // View doesn't exist yet show zeros (developer needs to run admin_views.sql)
         setSummary(ZERO_STATS);
         setStatsError('Run scripts/admin_views.sql in Supabase to enable analytics.');
       }
 
-      // Trend data — merge daily_signups + daily_active by day
+      // Trend data merge daily_signups + daily_active by day
       const signupMap = new Map<string, number>();
       const activeMap = new Map<string, number>();
       (trendRes.data ?? []).forEach((r: Record<string, unknown>) => {
@@ -383,7 +383,7 @@ export default function AdminPage() {
   // ── Loading / auth gate ───────────────────────────────────────────────────
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] flex items-center justify-center">
+      <main className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center">
         <Spinner size={8} />
       </main>
     );
@@ -392,7 +392,7 @@ export default function AdminPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] pt-20 pb-16">
+    <main className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] pt-20 pb-16">
       <div className="max-w-5xl mx-auto px-4">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
@@ -403,11 +403,11 @@ export default function AdminPage() {
               <h1 className="text-2xl font-semibold text-[#1D1D1F] dark:text-white">
                 TunDee Admin Dashboard
               </h1>
-              <span className="text-xs font-bold bg-[#F0A500] text-white px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-bold bg-[#2E6BE6] text-white px-2.5 py-0.5 rounded-full">
                 ADMIN
               </span>
             </div>
-            <a href="/" className="text-sm text-[#6E6E73] hover:text-[#F0A500] transition-colors">
+            <a href="/" className="text-sm text-[#6E6E73] hover:text-[#2E6BE6] transition-colors">
               ← Back to site
             </a>
           </div>
@@ -443,7 +443,7 @@ export default function AdminPage() {
               onClick={() => setTab(key)}
               className={`px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                 tab === key
-                  ? 'bg-[#F0A500] text-white shadow-sm'
+                  ? 'bg-[#2E6BE6] text-white shadow-sm'
                   : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
               }`}
             >
@@ -453,7 +453,7 @@ export default function AdminPage() {
         </div>
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 1 — SCHOLARSHIP LIST
+            TAB 1 SCHOLARSHIP LIST
         ════════════════════════════════════════════════════════════════ */}
         {tab === 'list' && (
           <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] overflow-hidden">
@@ -461,24 +461,24 @@ export default function AdminPage() {
               <input
                 type="text" placeholder="Search by name or funder..."
                 value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] focus:outline-none focus:ring-2 focus:ring-[#F0A500] text-[#1D1D1F] dark:text-white"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white"
               />
               <select value={filterActive}
                 onChange={e => setFilterActive(e.target.value as typeof filterActive)}
-                className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none">
+                className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none">
                 <option value="all">All status</option>
                 <option value="active">Active only</option>
                 <option value="inactive">Inactive only</option>
               </select>
               <select value={sortField}
                 onChange={e => setSortField(e.target.value as SortField)}
-                className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none">
+                className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none">
                 <option value="created_at">Sort: Newest</option>
                 <option value="amount_thb">Sort: Amount</option>
                 <option value="name_th">Sort: Name A–Z</option>
               </select>
               <button onClick={fetchScholarships}
-                className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] hover:border-[#F0A500] dark:hover:border-[#F0A500] transition-colors">
+                className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] hover:border-[#2E6BE6] dark:hover:border-[#2E6BE6] transition-colors">
                 ↻ Refresh
               </button>
             </div>
@@ -491,7 +491,7 @@ export default function AdminPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F5F5F7] dark:bg-[#2C2C2E]">
+                    <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F7F9FC] dark:bg-[#232B3E]">
                       {['Name', 'Funder', 'Amount', 'Bias Score', 'Status', 'Toggle'].map(h => (
                         <th key={h} className={`px-4 py-3 font-medium text-[#6E6E73] dark:text-[#8E8E93] ${h === 'Amount' ? 'text-right' : h === 'Bias Score' || h === 'Status' || h === 'Toggle' ? 'text-center' : 'text-left'}`}>
                           {h}
@@ -508,13 +508,13 @@ export default function AdminPage() {
                           {s.name_en && <div className="text-xs text-[#6E6E73] mt-0.5">{s.name_en}</div>}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-[#1D1D1F] dark:text-white">{s.funder_name_th ?? '—'}</div>
+                          <div className="text-[#1D1D1F] dark:text-white">{s.funder_name_th ?? ' '}</div>
                           <div className="text-xs text-[#ADADB8] capitalize">{s.funder_type ?? ''}</div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           {s.amount_thb != null
                             ? <span className="font-medium text-[#1D1D1F] dark:text-white">{s.amount_thb.toLocaleString()} ฿</span>
-                            : <span className="text-[#ADADB8]">—</span>}
+                            : <span className="text-[#ADADB8]"> </span>}
                           {s.amount_type && <div className="text-xs text-[#ADADB8]">{s.amount_type}</div>}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -528,10 +528,10 @@ export default function AdminPage() {
                             }`}>
                               {((s as Scholarship & { historical_bias_score?: number }).historical_bias_score ?? 0.5).toFixed(1)}
                             </span>
-                          ) : <span className="text-[#ADADB8]">—</span>}
+                          ) : <span className="text-[#ADADB8]"> </span>}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${s.is_active ? 'bg-green-50 text-green-700' : 'bg-[#F5F5F7] text-[#6E6E73]'}`}>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${s.is_active ? 'bg-green-50 text-green-700' : 'bg-[#F7F9FC] text-[#6E6E73]'}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? 'bg-green-500' : 'bg-[#ADADB8]'}`} />
                             {s.is_active ? 'Active' : 'Inactive'}
                           </span>
@@ -555,7 +555,7 @@ export default function AdminPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 2 — ADD SCHOLARSHIP
+            TAB 2 ADD SCHOLARSHIP
         ════════════════════════════════════════════════════════════════ */}
         {tab === 'add' && (
           <form onSubmit={handleAdd}
@@ -577,7 +577,7 @@ export default function AdminPage() {
               <div>
                 <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1">Funder Type</label>
                 <select value={form.funder_type} onChange={e => setForm(f => ({ ...f, funder_type: e.target.value as FunderType }))}
-                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F0A500]">
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]">
                   {FUNDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -589,7 +589,7 @@ export default function AdminPage() {
               <div>
                 <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1">Amount Type</label>
                 <select value={form.amount_type} onChange={e => setForm(f => ({ ...f, amount_type: e.target.value as AmountType }))}
-                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F0A500]">
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]">
                   {AMOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -605,7 +605,7 @@ export default function AdminPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.welfare_card_priority}
                   onChange={e => setForm(f => ({ ...f, welfare_card_priority: e.target.checked }))}
-                  className="accent-[#F0A500]" />
+                  className="accent-[#2E6BE6]" />
                 <span className="text-sm text-[#1D1D1F] dark:text-white">Welfare card priority</span>
               </label>
             </fieldset>
@@ -628,7 +628,7 @@ export default function AdminPage() {
             </fieldset>
 
             <button type="submit" disabled={saving}
-              className="w-full bg-[#F0A500] hover:bg-[#D4920A] text-white font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {saving && <Spinner />}
               Add Scholarship
             </button>
@@ -636,7 +636,7 @@ export default function AdminPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 3 — ANALYTICS DASHBOARD
+            TAB 3 ANALYTICS DASHBOARD
         ════════════════════════════════════════════════════════════════ */}
         {tab === 'analytics' && (
           <div className="space-y-6">
@@ -652,7 +652,7 @@ export default function AdminPage() {
               <button
                 onClick={loadDashboardData}
                 disabled={statsLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#F0A500] hover:text-[#F0A500] transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors disabled:opacity-50"
               >
                 {statsLoading ? <Spinner size={4} /> : '🔄'}
                 รีเฟรช / Refresh
@@ -694,7 +694,7 @@ export default function AdminPage() {
               <div className="flex flex-wrap gap-4 pt-4 border-t border-[#F5F5F7] dark:border-[#3A3A3C] text-sm text-[#6E6E73] dark:text-[#8E8E93]">
                 <span>📚 Active scholarships in DB: <strong className="text-[#1D1D1F] dark:text-white">{summary.active_scholarships}</strong></span>
                 {summary.total_saves > 0 && (
-                  <span>📊 Conversion rate (won / saved): <strong className="text-[#F0A500]">
+                  <span>📊 Conversion rate (won / saved): <strong className="text-[#2E6BE6]">
                     {((summary.won / summary.total_saves) * 100).toFixed(1)}%
                   </strong></span>
                 )}
@@ -711,8 +711,8 @@ export default function AdminPage() {
                     <button key={r} onClick={() => setTrendRange(r)}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                         trendRange === r
-                          ? 'bg-[#F0A500] text-white'
-                          : 'bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-[#8E8E93] hover:bg-[#E5E5EA]'
+                          ? 'bg-[#2E6BE6] text-white'
+                          : 'bg-[#F7F9FC] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:bg-[#E5E5EA]'
                       }`}>
                       {r === '365' ? '1 ปี' : `${r} วัน`}
                     </button>
@@ -724,7 +724,7 @@ export default function AdminPage() {
                 <div className="flex justify-center py-16"><Spinner /></div>
               ) : !mounted ? null : trendFiltered.length === 0 ? (
                 <div className="text-center py-16 text-[#6E6E73] text-sm">
-                  No data yet — run admin_views.sql in Supabase to enable trend tracking.
+                  No data yet run admin_views.sql in Supabase to enable trend tracking.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
@@ -759,7 +759,7 @@ export default function AdminPage() {
                     />
                     <Line
                       type="monotone" dataKey="new_users" name="new_users"
-                      stroke="#F0A500" strokeWidth={2} dot={false} activeDot={{ r: 4 }}
+                      stroke="#2E6BE6" strokeWidth={2} dot={false} activeDot={{ r: 4 }}
                     />
                     <Line
                       type="monotone" dataKey="active_users" name="active_users"
@@ -798,15 +798,15 @@ export default function AdminPage() {
                             <div className="font-medium text-[#1D1D1F] dark:text-white leading-tight line-clamp-2">{s.name_th}</div>
                             {s.funder_name_th && <div className="text-xs text-[#6E6E73] mt-0.5">{s.funder_name_th}</div>}
                           </td>
-                          <td className="py-3 text-center text-[#F0A500] font-medium">
-                            {s.amount_thb != null ? `${s.amount_thb.toLocaleString()}฿` : '—'}
+                          <td className="py-3 text-center text-[#2E6BE6] font-medium">
+                            {s.amount_thb != null ? `${s.amount_thb.toLocaleString()}฿` : ' '}
                           </td>
                           <td className="py-3 text-center font-semibold text-[#1D1D1F] dark:text-white">{s.total_saves}</td>
                           <td className="py-3 text-center text-[#6E6E73]">{s.in_progress}</td>
                           <td className="py-3 text-center text-[#6E6E73]">{s.submitted}</td>
                           <td className="py-3 text-center">
                             {s.won > 0
-                              ? <span className="text-[#F0A500] font-bold">{s.won}</span>
+                              ? <span className="text-[#2E6BE6] font-bold">{s.won}</span>
                               : <span className="text-[#ADADB8]">0</span>}
                           </td>
                         </tr>
@@ -831,9 +831,9 @@ export default function AdminPage() {
                       <span className="text-sm text-right truncate w-28 text-[#1D1D1F] dark:text-white shrink-0">
                         {provinceName(p.province_id)}
                       </span>
-                      <div className="flex-1 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-full h-5 overflow-hidden relative">
+                      <div className="flex-1 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-full h-5 overflow-hidden relative">
                         <div
-                          className="h-5 bg-[#F0A500] rounded-full transition-all duration-500"
+                          className="h-5 bg-[#2E6BE6] rounded-full transition-all duration-500"
                           style={{ width: `${Math.min(100, p.percentage)}%` }}
                         />
                       </div>
@@ -877,19 +877,19 @@ export default function AdminPage() {
                               <span className="font-medium text-[#1D1D1F] dark:text-white">{name}</span>
                             </td>
                             <td className="py-2.5 text-center text-[#6E6E73] dark:text-[#8E8E93] hidden sm:table-cell">
-                              {p.province_id ? provinceName(p.province_id) : '—'}
+                              {p.province_id ? provinceName(p.province_id) : ' '}
                             </td>
                             <td className="py-2.5 text-center">
                               {p.gpa ? (
                                 <span className="text-[#1D1D1F] dark:text-white font-medium">{p.gpa}</span>
                               ) : (
-                                <span className="text-[#ADADB8]">—</span>
+                                <span className="text-[#ADADB8]"> </span>
                               )}
                             </td>
                             <td className="py-2.5 text-center hidden sm:table-cell">
                               {p.welfare_card
                                 ? <span className="text-green-600">✓</span>
-                                : <span className="text-[#ADADB8]">—</span>}
+                                : <span className="text-[#ADADB8]"> </span>}
                             </td>
                             <td className="py-2.5 text-center text-[#6E6E73] dark:text-[#8E8E93] text-xs">{date}</td>
                           </tr>
@@ -918,7 +918,7 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }: {
     <div>
       <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F0A500]"
+        className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
       />
     </div>
   );
@@ -931,7 +931,7 @@ function TextareaField({ label, value, onChange }: {
     <div>
       <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1">{label}</label>
       <textarea value={value} onChange={e => onChange(e.target.value)} rows={3}
-        className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F0A500] resize-y"
+        className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] resize-y"
       />
     </div>
   );

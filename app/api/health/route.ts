@@ -14,7 +14,7 @@ export async function GET() {
       .from('scholarships')
       .select('*', { count: 'exact', head: true });
     if (error) results.db = { ok: false, detail: error.message };
-    else results.db = { ok: true, detail: `Connected — ${count} scholarships` };
+    else results.db = { ok: true, detail: `Connected ${count} scholarships` };
   } catch (e: unknown) {
     results.db = { ok: false, detail: e instanceof Error ? e.message : 'DB error' };
   }
@@ -28,8 +28,8 @@ export async function GET() {
       .limit(1);
     if (error) results.scholarships = { ok: false, detail: error.message };
     else if (!data || data.length === 0)
-      results.scholarships = { ok: false, detail: 'No active scholarships — check RLS or is_active flag' };
-    else results.scholarships = { ok: true, detail: `Loading OK — first: ${data[0].name_th}` };
+      results.scholarships = { ok: false, detail: 'No active scholarships check RLS or is_active flag' };
+    else results.scholarships = { ok: true, detail: `Loading OK first: ${data[0].name_th}` };
   } catch (e: unknown) {
     results.scholarships = { ok: false, detail: e instanceof Error ? e.message : 'Query error' };
   }
@@ -38,7 +38,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error && error.message !== 'invalid claim: missing sub claim') {
-      // "missing sub claim" just means no logged-in user — that's fine
+      // "missing sub claim" just means no logged-in user that's fine
       results.auth = { ok: false, detail: error.message };
     } else {
       results.auth = {

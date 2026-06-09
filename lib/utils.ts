@@ -1,4 +1,4 @@
-// ── Shared utilities — imported by pages, cards, and tracker ─────────────
+// ── Shared utilities imported by pages, cards, and tracker ─────────────
 // Keep this file free of React imports so it works in both client + server.
 
 export type DeadlineColor = 'red' | 'orange' | 'yellow' | 'green' | 'gray';
@@ -38,7 +38,7 @@ export const DEADLINE_CLASSES: Record<DeadlineColor, string> = {
 
 export const TIER_CONFIG = {
   SAFETY: { th: '🟢 โอกาสสูง', en: '🟢 Safety', bg: '#EAFAF1', text: '#1E8449' },
-  TARGET: { th: '🟡 เหมาะสม',  en: '🟡 Target', bg: '#FFF8E7', text: '#D35400' },
+  TARGET: { th: '🟡 เหมาะสม',  en: '🟡 Target', bg: '#EFF4FF', text: '#D35400' },
   REACH:  { th: '🔴 ท้าทาย',   en: '🔴 Reach',  bg: '#FDEDEC', text: '#C0392B' },
 } as const;
 

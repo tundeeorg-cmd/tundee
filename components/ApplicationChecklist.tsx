@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * ApplicationChecklist — 7-step scholarship application progress tracker.
+ * ApplicationChecklist 7-step scholarship application progress tracker.
  *
  * Key fixes (Jun 2026):
  *  - Removed .select().single() from upsert (caused silent failure when
- *    unique index was missing — the real root cause of "does nothing")
+ *    unique index was missing the real root cause of "does nothing")
  *  - Optimistic UI: state updates instantly, reverts on DB error
  *  - Actual error shown in UI so failures are diagnosable
- *  - No emojis — SVG only
+ *  - No emojis SVG only
  *  - Full Thai/English support via lang prop
  */
 
@@ -83,7 +83,7 @@ interface Props {
   scholarshipId: string;
   applicationUrl: string | null;
   lang: 'th' | 'en';
-  // kept for backward compat — not used internally
+  // kept for backward compat not used internally
   scholarshipName?: string;
 }
 
@@ -179,7 +179,7 @@ export default function ApplicationChecklist({
           }
         }
       } catch {
-        // Columns may not exist yet — silently degrade
+        // Columns may not exist yet silently degrade
       } finally {
         if (mounted) setLoading(false);
       }
@@ -216,7 +216,7 @@ export default function ApplicationChecklist({
     if (newCompleted.length >= 3) status = 'in_progress';
     if (newCompleted.includes(6)) status = 'submitted';
 
-    // Optimistic update — UI feels instant
+    // Optimistic update UI feels instant
     setCompleted(newCompleted);
     setDates(newDates);
 
@@ -233,7 +233,7 @@ export default function ApplicationChecklist({
           ...(stepId === 6 && isNowDone ? { submitted_at:       new Date().toISOString() } : {}),
         },
         { onConflict: 'user_id,scholarship_id' }
-        // NOTE: no .select().single() — that was the original bug.
+        // NOTE: no .select().single() that was the original bug.
         // When the unique index didn't exist, .single() returned an error
         // even on success, so setCompleted was never called.
       );
@@ -269,7 +269,7 @@ export default function ApplicationChecklist({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const pct              = Math.round((completed.length / 7) * 100);
-  const font             = lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif';
+  const font             = lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
   const canApply         = applicationUrl && applicationUrl !== 'CHECK_WEBSITE';
   const firstStepDate    = Object.keys(dates).sort()[0];
   const showOutcomeForm  =
@@ -282,7 +282,7 @@ export default function ApplicationChecklist({
     return (
       <div className="space-y-2 animate-pulse">
         {[1,2,3,4,5,6,7].map((i) => (
-          <div key={i} className="h-14 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-xl" />
+          <div key={i} className="h-14 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl" />
         ))}
       </div>
     );
@@ -314,7 +314,7 @@ export default function ApplicationChecklist({
               {lang === 'th' ? 'ขั้นตอนการสมัคร' : 'Application Steps'}
             </span>
             <span className={`text-sm font-bold ${
-              completed.length === 7 ? 'text-green-600 dark:text-green-400' : 'text-[#F0A500]'
+              completed.length === 7 ? 'text-green-600 dark:text-green-400' : 'text-[#2E6BE6]'
             }`}>
               {completed.length} / 7
             </span>
@@ -326,7 +326,7 @@ export default function ApplicationChecklist({
               className="h-full rounded-full transition-all duration-500 ease-out"
               style={{
                 width: `${pct}%`,
-                backgroundColor: completed.length === 7 ? '#22C55E' : '#F0A500',
+                backgroundColor: completed.length === 7 ? '#22C55E' : '#2E6BE6',
               }}
             />
           </div>
@@ -377,7 +377,7 @@ export default function ApplicationChecklist({
                              hover:bg-[#F9F9F9] dark:hover:bg-[#242424] transition-colors"
                   onClick={() => setExpanded(open ? null : step.id)}
                 >
-                  {/* Circle — clicking toggles the step directly */}
+                  {/* Circle clicking toggles the step directly */}
                   <div
                     role="checkbox"
                     aria-checked={done}
@@ -403,8 +403,8 @@ export default function ApplicationChecklist({
                       ${!user
                         ? 'border-[#e0e0e0] dark:border-[#3a3a3c] cursor-default'
                         : done
-                          ? 'bg-[#F0A500] border-[#F0A500] cursor-pointer'
-                          : 'border-[#d0d0d0] dark:border-[#4a4a4a] cursor-pointer hover:border-[#F0A500]'
+                          ? 'bg-[#2E6BE6] border-[#2E6BE6] cursor-pointer'
+                          : 'border-[#d0d0d0] dark:border-[#4a4a4a] cursor-pointer hover:border-[#2E6BE6]'
                       }`}
                   >
                     {saving ? (
@@ -457,9 +457,9 @@ export default function ApplicationChecklist({
                             onClick={() => {
                               if (!done) void toggleStep(step.id);
                             }}
-                            className="inline-flex items-center gap-1.5 bg-[#F0A500] text-white
+                            className="inline-flex items-center gap-1.5 bg-[#2E6BE6] text-white
                                        text-sm font-semibold px-4 py-2 rounded-lg
-                                       hover:bg-[#d4920a] transition-colors"
+                                       hover:bg-[#1E57CC] transition-colors"
                           >
                             {lang === 'th' ? 'ไปยังเว็บไซต์ทุน' : 'Go to scholarship website'}
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -475,9 +475,9 @@ export default function ApplicationChecklist({
                             type="button"
                             onClick={() => void toggleStep(step.id)}
                             disabled={saving || savingStep !== null}
-                            className="text-sm font-semibold text-[#F0A500]
-                                       border border-[#F0A500] px-4 py-2 rounded-lg
-                                       hover:bg-[#FFF8E7] dark:hover:bg-[#2a2000]
+                            className="text-sm font-semibold text-[#2E6BE6]
+                                       border border-[#2E6BE6] px-4 py-2 rounded-lg
+                                       hover:bg-[#EFF4FF] dark:hover:bg-[#2a2000]
                                        transition-colors disabled:opacity-40"
                           >
                             {lang === 'th' ? 'ทำเสร็จแล้ว' : 'Mark as done'}
@@ -495,11 +495,11 @@ export default function ApplicationChecklist({
                           </button>
                         )}
 
-                        {/* Not logged in — nudge to sign in */}
+                        {/* Not logged in nudge to sign in */}
                         {!user && (
                           <a
                             href="/auth"
-                            className="text-xs text-[#F0A500] hover:underline"
+                            className="text-xs text-[#2E6BE6] hover:underline"
                           >
                             {lang === 'th'
                               ? 'เข้าสู่ระบบเพื่อบันทึกความคืบหน้า'
@@ -531,7 +531,7 @@ export default function ApplicationChecklist({
           <a
             href="/auth"
             className="inline-block text-sm font-semibold text-white
-                       bg-[#F0A500] hover:bg-[#d4920a] px-5 py-2
+                       bg-[#2E6BE6] hover:bg-[#1E57CC] px-5 py-2
                        rounded-full transition-colors"
           >
             {lang === 'th' ? 'เข้าสู่ระบบ' : 'Sign in'}
@@ -547,8 +547,8 @@ export default function ApplicationChecklist({
             style={{ fontFamily: font }}
           >
             {lang === 'th'
-              ? 'ส่งใบสมัครแล้ว — ผลเป็นอย่างไรบ้าง?'
-              : 'Application submitted — what was the outcome?'}
+              ? 'ส่งใบสมัครแล้ว ผลเป็นอย่างไรบ้าง?'
+              : 'Application submitted what was the outcome?'}
           </p>
           <div className="flex flex-wrap gap-2">
             {[
@@ -568,7 +568,7 @@ export default function ApplicationChecklist({
                 val: 'lost',
                 th:  'ไม่ผ่านการคัดเลือก',
                 en:  'Not selected',
-                cls: 'border-[#d0d0d0] dark:border-[#4a4a4a] text-[#6e6e73] hover:bg-[#F5F5F7] dark:hover:bg-[#2c2c2e]',
+                cls: 'border-[#d0d0d0] dark:border-[#4a4a4a] text-[#6e6e73] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e]',
               },
             ].map((o) => (
               <button
@@ -609,7 +609,7 @@ export default function ApplicationChecklist({
             outcome === 'won'
               ? 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
               : outcome === 'lost'
-                ? 'bg-[#F5F5F7] dark:bg-[#2c2c2e] border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73]'
+                ? 'bg-[#F7F9FC] dark:bg-[#2c2c2e] border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73]'
                 : 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400'
           }`}
           style={{ fontFamily: font }}

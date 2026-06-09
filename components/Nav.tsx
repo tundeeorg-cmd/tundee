@@ -13,7 +13,6 @@ import { useUserProfile } from '@/contexts/UserContext';
 import { getDeadlineInfo } from '@/lib/deadline';
 import type { User } from '@supabase/supabase-js';
 
-/* ── Avatar circle ─────────────────────────────────────────────────────── */
 function Avatar({ user, avatarUrl, displayName, size = 32 }: {
   user: User;
   avatarUrl: string | null;
@@ -36,7 +35,7 @@ function Avatar({ user, avatarUrl, displayName, size = 32 }: {
   }
   return (
     <span
-      className="rounded-full bg-[#F0A500] text-white flex items-center justify-center font-semibold select-none"
+      className="rounded-full bg-[#2E6BE6] text-white flex items-center justify-center font-semibold select-none"
       style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
     >
       {initials}
@@ -44,7 +43,6 @@ function Avatar({ user, avatarUrl, displayName, size = 32 }: {
   );
 }
 
-/* ── Three-way theme toggle ────────────────────────────────────────────── */
 function ThemeRow({ lang }: { lang: string }) {
   const { theme, setTheme } = useTheme();
   const p = translations.profile;
@@ -54,15 +52,15 @@ function ThemeRow({ lang }: { lang: string }) {
     { key: 'auto',  label: p.themeAuto[lang as 'th' | 'en'] },
   ];
   return (
-    <div className="flex gap-0.5 rounded-lg bg-[#F5F5F7] dark:bg-[#3A3A3C] p-0.5">
+    <div className="flex gap-0.5 rounded-lg bg-[#F7F9FC] dark:bg-[#232B3E] p-0.5">
       {options.map(({ key, label }) => (
         <button
           key={key}
           onClick={() => setTheme(key)}
           className={`flex-1 text-xs py-1 rounded-md transition-all ${
             theme === key
-              ? 'bg-white dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white shadow-sm font-semibold'
-              : 'text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white'
+              ? 'bg-white dark:bg-[#161B27] text-[#0F1C33] dark:text-[#EEF2FF] shadow-sm font-semibold'
+              : 'text-[#4A5568] dark:text-[#8892A4] hover:text-[#0F1C33] dark:hover:text-[#EEF2FF]'
           }`}
         >
           {label}
@@ -72,19 +70,17 @@ function ThemeRow({ lang }: { lang: string }) {
   );
 }
 
-/* ── Main Nav ──────────────────────────────────────────────────────────── */
 export default function Nav() {
   const { lang } = useLang();
   const { avatarUrl, displayName } = useUserProfile();
-  const [menuOpen, setMenuOpen]         = useState(false);
-  const [dropdownOpen, setDropdown]     = useState(false);
-  const [user, setUser]                 = useState<User | null>(null);
-  const [hasUrgentDeadline, setUrgent]  = useState(false);
-  const [appCount, setAppCount]         = useState(0);
-  const dropdownRef                     = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen]        = useState(false);
+  const [dropdownOpen, setDropdown]    = useState(false);
+  const [user, setUser]                = useState<User | null>(null);
+  const [hasUrgentDeadline, setUrgent] = useState(false);
+  const [appCount, setAppCount]        = useState(0);
+  const dropdownRef                    = useRef<HTMLDivElement>(null);
   const nav = translations.nav;
 
-  /* Load user session */
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
@@ -120,11 +116,10 @@ export default function Nav() {
       });
       setUrgent(hasUrgent);
     } catch {
-      // applications table may not exist yet — silently ignore
+      // ignore
     }
   }
 
-  /* Close dropdown on outside click */
   useEffect(() => {
     if (!dropdownOpen) return;
     function onDown(e: MouseEvent) {
@@ -143,83 +138,72 @@ export default function Nav() {
     setMenuOpen(false);
   }
 
-  /* Shared nav links */
   const links = (
     <>
-      <Link
-        href="/"
-        onClick={() => setMenuOpen(false)}
-        className="text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
-      >
+      <Link href="/" onClick={() => setMenuOpen(false)}
+        className="text-[13px] font-medium text-[#4A5568] dark:text-[#8892A4] hover:text-[#2E6BE6] dark:hover:text-[#5B8EF0] transition-colors">
         {nav.home[lang]}
       </Link>
-      <Link
-        href="/scholarships"
-        onClick={() => setMenuOpen(false)}
-        className="text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
-      >
+      <Link href="/scholarships" onClick={() => setMenuOpen(false)}
+        className="text-[13px] font-medium text-[#4A5568] dark:text-[#8892A4] hover:text-[#2E6BE6] dark:hover:text-[#5B8EF0] transition-colors">
         {nav.search[lang]}
       </Link>
       {user && (
-        <Link
-          href="/tracker"
-          onClick={() => setMenuOpen(false)}
-          className="relative text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
-        >
+        <Link href="/tracker" onClick={() => setMenuOpen(false)}
+          className="relative text-[13px] font-medium text-[#4A5568] dark:text-[#8892A4] hover:text-[#2E6BE6] dark:hover:text-[#5B8EF0] transition-colors">
           {nav.navTracker[lang]}
-          {/* Gold count badge */}
           {appCount > 0 && (
-            <span className="absolute -top-1.5 -right-3.5 min-w-[16px] h-4 bg-[#F0A500] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+            <span className="absolute -top-1.5 -right-3.5 min-w-[16px] h-4 bg-[#2E6BE6] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
               {appCount > 9 ? '9+' : appCount}
             </span>
           )}
-          {/* Red urgency dot (when imminent deadline) */}
           {hasUrgentDeadline && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#1C1C1E]" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#161B27]" />
           )}
         </Link>
       )}
-      <Link
-        href="/about"
-        onClick={() => setMenuOpen(false)}
-        className="text-[#1D1D1F] dark:text-[#F5F5F7] hover:text-[#F0A500] dark:hover:text-[#F0A500] transition-colors text-sm font-medium"
-      >
+      <Link href="/about" onClick={() => setMenuOpen(false)}
+        className="text-[13px] font-medium text-[#4A5568] dark:text-[#8892A4] hover:text-[#2E6BE6] dark:hover:text-[#5B8EF0] transition-colors">
         {nav.about[lang]}
       </Link>
     </>
   );
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-b border-[#E5E5EA] dark:border-[#38383A]">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#161B27]/95 backdrop-blur-md border-b border-[#DDE4EF] dark:border-[#232B3E]">
       <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
 
-        {/* Logo */}
+        {/* Wordmark */}
         <Link href="/" className="flex flex-col leading-tight">
-          <span className="text-xl font-semibold text-[#1D1D1F] dark:text-white" style={{ fontFamily: 'Sarabun, sans-serif' }}>
+          <span
+            className="text-xl font-semibold text-[#0F1C33] dark:text-[#EEF2FF]"
+            style={{ fontFamily: 'var(--font-display, Cormorant Garamond, Georgia, serif)' }}
+          >
             ทุนดี
           </span>
-          <span className="text-[10px] font-light text-[#6E6E73] dark:text-[#8E8E93] tracking-widest uppercase" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            TunDee
+          <span
+            className="text-[8px] font-medium text-[#4A5568] dark:text-[#8892A4] tracking-[3px] uppercase"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+          >
+            TUNDEE
           </span>
         </Link>
 
-        {/* ── Desktop ──────────────────────────────────────────────────── */}
+        {/* Desktop */}
         <div className="hidden md:flex items-center gap-8">
           {links}
-          {/* Subtle admin link — only visible to admin email */}
           {user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
-            <a href="/admin" className="text-xs text-[#ADADB8] hover:text-[#F0A500] transition-colors">
+            <a href="/admin" className="text-xs text-[#8892A4] hover:text-[#2E6BE6] transition-colors">
               Admin
             </a>
           )}
           <LanguageToggle />
 
           {user ? (
-            /* Avatar + dropdown */
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdown(v => !v)}
-                className="rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#F0A500] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E]"
+                className="rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] focus:ring-offset-2 dark:focus:ring-offset-[#161B27]"
                 aria-label="User menu"
                 aria-haspopup="true"
                 aria-expanded={dropdownOpen}
@@ -231,42 +215,28 @@ export default function Nav() {
               {dropdownOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-12 w-64 bg-white dark:bg-[#2C2C2E] rounded-[16px] shadow-[0_8px_40px_rgba(0,0,0,0.14)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.5)] border border-[#E5E5EA] dark:border-[#38383A] overflow-hidden z-50"
+                  className="absolute right-0 top-12 w-64 bg-white dark:bg-[#161B27] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.5)] border border-[#DDE4EF] dark:border-[#232B3E] overflow-hidden z-50"
                 >
-                  {/* User header */}
-                  <div className="px-4 pt-3 pb-3 flex items-center gap-3 border-b border-[#F5F5F7] dark:border-[#38383A]">
+                  <div className="px-4 pt-3 pb-3 flex items-center gap-3 border-b border-[#DDE4EF] dark:border-[#232B3E]">
                     <Avatar user={user} avatarUrl={avatarUrl} displayName={displayName} size={36} />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#1D1D1F] dark:text-white truncate">
+                      <p className="text-sm font-semibold text-[#0F1C33] dark:text-[#EEF2FF] truncate">
                         {displayName || user.email?.split('@')[0] || 'User'}
                       </p>
-                      <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] truncate">{user.email}</p>
+                      <p className="text-xs text-[#4A5568] dark:text-[#8892A4] truncate">{user.email}</p>
                     </div>
                   </div>
-
-                  {/* Profile link */}
-                  <Link
-                    href="/profile"
-                    role="menuitem"
-                    onClick={() => setDropdown(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#3A3A3C] transition-colors"
-                  >
+                  <Link href="/profile" role="menuitem" onClick={() => setDropdown(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#0F1C33] dark:text-[#EEF2FF] hover:bg-[#F7F9FC] dark:hover:bg-[#232B3E] transition-colors">
                     <span>👤</span> {nav.navProfile[lang]}
                   </Link>
-
-                  {/* Theme row */}
-                  <div className="px-4 py-2.5 border-t border-[#F5F5F7] dark:border-[#38383A]">
-                    <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-1.5">{nav.navTheme[lang]}</p>
+                  <div className="px-4 py-2.5 border-t border-[#DDE4EF] dark:border-[#232B3E]">
+                    <p className="text-xs text-[#4A5568] dark:text-[#8892A4] mb-1.5">{nav.navTheme[lang]}</p>
                     <ThemeRow lang={lang} />
                   </div>
-
-                  {/* Sign out */}
-                  <div className="border-t border-[#F5F5F7] dark:border-[#38383A]">
-                    <button
-                      role="menuitem"
-                      onClick={signOut}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-[#3A1C1C] transition-colors"
-                    >
+                  <div className="border-t border-[#DDE4EF] dark:border-[#232B3E]">
+                    <button role="menuitem" onClick={signOut}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-[#2A1A1A] transition-colors">
                       <span>↩</span> {nav.navSignout[lang]}
                     </button>
                   </div>
@@ -276,16 +246,16 @@ export default function Nav() {
           ) : (
             <Link
               href="/auth"
-              className="text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] px-5 py-2 rounded-full transition-colors"
+              className="text-[13px] font-medium text-[#0F1C33] dark:text-[#EEF2FF] border border-[#DDE4EF] dark:border-[#232B3E] hover:border-[#2E6BE6] hover:text-[#2E6BE6] px-5 py-2 rounded-full transition-colors"
             >
               {nav.login[lang]}
             </Link>
           )}
         </div>
 
-        {/* ── Mobile hamburger ─────────────────────────────────────────── */}
+        {/* Mobile hamburger */}
         <button
-          className="md:hidden p-2 text-[#1D1D1F] dark:text-[#F5F5F7]"
+          className="md:hidden p-2 text-[#0F1C33] dark:text-[#EEF2FF]"
           onClick={() => setMenuOpen(v => !v)}
           aria-label="Toggle menu"
         >
@@ -301,56 +271,39 @@ export default function Nav() {
         </button>
       </div>
 
-      {/* ── Mobile menu ──────────────────────────────────────────────────── */}
+      {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-white dark:bg-[#1C1C1E] border-t border-[#E5E5EA] dark:border-[#38383A] px-6 py-5 flex flex-col gap-4">
+        <div className="md:hidden bg-white dark:bg-[#161B27] border-t border-[#DDE4EF] dark:border-[#232B3E] px-6 py-5 flex flex-col gap-4">
           {links}
           <div className="pt-1">
             <LanguageToggle />
           </div>
-
           {user ? (
             <>
-              {/* User info */}
-              <div className="border-t border-[#F5F5F7] dark:border-[#3A3A3C] pt-4 flex items-center gap-3">
+              <div className="border-t border-[#DDE4EF] dark:border-[#232B3E] pt-4 flex items-center gap-3">
                 <Avatar user={user} avatarUrl={avatarUrl} displayName={displayName} size={36} />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#1D1D1F] dark:text-white truncate">
+                  <p className="text-sm font-semibold text-[#0F1C33] dark:text-[#EEF2FF] truncate">
                     {displayName || user.email?.split('@')[0]}
                   </p>
-                  <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] truncate">{user.email}</p>
+                  <p className="text-xs text-[#4A5568] dark:text-[#8892A4] truncate">{user.email}</p>
                 </div>
               </div>
-
-              {/* Profile link */}
-              <Link
-                href="/profile"
-                onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-[#F0A500]"
-              >
+              <Link href="/profile" onClick={() => setMenuOpen(false)}
+                className="text-sm font-medium text-[#2E6BE6]">
                 {nav.navProfile[lang]}
               </Link>
-
-              {/* Theme */}
               <div>
-                <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-1.5">{nav.navTheme[lang]}</p>
+                <p className="text-xs text-[#4A5568] dark:text-[#8892A4] mb-1.5">{nav.navTheme[lang]}</p>
                 <ThemeRow lang={lang} />
               </div>
-
-              {/* Sign out */}
-              <button
-                onClick={signOut}
-                className="text-sm text-red-500 text-left"
-              >
+              <button onClick={signOut} className="text-sm text-red-500 text-left">
                 {nav.navSignout[lang]}
               </button>
             </>
           ) : (
-            <Link
-              href="/auth"
-              onClick={() => setMenuOpen(false)}
-              className="text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] px-5 py-2.5 rounded-full transition-colors text-center"
-            >
+            <Link href="/auth" onClick={() => setMenuOpen(false)}
+              className="text-sm font-semibold text-white bg-[#2E6BE6] hover:bg-[#1E57CC] px-5 py-2.5 rounded-full transition-colors text-center">
               {nav.login[lang]}
             </Link>
           )}

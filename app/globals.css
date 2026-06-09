@@ -1,67 +1,149 @@
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+/* Thai + display fonts via Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=Noto+Serif+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens ─────────────────────────────────────────────────────── */
 :root {
-  --color-saffron: #F0A500;
-  --color-black: #1D1D1F;
-  --color-white: #FFFFFF;
-  --color-white-soft: #F5F5F7;
-  --color-gray: #6E6E73;
-  --color-border: #E5E5EA;
+  --font-display:      'Cormorant Garamond', Georgia, serif;
+  --font-display-thai: 'Noto Serif Thai', serif;
+  --font-body-thai:    'Sarabun', system-ui, sans-serif;
+
+  --color-primary:        #2E6BE6;
+  --color-primary-hover:  #1E57CC;
+  --color-primary-light:  #EFF4FF;
+  --color-primary-tint:   #DDEAFF;
+  --color-primary-dark:   #1B3A6B;
+
+  --color-bg:             #F7F9FC;
+  --color-card:           #FFFFFF;
+  --color-border:         #DDE4EF;
+  --color-text-primary:   #0F1C33;
+  --color-text-secondary: #4A5568;
+  --color-text-muted:     #8892A4;
 }
 
+.dark {
+  --color-bg:             #0D1117;
+  --color-card:           #161B27;
+  --color-border:         #232B3E;
+  --color-text-primary:   #EEF2FF;
+  --color-text-secondary: #8892A4;
+  --color-text-muted:     #4A5568;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  color: #1D1D1F;
-  background: #FFFFFF;
-  font-family: 'Sarabun', 'DM Sans', sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+  font-family: 'Sarabun', system-ui, sans-serif;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.font-display {
-  font-weight: 300;
+/* ── Headings ──────────────────────────────────────────────────────────── */
+h1, h2, h3 {
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
-/* Page fade-in animation */
-@keyframes pageFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+.thai-mode h1,
+.thai-mode h2,
+.thai-mode h3 {
+  font-family: var(--font-display-thai);
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
-main > * {
-  animation: pageFadeIn 0.35s ease both;
+.thai-mode p,
+.thai-mode li,
+.thai-mode span:not(.icon),
+.thai-mode label,
+.thai-mode button {
+  font-family: var(--font-body-thai);
+  line-height: 1.8;
 }
 
-/* Card hover lift */
+/* ── Hero grid ─────────────────────────────────────────────────────────── */
+.hero-grid {
+  background-image:
+    linear-gradient(#DDE4EF 1px, transparent 1px),
+    linear-gradient(90deg, #DDE4EF 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.4;
+}
+
+/* ── Section padding ───────────────────────────────────────────────────── */
+.section-pad {
+  padding-top: 80px;
+  padding-bottom: 80px;
+}
+@media (max-width: 768px) {
+  .section-pad { padding-top: 56px; padding-bottom: 56px; }
+}
+
+/* ── Card hover ────────────────────────────────────────────────────────── */
 .scholarship-card-hover {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .scholarship-card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.10);
-  border-color: #F0A500 !important;
+  box-shadow: 0 4px 24px rgba(46, 107, 230, 0.08);
+  border-color: rgba(46, 107, 230, 0.3) !important;
 }
 
+/* ── Page fade-in ──────────────────────────────────────────────────────── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+main > * { animation: pageFadeIn 0.3s ease both; }
+
+/* ── Focus ─────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #2E6BE6;
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────── */
 @layer utilities {
   .fade-up {
     opacity: 0;
-    transform: translateY(24px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
   }
   .fade-up.visible {
     opacity: 1;
     transform: translateY(0);
   }
-  .section-pad {
-    padding-top: 80px;
-    padding-bottom: 80px;
+
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .font-display-thai {
+    font-family: var(--font-display-thai);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.4;
   }
 }

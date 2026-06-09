@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 export default function AboutPage() {
   const { lang } = useLang();
   const th = lang === 'th';
-  const font = { fontFamily: th ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' };
+  const font = { fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' };
   const [scholarshipCount, setScholarshipCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -20,16 +20,16 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div className="bg-white dark:bg-[#1C1C1E] min-h-screen" style={font}>
+    <div className="bg-white dark:bg-[#161B27] min-h-screen" style={font}>
 
-      {/* ── SECTION 1 — Mission Hero ── */}
+      {/* ── SECTION 1 Mission Hero ── */}
       <section className="bg-[#1D1D1F] dark:bg-[#000000] px-6 py-20 md:py-28">
         <div className="max-w-[900px] mx-auto">
           <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
             <span className="text-white block">
               {th ? 'สร้างขึ้นเพื่อนักเรียนไทย' : 'Built for every Thai student'}
             </span>
-            <span className="text-[#F0A500] block">
+            <span className="text-[#2E6BE6] block">
               {th ? 'ทุกคน ทุกจังหวัด' : 'in every province'}
             </span>
           </h1>
@@ -41,10 +41,10 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── SECTION 2 — The Problem ── */}
-      <section className="bg-white dark:bg-[#1C1C1E] px-6 py-16 md:py-20">
+      {/* ── SECTION 2 The Problem ── */}
+      <section className="bg-white dark:bg-[#161B27] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
-          <p className="text-xs font-semibold text-[#F0A500] uppercase tracking-wider mb-10">
+          <p className="text-xs font-semibold text-[#2E6BE6] uppercase tracking-wider mb-10">
             {th ? 'ปัญหาที่เราแก้' : 'The Problem We Solve'}
           </p>
 
@@ -69,11 +69,11 @@ export default function AboutPage() {
             ].map((s) => (
               <div
                 key={s.num}
-                className="border border-[#E5E5EA] dark:border-[#38383A] rounded-xl p-6 text-center"
+                className="border border-[#E5E5EA] dark:border-[#232B3E] rounded-xl p-6 text-center"
               >
                 <div
-                  className="text-5xl font-bold text-[#F0A500] mb-3"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
+                  className="text-5xl font-bold text-[#2E6BE6] mb-3"
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                 >
                   {s.num}
                 </div>
@@ -84,20 +84,20 @@ export default function AboutPage() {
           </div>
 
           {/* Quote block */}
-          <blockquote className="border-l-4 border-[#F0A500] pl-5 py-1">
+          <blockquote className="border-l-4 border-[#2E6BE6] pl-5 py-1">
             <p className="text-base text-[#1D1D1F] dark:text-white leading-relaxed italic">
               {th
-                ? 'Google ไม่ช่วย — ทุนที่สำคัญที่สุดสำหรับนักเรียนยากจนมักไม่ปรากฏในผลการค้นหาเลย'
-                : "Google doesn't help — the most important scholarships for underprivileged students rarely appear in search results."}
+                ? 'Google ไม่ช่วย ทุนที่สำคัญที่สุดสำหรับนักเรียนยากจนมักไม่ปรากฏในผลการค้นหาเลย'
+                : "Google doesn't help the most important scholarships for underprivileged students rarely appear in search results."}
             </p>
           </blockquote>
         </div>
       </section>
 
-      {/* ── SECTION 3 — How TunDee is Different ── */}
-      <section className="bg-[#F5F5F7] dark:bg-[#111111] px-6 py-16 md:py-20">
+      {/* ── SECTION 3 How TunDee is Different ── */}
+      <section className="bg-[#F7F9FC] dark:bg-[#111111] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
-          <p className="text-xs font-semibold text-[#F0A500] uppercase tracking-wider mb-10">
+          <p className="text-xs font-semibold text-[#2E6BE6] uppercase tracking-wider mb-10">
             {th ? 'ทำไม TunDee ถึงต่างจาก Google' : 'Why TunDee is Different'}
           </p>
 
@@ -105,13 +105,13 @@ export default function AboutPage() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr>
-                  <th className="text-left py-3 px-4 text-[#6E6E73] dark:text-[#8E8E93] font-semibold border-b border-[#E5E5EA] dark:border-[#38383A] w-1/3">
+                  <th className="text-left py-3 px-4 text-[#6E6E73] dark:text-[#8E8E93] font-semibold border-b border-[#E5E5EA] dark:border-[#232B3E] w-1/3">
                     {th ? 'คุณสมบัติ' : 'Feature'}
                   </th>
-                  <th className="text-center py-3 px-4 text-[#6E6E73] dark:text-[#8E8E93] font-semibold border-b border-[#E5E5EA] dark:border-[#38383A] w-1/3">
+                  <th className="text-center py-3 px-4 text-[#6E6E73] dark:text-[#8E8E93] font-semibold border-b border-[#E5E5EA] dark:border-[#232B3E] w-1/3">
                     Google / ChatGPT
                   </th>
-                  <th className="text-center py-3 px-4 text-[#1D1D1F] dark:text-white font-semibold border-b border-[#E5E5EA] dark:border-[#38383A] w-1/3 bg-[#FFF8E7] dark:bg-[#2A2200] rounded-t-lg">
+                  <th className="text-center py-3 px-4 text-[#1D1D1F] dark:text-white font-semibold border-b border-[#E5E5EA] dark:border-[#232B3E] w-1/3 bg-[#EFF4FF] dark:bg-[#162552] rounded-t-lg">
                     TunDee
                   </th>
                 </tr>
@@ -135,13 +135,13 @@ export default function AboutPage() {
                   },
                 ].map((row, i) => (
                   <tr key={i}>
-                    <td className="py-3 px-4 text-[#1D1D1F] dark:text-white border-b border-[#E5E5EA] dark:border-[#38383A]">
+                    <td className="py-3 px-4 text-[#1D1D1F] dark:text-white border-b border-[#E5E5EA] dark:border-[#232B3E]">
                       {row.feature}
                     </td>
-                    <td className="py-3 px-4 text-center border-b border-[#E5E5EA] dark:border-[#38383A]">
+                    <td className="py-3 px-4 text-center border-b border-[#E5E5EA] dark:border-[#232B3E]">
                       <span className="text-red-500">{row.google}</span>
                     </td>
-                    <td className="py-3 px-4 text-center border-b border-[#E5E5EA] dark:border-[#38383A] bg-[#FFF8E7] dark:bg-[#2A2200]">
+                    <td className="py-3 px-4 text-center border-b border-[#E5E5EA] dark:border-[#232B3E] bg-[#EFF4FF] dark:bg-[#162552]">
                       <span className="text-green-600 dark:text-green-400">{row.tundee}</span>
                     </td>
                   </tr>
@@ -152,15 +152,15 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── SECTION 4 — Fairness Technology ── */}
-      <section className="bg-white dark:bg-[#1C1C1E] px-6 py-16 md:py-20">
+      {/* ── SECTION 4 Fairness Technology ── */}
+      <section className="bg-white dark:bg-[#161B27] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
-          <p className="text-xs font-semibold text-[#F0A500] uppercase tracking-wider mb-8">
+          <p className="text-xs font-semibold text-[#2E6BE6] uppercase tracking-wider mb-8">
             {th ? 'เทคโนโลยีความเท่าเทียม' : 'Fairness Technology'}
           </p>
 
           {/* Main card */}
-          <div className="border-l-4 border-[#F0A500] bg-[#FFF8E7] dark:bg-[#2A2200] rounded-r-xl px-6 py-5 mb-8">
+          <div className="border-l-4 border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552] rounded-r-xl px-6 py-5 mb-8">
             <p className="text-[#1D1D1F] dark:text-white leading-relaxed">
               {th
                 ? 'TunDee ใช้ Equalized Odds Algorithm ตาม Hardt, Price & Srebro (2016) เพื่อให้นักเรียนจากจังหวัดห่างไกลได้เห็นทุนที่เหมาะสมในอัตราเดียวกับนักเรียนกรุงเทพที่มีคุณสมบัติเท่ากัน'
@@ -174,25 +174,25 @@ export default function AboutPage() {
 
           {/* Equity chips */}
           <div className="flex flex-wrap items-center gap-3 justify-center">
-            <span className="bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white text-sm px-4 py-2 rounded-full border border-[#E5E5EA] dark:border-[#38383A]">
+            <span className="bg-[#F7F9FC] dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white text-sm px-4 py-2 rounded-full border border-[#E5E5EA] dark:border-[#232B3E]">
               🏙️ {th ? 'นักเรียนกรุงเทพ' : 'Bangkok student'}
             </span>
             <span className="text-[#6E6E73] dark:text-[#8E8E93] font-bold text-xl">=</span>
-            <span className="bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white text-sm px-4 py-2 rounded-full border border-[#E5E5EA] dark:border-[#38383A]">
+            <span className="bg-[#F7F9FC] dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white text-sm px-4 py-2 rounded-full border border-[#E5E5EA] dark:border-[#232B3E]">
               🌾 {th ? 'นักเรียนชนบท' : 'Rural student'}
             </span>
             <span className="text-[#6E6E73] dark:text-[#8E8E93] font-bold text-xl">=</span>
-            <span className="bg-[#FFF8E7] dark:bg-[#2A2200] text-[#F0A500] text-sm px-4 py-2 rounded-full border border-[#F0A500]/40">
+            <span className="bg-[#EFF4FF] dark:bg-[#162552] text-[#2E6BE6] text-sm px-4 py-2 rounded-full border border-[#2E6BE6]/40">
               {th ? 'โอกาสเท่ากัน' : 'Equal chances'}
             </span>
           </div>
         </div>
       </section>
 
-      {/* ── SECTION 5 — Ploy's Story ── */}
-      <section className="bg-[#F5F5F7] dark:bg-[#111111] px-6 py-16 md:py-20">
+      {/* ── SECTION 5 Ploy's Story ── */}
+      <section className="bg-[#F7F9FC] dark:bg-[#111111] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
-          <div className="max-w-lg mx-auto bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-2xl p-8 text-center shadow-sm">
+          <div className="max-w-lg mx-auto bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-2xl p-8 text-center shadow-sm">
             <div className="text-5xl mb-4">🎓</div>
             <p className="text-lg font-bold text-[#1D1D1F] dark:text-white mb-1">
               {th ? 'พลอย' : 'Ploy'}
@@ -205,7 +205,7 @@ export default function AboutPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {/* Before */}
-              <div className="flex-1 bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-xl p-4">
+              <div className="flex-1 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4">
                 <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-1">
                   {th ? 'ก่อน TunDee' : 'Before TunDee'}
                 </p>
@@ -214,7 +214,7 @@ export default function AboutPage() {
                 </p>
                 <p
                   className="text-4xl font-bold text-[#6E6E73] dark:text-[#8E8E93]"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                 >
                   2
                 </p>
@@ -223,19 +223,19 @@ export default function AboutPage() {
                 </p>
               </div>
 
-              <div className="text-2xl text-[#F0A500] font-bold">→</div>
+              <div className="text-2xl text-[#2E6BE6] font-bold">→</div>
 
               {/* After */}
-              <div className="flex-1 bg-[#FFF8E7] dark:bg-[#2A2200] rounded-xl p-4 border border-[#F0A500]/30">
-                <p className="text-xs text-[#F0A500] mb-1">
+              <div className="flex-1 bg-[#EFF4FF] dark:bg-[#162552] rounded-xl p-4 border border-[#2E6BE6]/30">
+                <p className="text-xs text-[#2E6BE6] mb-1">
                   {th ? 'หลัง TunDee' : 'After TunDee'}
                 </p>
                 <p className="text-sm text-[#1D1D1F] dark:text-white">
                   {th ? 'พบทุน' : 'found'}
                 </p>
                 <p
-                  className="text-4xl font-bold text-[#F0A500]"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
+                  className="text-4xl font-bold text-[#2E6BE6]"
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                 >
                   23
                 </p>
@@ -248,18 +248,18 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── SECTION 6 — Founder ── */}
-      <section className="bg-white dark:bg-[#1C1C1E] px-6 py-16 md:py-20">
+      {/* ── SECTION 6 Founder ── */}
+      <section className="bg-white dark:bg-[#161B27] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
-          <p className="text-xs font-semibold text-[#F0A500] uppercase tracking-wider mb-10 text-center">
+          <p className="text-xs font-semibold text-[#2E6BE6] uppercase tracking-wider mb-10 text-center">
             {th ? 'ผู้สร้าง' : 'Creator'}
           </p>
 
-          <div className="max-w-sm mx-auto bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] rounded-2xl p-8 text-center shadow-sm">
+          <div className="max-w-sm mx-auto bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] rounded-2xl p-8 text-center shadow-sm">
             {/* Avatar */}
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-semibold mx-auto mb-4"
-              style={{ background: '#F0A500' }}
+              style={{ background: '#2E6BE6' }}
             >
               J
             </div>
@@ -276,14 +276,14 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── SECTION 7 — CTA Gold Band ── */}
-      <section className="bg-[#F0A500] px-6 py-16 text-center">
+      {/* ── SECTION 7 CTA Gold Band ── */}
+      <section className="bg-[#2E6BE6] px-6 py-16 text-center">
         <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
           {th ? 'เริ่มค้นหาทุนของคุณวันนี้' : 'Start finding your scholarship today'}
         </h2>
         <Link
           href="/scholarships"
-          className="inline-block bg-white text-[#F0A500] font-semibold px-8 py-3 rounded-full hover:bg-[#FFF8E7] transition-colors duration-200 text-sm"
+          className="inline-block bg-white text-[#2E6BE6] font-semibold px-8 py-3 rounded-full hover:bg-[#EFF4FF] transition-colors duration-200 text-sm"
         >
           {th ? 'ค้นหาทุนฟรี →' : 'Browse Scholarships →'}
         </Link>

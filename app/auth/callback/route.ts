@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 /**
- * Auth callback — handles both:
+ * Auth callback handles both:
  *  • Magic link / OTP:  URL contains token_hash + type
  *  • Google OAuth:      URL contains code
  *
@@ -65,7 +65,7 @@ async function resolveRedirect(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return '/auth?error=auth_failed'
 
-    // (last_active_at removed — column does not exist in profiles table)
+    // (last_active_at removed column does not exist in profiles table)
 
     // Check if the user has filled in their profile (GPA as proxy)
     const { data: profile } = await supabase

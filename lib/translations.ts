@@ -16,7 +16,7 @@ export const translations = {
     headline_th: 'หาทุนที่ใช่\nสำหรับคุณ',
     headline_en: 'Find the scholarship\nyou deserve',
     sub_th: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 90 ทุน ให้คุณค้นหาได้ฟรี ตรงเป้า และง่ายดาย',
-    sub_en: 'TunDee aggregates 90+ real Thai scholarships — AI-powered matching, free, bilingual.',
+    sub_en: 'TunDee aggregates 90+ real Thai scholarships AI-powered matching, free, bilingual.',
     cta: { th: 'ค้นหาทุนของคุณ →', en: 'Find Your Scholarship →' },
     eyebrow: { th: 'ค้นหาทุนการศึกษาฟรี', en: 'Free Scholarship Discovery' },
   },
@@ -38,7 +38,7 @@ export const translations = {
     title: { th: 'เรื่องราวของพลอย', en: "Ploy's Story" },
     quote: {
       th: '"ก่อนเจอทุนดี หนูรู้จักทุนแค่ 3 ทุน ตอนนี้หนูได้ทุน กสศ. แล้ว 3,500 บาทต่อเดือน ช่วยแม่ได้มาก"',
-      en: '"Before TunDee, I only knew about 3 scholarships. Now I\'ve received the EEF scholarship — 3,500 THB a month. It helps my family so much."',
+      en: '"Before TunDee, I only knew about 3 scholarships. Now I\'ve received the EEF scholarship 3,500 THB a month. It helps my family so much."',
     },
     name: { th: 'พลอย อายุ 17 ปี จ.สุรินทร์', en: 'Ploy, age 17, Surin Province' },
     detail: {
@@ -117,7 +117,7 @@ export const translations = {
     provinces: { th: 'จังหวัดที่มีสิทธิ์', en: 'Eligible Provinces' },
     fields: { th: 'สาขาวิชา', en: 'Fields of Study' },
     welfareCard: { th: 'ผู้ถือบัตรสวัสดิการฯ', en: 'Welfare Card Priority' },
-    welfareYes: { th: 'ใช่ — ได้รับการพิจารณาเป็นพิเศษ', en: 'Yes — Priority given' },
+    welfareYes: { th: 'ใช่ ได้รับการพิจารณาเป็นพิเศษ', en: 'Yes Priority given' },
     welfareNo: { th: 'ไม่มี', en: 'No' },
     documents: { th: 'เอกสารที่ต้องใช้', en: 'Required Documents' },
     description: { th: 'รายละเอียดทุน', en: 'Scholarship Details' },
@@ -186,12 +186,12 @@ export const translations = {
     solution_label: { th: 'วิธีแก้ปัญหาของเรา', en: 'Our Solution' },
     solution: {
       th: 'ทุนดีรวบรวมข้อมูลทุนการศึกษาไว้ในที่เดียว พร้อมระบบค้นหาที่ตรงเป้าและเป็นภาษาไทย ให้ทุกคนสามารถหาทุนที่เหมาะกับตัวเองได้ฟรีและง่ายดาย',
-      en: 'TunDee centralizes scholarship data in one place with a targeted, Thai-first search system — free for everyone.',
+      en: 'TunDee centralizes scholarship data in one place with a targeted, Thai-first search system free for everyone.',
     },
     team_label: { th: 'ทีมงาน', en: 'Our Team' },
     roadmap_label: { th: 'แผนการพัฒนา', en: 'Roadmap' },
     roadmap: [
-      { th: '2025 Q1: เปิดตัว v1 — ค้นหาและกรองทุน', en: '2025 Q1: Launch v1 — search & filter scholarships' },
+      { th: '2025 Q1: เปิดตัว v1 ค้นหาและกรองทุน', en: '2025 Q1: Launch v1 search & filter scholarships' },
       { th: '2025 Q3: เพิ่ม AI จับคู่ทุนอัตโนมัติ', en: '2025 Q3: Add AI-powered scholarship matching' },
       { th: '2025 Q4: ระบบแจ้งเตือนก่อนหมดเขต', en: '2025 Q4: Deadline reminder system' },
       { th: '2026: แอปพลิเคชันมือถือ', en: '2026: Mobile application' },

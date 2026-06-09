@@ -1,7 +1,6 @@
 'use client';
 
 import { useLang } from '@/lib/LanguageContext';
-import { translations } from '@/lib/translations';
 
 interface Props {
   scholarshipCount?: number;
@@ -9,32 +8,32 @@ interface Props {
 
 export default function StatsBar({ scholarshipCount }: Props) {
   const { lang } = useLang();
-  const s = translations.stats;
-
-  const countLabel = scholarshipCount
-    ? lang === 'th'
-      ? `${scholarshipCount}+ ทุน`
-      : `${scholarshipCount}+ Scholarships`
-    : s.scholarships[lang];
+  const th = lang === 'th';
+  const count = scholarshipCount ?? 90;
 
   const stats = [
-    { value: countLabel, icon: '🎓' },
-    { value: s.provinces[lang], icon: '📍' },
-    { value: s.free[lang], icon: '✓' },
+    { value: `${count}+`, th_label: 'ทุนการศึกษา', en_label: 'Scholarships' },
+    { value: '77',        th_label: 'จังหวัด',      en_label: 'Provinces' },
+    { value: th ? 'ฟรี' : 'Free', th_label: 'ตลอด', en_label: 'Always' },
   ];
 
   return (
-    <div className="bg-[#F5F5F7] border-y border-[#E5E5EA]">
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
-        <div className="grid grid-cols-3 gap-4 md:gap-8">
+    <div className="bg-white dark:bg-[#161B27] border-y border-[#DDE4EF] dark:border-[#232B3E]">
+      <div className="max-w-[1200px] mx-auto px-6 py-6">
+        <div className="grid grid-cols-3 divide-x divide-[#DDE4EF] dark:divide-[#232B3E]">
           {stats.map((stat, i) => (
-            <div key={i} className="text-center">
-              <div className="text-2xl mb-1">{stat.icon}</div>
+            <div key={i} className="text-center px-4">
               <div
-                className="text-base md:text-lg font-semibold text-[#1D1D1F]"
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                className="text-[2.5rem] font-light text-[#2E6BE6] leading-none mb-1"
+                style={{ fontFamily: 'var(--font-display, Cormorant Garamond, Georgia, serif)' }}
               >
                 {stat.value}
+              </div>
+              <div
+                className="text-[0.7rem] font-semibold text-[#4A5568] dark:text-[#8892A4] uppercase tracking-[2px]"
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
+                {th ? stat.th_label : stat.en_label}
               </div>
             </div>
           ))}

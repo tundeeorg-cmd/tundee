@@ -76,7 +76,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
         if (mounted && data?.checklist_progress) {
           setCompleted(data.checklist_progress);
         }
-      } catch { /* silent — table may not exist yet */ }
+      } catch { /* silent table may not exist yet */ }
     };
     init();
     return () => { mounted = false; };
@@ -121,7 +121,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
       {/* Section header */}
       <h2
         className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-1"
-        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+        style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
       >
         {lang === 'th' ? '7 ขั้นตอนการสมัครทุน' : '7-Step Application Guide'}
       </h2>
@@ -133,20 +133,20 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
 
       {/* Progress bar (for logged-in users) */}
       {userId && (
-        <div className="mb-6 p-4 bg-[#FFF8E7] dark:bg-[#2C1F00] border border-[#F0A500]/20 rounded-[12px]">
+        <div className="mb-6 p-4 bg-[#EFF4FF] dark:bg-[#162552] border border-[#2E6BE6]/20 rounded-[12px]">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-[#1D1D1F] dark:text-white">
               {lang === 'th' ? 'ความคืบหน้า' : 'Progress'}
             </span>
-            <span className="text-sm font-semibold text-[#F0A500]">
+            <span className="text-sm font-semibold text-[#2E6BE6]">
               {doneCount}/7 {lang === 'th' ? 'ขั้นตอน' : 'steps'}
               {saving && <span className="ml-2 text-xs text-[#6E6E73]">⏳</span>}
             </span>
           </div>
-          <div className="h-2 bg-[#F5F5F7] dark:bg-[#3A3A3C] rounded-full overflow-hidden">
+          <div className="h-2 bg-[#F7F9FC] dark:bg-[#3A3A3C] rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${progress}%`, backgroundColor: '#F0A500' }}
+              style={{ width: `${progress}%`, backgroundColor: '#2E6BE6' }}
             />
           </div>
         </div>
@@ -166,10 +166,10 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
               <div
                 className={`flex items-start gap-3 p-4 rounded-[12px] border transition-all duration-200 ${
                   isDone
-                    ? 'border-[#F0A500]/40 bg-[#FFF8E7] dark:bg-[#2C1F00]/50'
+                    ? 'border-[#2E6BE6]/40 bg-[#EFF4FF] dark:bg-[#162552]/50'
                     : isOpen
-                    ? 'border-[#E5E5EA] dark:border-[#38383A] bg-[#F5F5F7] dark:bg-[#2C2C2E]'
-                    : 'border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#1C1C1E]'
+                    ? 'border-[#E5E5EA] dark:border-[#232B3E] bg-[#F7F9FC] dark:bg-[#232B3E]'
+                    : 'border-[#E5E5EA] dark:border-[#232B3E] bg-white dark:bg-[#161B27]'
                 }`}
               >
                 {/* Step circle / checkbox */}
@@ -180,9 +180,9 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
                   aria-label={`${isDone ? 'Uncheck' : 'Check'} step ${step.number}`}
                   className={`mt-0.5 flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all duration-200 ${
                     isDone
-                      ? 'bg-[#F0A500] border-[#F0A500] text-white'
-                      : 'bg-white dark:bg-[#1C1C1E] border-[#E5E5EA] dark:border-[#38383A] text-[#6E6E73]'
-                  } ${!isLocked ? 'cursor-pointer hover:border-[#F0A500]' : 'cursor-default'}`}
+                      ? 'bg-[#2E6BE6] border-[#2E6BE6] text-white'
+                      : 'bg-white dark:bg-[#161B27] border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73]'
+                  } ${!isLocked ? 'cursor-pointer hover:border-[#2E6BE6]' : 'cursor-default'}`}
                 >
                   {isDone ? '✓' : step.number}
                 </button>
@@ -198,7 +198,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
                       className={`text-sm font-medium ${
                         isDone ? 'line-through text-[#6E6E73] dark:text-[#8E8E93]' : 'text-[#1D1D1F] dark:text-white'
                       }`}
-                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                     >
                       {name}
                     </span>
@@ -206,7 +206,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
                   {isOpen && (
                     <p
                       className="mt-1.5 text-xs text-[#6E6E73] dark:text-[#8E8E93] leading-relaxed"
-                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                     >
                       {desc}
                     </p>
@@ -235,7 +235,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
 
       {/* Login CTA for guests */}
       {!userId && (
-        <div className="mt-5 p-4 border border-[#F0A500]/30 rounded-[12px] bg-[#FFF8E7] dark:bg-[#2C1F00]/40 text-center">
+        <div className="mt-5 p-4 border border-[#2E6BE6]/30 rounded-[12px] bg-[#EFF4FF] dark:bg-[#162552]/40 text-center">
           <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-3">
             {lang === 'th'
               ? 'เข้าสู่ระบบเพื่อบันทึกความคืบหน้าของคุณ'
@@ -243,7 +243,7 @@ export default function InteractiveChecklist({ scholarshipId }: Props) {
           </p>
           <Link
             href="/auth"
-            className="inline-block text-sm font-semibold text-white bg-[#F0A500] hover:bg-[#D4920A] px-5 py-2 rounded-full transition-colors"
+            className="inline-block text-sm font-semibold text-white bg-[#2E6BE6] hover:bg-[#1E57CC] px-5 py-2 rounded-full transition-colors"
           >
             {lang === 'th' ? 'เข้าสู่ระบบ →' : 'Log in →'}
           </Link>

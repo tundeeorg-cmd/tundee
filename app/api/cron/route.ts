@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * Vercel Cron job: runs daily at 18:00 UTC (01:00 Thailand time, UTC+7).
  * Marks all scholarships with a past deadline as is_active = false.
  *
- * Secured with CRON_SECRET env variable — Vercel sets the Authorization
+ * Secured with CRON_SECRET env variable Vercel sets the Authorization
  * header automatically when invoking the route on schedule.
  */
 export async function GET(request: NextRequest) {

@@ -77,7 +77,7 @@ export default function HealthPage() {
   const allOk   = checks.every(c => c.status === 'ok');
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#111111] p-8">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] p-8">
       <div className="max-w-lg mx-auto">
         <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-white mb-2">
           TunDee Health Check

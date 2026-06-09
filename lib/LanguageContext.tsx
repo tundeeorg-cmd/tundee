@@ -18,12 +18,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem('tundee_lang') as Language | null;
-    if (stored === 'th' || stored === 'en') setLangState(stored);
+    const initial = (stored === 'th' || stored === 'en') ? stored : 'th';
+    setLangState(initial);
+    document.documentElement.classList.toggle('thai-mode', initial === 'th');
   }, []);
 
   const setLang = (l: Language) => {
     setLangState(l);
     localStorage.setItem('tundee_lang', l);
+    document.documentElement.classList.toggle('thai-mode', l === 'th');
   };
 
   return (

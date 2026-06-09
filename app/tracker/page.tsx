@@ -89,7 +89,7 @@ interface SummaryStatsProps {
 
 function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStatsProps) {
   const stats = [
-    { n: saved,      th: 'บันทึก',     en: 'Saved',       icon: '🔖', color: 'text-[#F0A500]' },
+    { n: saved,      th: 'บันทึก',     en: 'Saved',       icon: '🔖', color: 'text-[#2E6BE6]' },
     { n: inProgress, th: 'กำลังสมัคร', en: 'In Progress',  icon: '📝', color: 'text-blue-600 dark:text-blue-400' },
     { n: submitted,  th: 'ส่งแล้ว',    en: 'Submitted',    icon: '✅', color: 'text-green-600 dark:text-green-400' },
     { n: total,      th: 'ทั้งหมด',    en: 'Total',        icon: '📋', color: 'text-[#1D1D1F] dark:text-[#F5F5F7]' },
@@ -100,10 +100,10 @@ function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStat
       {stats.map((s) => (
         <div
           key={s.en}
-          className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-4 text-center"
+          className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-4 text-center"
         >
           <div className="text-xl mb-1">{s.icon}</div>
-          <div className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <div className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {s.n}
           </div>
           <div className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-0.5">
@@ -119,7 +119,7 @@ function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStat
 
 function SkeletonCard() {
   return (
-    <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-5 animate-pulse">
+    <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 animate-pulse">
       <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
       <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
       <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2" />
@@ -148,7 +148,7 @@ function EmptyState({ emoji, th, en, lang, link }: EmptyStateProps) {
       {link && (
         <Link
           href={link.href}
-          className="mt-3 text-sm font-medium text-[#F0A500] hover:text-[#D4920A] transition-colors"
+          className="mt-3 text-sm font-medium text-[#2E6BE6] hover:text-[#1E57CC] transition-colors"
         >
           {lang === 'th' ? link.th : link.en}
         </Link>
@@ -190,13 +190,13 @@ function StepList({ progress, dates, lang }: StepListProps) {
         const dateStr = dates?.[stepNum.toString()];
         return (
           <div key={stepNum} className="flex items-center gap-2 text-xs">
-            <span className="w-4 h-4 rounded-full bg-[#F0A500] flex items-center justify-center shrink-0">
+            <span className="w-4 h-4 rounded-full bg-[#2E6BE6] flex items-center justify-center shrink-0">
               <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                 <path d="M1 4l2.5 2.5 3.5-3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
             <span className="text-[#1D1D1F] dark:text-[#F5F5F7] truncate flex-1"
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
               {stepNames[stepNum - 1]}
             </span>
             {dateStr && (
@@ -207,9 +207,9 @@ function StepList({ progress, dates, lang }: StepListProps) {
       })}
       {nextStep && progress.length < 7 && (
         <div className="flex items-center gap-2 text-xs">
-          <span className="w-4 h-4 rounded-full border-2 border-[#E5E5EA] dark:border-[#38383A] shrink-0" />
+          <span className="w-4 h-4 rounded-full border-2 border-[#E5E5EA] dark:border-[#232B3E] shrink-0" />
           <span className="text-[#ADADB8] italic truncate flex-1"
-                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}>
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
             {lang === 'th' ? `→ ${STEP_NAMES_TH[nextStep - 1]}` : `→ ${STEP_NAMES_EN[nextStep - 1]}`}
           </span>
         </div>
@@ -259,13 +259,13 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
   const detailHref = scholarship ? `/scholarships/${scholarship.id}` : `/scholarships/${app.scholarship_id}`;
 
   return (
-    <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] p-5 flex flex-col gap-3">
+    <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h3
             className="text-sm font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2"
-            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif' }}
+            style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
           >
             {name}
           </h3>
@@ -274,7 +274,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
           )}
         </div>
         {scholarship?.amount_thb && (
-          <span className="text-xs font-bold text-[#F0A500] shrink-0" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <span className="text-xs font-bold text-[#2E6BE6] shrink-0" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {formatAmount(scholarship.amount_thb, scholarship.amount_type, lang)}
           </span>
         )}
@@ -304,7 +304,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progressPct}%`,
-                backgroundColor: allDone ? '#22C55E' : '#F0A500',
+                backgroundColor: allDone ? '#22C55E' : '#2E6BE6',
               }}
             />
           </div>
@@ -327,7 +327,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
       <div className="mt-auto pt-1 flex items-center justify-between gap-3">
         <Link
           href={detailHref}
-          className="text-xs font-semibold text-[#F0A500] hover:text-[#D4920A] transition-colors"
+          className="text-xs font-semibold text-[#2E6BE6] hover:text-[#1E57CC] transition-colors"
         >
           {actionLabel}
         </Link>
@@ -348,12 +348,12 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
             <button
               type="button"
               onClick={() => setShowStatusMenu((v) => !v)}
-              className="text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white border border-[#E5E5EA] dark:border-[#38383A] rounded-lg px-2 py-1 transition-colors"
+              className="text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white border border-[#E5E5EA] dark:border-[#232B3E] rounded-lg px-2 py-1 transition-colors"
             >
               {lang === 'th' ? 'อัปเดตผล ▾' : 'Update result ▾'}
             </button>
             {showStatusMenu && (
-              <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[10px] shadow-lg overflow-hidden w-44">
+              <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[10px] shadow-lg overflow-hidden w-44">
                 {[
                   { status: 'won'      as Application['status'], th: '🏆 ได้รับทุน',          en: '🏆 Won' },
                   { status: 'lost'     as Application['status'], th: '✗ ไม่ผ่านการคัดเลือก',  en: '✗ Not selected' },
@@ -363,7 +363,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
                     key={opt.status}
                     type="button"
                     onClick={() => { onStatusUpdate(app.id, opt.status); setShowStatusMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#3A3A3C] transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#3A3A3C] transition-colors"
                   >
                     {lang === 'th' ? opt.th : opt.en}
                   </button>
@@ -425,7 +425,7 @@ export default function TrackerPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [apps, setApps]         = useState<Application[]>([]);
 
-  const fontFamily = lang === 'th' ? 'Sarabun, sans-serif' : 'DM Sans, sans-serif';
+  const fontFamily = lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
 
   const fetchApps = useCallback(
     async (userId: string) => {
@@ -529,8 +529,8 @@ export default function TrackerPage() {
 
   if (loading) {
     return (
-      <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
-        <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
+      <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
+        <div className="bg-white dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
           <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
             <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded w-48 animate-pulse mb-2" />
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-72 animate-pulse" />
@@ -539,7 +539,7 @@ export default function TrackerPage() {
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
           <div className="grid grid-cols-4 gap-3 mb-8">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[12px] animate-pulse" />
+              <div key={i} className="h-24 bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] animate-pulse" />
             ))}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -552,8 +552,8 @@ export default function TrackerPage() {
 
   if (!loggedIn) {
     return (
-      <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen flex items-center justify-center px-4" style={{ fontFamily }}>
-        <div className="bg-white dark:bg-[#1C1C1E] border border-[#E5E5EA] dark:border-[#38383A] rounded-[16px] p-10 max-w-sm w-full text-center shadow-sm">
+      <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen flex items-center justify-center px-4" style={{ fontFamily }}>
+        <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[16px] p-10 max-w-sm w-full text-center shadow-sm">
           <span className="text-5xl mb-5 block">🔒</span>
           <h2 className="text-lg font-bold text-[#1D1D1F] dark:text-white mb-2">
             {lang === 'th' ? 'ต้องเข้าสู่ระบบก่อน' : 'Login required'}
@@ -566,7 +566,7 @@ export default function TrackerPage() {
           <Link
             href="/auth"
             className="inline-block px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-colors"
-            style={{ backgroundColor: '#F0A500' }}
+            style={{ backgroundColor: '#2E6BE6' }}
           >
             {lang === 'th' ? 'เข้าสู่ระบบ' : 'Log in'}
           </Link>
@@ -578,9 +578,9 @@ export default function TrackerPage() {
   const submittedApps = historyApps.filter((a) => a.status === 'submitted');
 
   return (
-    <div className="bg-[#F5F5F7] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
+    <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#1C1C1E] border-b border-[#E5E5EA] dark:border-[#38383A]">
+      <div className="bg-white dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
           <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-white">
             {lang === 'th' ? 'ติดตามการสมัคร' : 'My Applications'}

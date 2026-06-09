@@ -11,7 +11,7 @@ import type { Scholarship } from '@/lib/types'
 
 // ── Ploy's hardcoded profile ──────────────────────────────────────────────────
 const PLOY_PROFILE: StudentProfile = {
-  province_id: 'สุรินทร์', // Surin (northeast) — use Thai name to match engine's NORTHEAST_PROVINCES set
+  province_id: 'สุรินทร์', // Surin (northeast) use Thai name to match engine's NORTHEAST_PROVINCES set
   income_bracket: 2,         // 5,001–10,000 THB/month
   gpa: 3.4,
   fields_of_interest: ['medicine', 'science'],
@@ -21,7 +21,7 @@ const PLOY_PROFILE: StudentProfile = {
 
 // ── Type helpers ──────────────────────────────────────────────────────────────
 // getScholarships returns Scholarship[] but engine expects ScholarshipRow[]
-// The shapes are compatible — cast via unknown.
+// The shapes are compatible cast via unknown.
 function toScholarshipRows(scholarships: Scholarship[]): ScholarshipRow[] {
   return scholarships.map((s) => ({
     ...s,
@@ -37,7 +37,7 @@ function ScoreBar({ pct, gold = true }: { pct: number; gold?: boolean }) {
   return (
     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
       <div
-        className={`h-2 rounded-full transition-all duration-700 ${gold ? 'bg-[#F0A500]' : 'bg-emerald-500'}`}
+        className={`h-2 rounded-full transition-all duration-700 ${gold ? 'bg-[#2E6BE6]' : 'bg-emerald-500'}`}
         style={{ width: `${Math.min(pct, 100)}%` }}
       />
     </div>
@@ -46,7 +46,7 @@ function ScoreBar({ pct, gold = true }: { pct: number; gold?: boolean }) {
 
 function Pill({ children, color = 'gray' }: { children: React.ReactNode; color?: 'gold' | 'gray' | 'green' | 'blue' }) {
   const colors: Record<string, string> = {
-    gold: 'bg-[#F0A500]/15 text-[#F0A500] border border-[#F0A500]/30',
+    gold: 'bg-[#2E6BE6]/15 text-[#2E6BE6] border border-[#2E6BE6]/30',
     gray: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600',
     green: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700',
     blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-700',
@@ -63,7 +63,7 @@ function LoadingSpinner() {
     <div className="flex justify-center items-center py-16">
       <div className="relative w-12 h-12">
         <div className="absolute inset-0 rounded-full border-4 border-gray-200 dark:border-gray-700" />
-        <div className="absolute inset-0 rounded-full border-4 border-t-[#F0A500] animate-spin" />
+        <div className="absolute inset-0 rounded-full border-4 border-t-[#2E6BE6] animate-spin" />
       </div>
       <span className="ml-4 text-gray-500 dark:text-gray-400 text-sm">กำลังค้นหาทุน...</span>
     </div>
@@ -74,16 +74,16 @@ function LoadingSpinner() {
 function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
   const s = result.scholarship
   const name = lang === 'en' && s.name_en ? s.name_en : s.name_th
-  const funder = lang === 'en' && s.funder_name_en ? s.funder_name_en : (s.funder_name_th ?? '—')
+  const funder = lang === 'en' && s.funder_name_en ? s.funder_name_en : (s.funder_name_th ?? ' ')
   const reasons = lang === 'en' ? result.reasons_en : result.reasons
   const rawPct = Math.round(result.raw_score * 100)
   const fairPct = Math.round(result.fairness_score * 100)
 
   return (
-    <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white dark:bg-[#232B3E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3 mb-3">
         {/* Rank badge */}
-        <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[#F0A500] text-white text-sm font-bold flex items-center justify-center">
+        <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[#2E6BE6] text-white text-sm font-bold flex items-center justify-center">
           #{result.rank}
         </div>
         <div className="flex-1 min-w-0">
@@ -99,7 +99,7 @@ function MatchCard({ result, lang }: { result: MatchResult; lang: string }) {
       <div className="mb-3">
         <div className="flex justify-between text-xs text-[#6E6E73] dark:text-gray-400 mb-1">
           <span>{lang === 'en' ? 'Match score' : 'คะแนนตรงกัน'}</span>
-          <span className="font-semibold text-[#F0A500]">{fairPct}%</span>
+          <span className="font-semibold text-[#2E6BE6]">{fairPct}%</span>
         </div>
         <ScoreBar pct={fairPct} />
       </div>
@@ -150,13 +150,13 @@ function RankRow({
     <div
       className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors ${
         changed
-          ? 'bg-[#F0A500]/10 dark:bg-[#F0A500]/10 border border-[#F0A500]/30'
+          ? 'bg-[#2E6BE6]/10 dark:bg-[#2E6BE6]/10 border border-[#2E6BE6]/30'
           : 'bg-gray-50 dark:bg-gray-800/50'
       }`}
     >
       <span
         className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
-          changed ? 'bg-[#F0A500] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+          changed ? 'bg-[#2E6BE6] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
         }`}
       >
         {rank}
@@ -178,17 +178,17 @@ function TechnicalDetails({ results, lang }: { results: MatchResult[]; lang: str
     <section className="max-w-4xl mx-auto">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between bg-white dark:bg-[#2C2C2E] border border-gray-100 dark:border-gray-700 rounded-2xl px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-[#3A3A3C] transition-colors"
+        className="w-full flex items-center justify-between bg-white dark:bg-[#232B3E] border border-gray-100 dark:border-gray-700 rounded-2xl px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-[#3A3A3C] transition-colors"
         aria-expanded={open}
       >
         <span className="font-semibold text-[#1D1D1F] dark:text-white">
           {lang === 'en' ? 'Technical Details' : 'รายละเอียดทางเทคนิค / Technical Details'}
         </span>
-        <span className="text-[#F0A500] text-lg">{open ? '▲' : '▼'}</span>
+        <span className="text-[#2E6BE6] text-lg">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <div className="mt-3 bg-white dark:bg-[#2C2C2E] border border-gray-100 dark:border-gray-700 rounded-2xl px-6 py-6 space-y-6">
+        <div className="mt-3 bg-white dark:bg-[#232B3E] border border-gray-100 dark:border-gray-700 rounded-2xl px-6 py-6 space-y-6">
           {/* Algorithm */}
           <div>
             <h4 className="text-xs font-semibold text-[#6E6E73] dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -201,12 +201,12 @@ function TechnicalDetails({ results, lang }: { results: MatchResult[]; lang: str
           </div>
 
           {/* Citation */}
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border-l-4 border-[#F0A500]">
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border-l-4 border-[#2E6BE6]">
             <p className="text-xs font-mono text-[#6E6E73] dark:text-gray-300 leading-relaxed">
               Hardt, M., Price, E., &amp; Srebro, N. (2016).{' '}
               <em>Equality of Opportunity in Supervised Learning.</em>{' '}
               Advances in Neural Information Processing Systems (NeurIPS), 29, 3315–3323.{' '}
-              <span className="text-[#F0A500]">arXiv:1610.02413</span>
+              <span className="text-[#2E6BE6]">arXiv:1610.02413</span>
             </p>
           </div>
 
@@ -217,12 +217,12 @@ function TechnicalDetails({ results, lang }: { results: MatchResult[]; lang: str
             </h4>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-[#1D1D1F] dark:text-white">
-                <span className="text-[#F0A500]">◆</span>
+                <span className="text-[#2E6BE6]">◆</span>
                 ภาค: ภาคตะวันออกเฉียงเหนือ (20 จังหวัด) / Region: Northeast Thailand (20 provinces)
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1D1D1F] dark:text-white">
-                <span className="text-[#F0A500]">◆</span>
-                รายได้: Brackets 1–3 ({'< '}฿15,000/month) — both conditions required to trigger correction
+                <span className="text-[#2E6BE6]">◆</span>
+                รายได้: Brackets 1–3 ({'< '}฿15,000/month) both conditions required to trigger correction
               </div>
             </div>
           </div>
@@ -233,7 +233,7 @@ function TechnicalDetails({ results, lang }: { results: MatchResult[]; lang: str
               Correction Method
             </h4>
             <p className="text-sm text-[#1D1D1F] dark:text-white">
-              Multiplicative reweighting — max 2× boost. Bias score 0.5 → correction 1.0 (neutral). Bias score 0.9 → correction 1.24.
+              Multiplicative reweighting max 2× boost. Bias score 0.5 → correction 1.0 (neutral). Bias score 0.9 → correction 1.24.
             </p>
           </div>
 
@@ -277,7 +277,7 @@ function TechnicalDetails({ results, lang }: { results: MatchResult[]; lang: str
                           <td className="px-3 py-2 text-center text-[#6E6E73] dark:text-gray-400">
                             {Math.round(r.raw_score * 100)}%
                           </td>
-                          <td className="px-3 py-2 text-center font-semibold text-[#F0A500]">
+                          <td className="px-3 py-2 text-center font-semibold text-[#2E6BE6]">
                             {Math.round(r.fairness_score * 100)}%
                           </td>
                         </tr>
@@ -351,16 +351,16 @@ export default function DemoPage() {
     : []
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#161B27]">
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <header className="bg-[#1D1D1F] dark:bg-[#000000] text-white px-6 py-12 text-center">
         <div className="max-w-3xl mx-auto space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Pill color="gold">NSC 2026 Demo</Pill>
-            <Pill color="gray">ประเภทที่ 22 — โปรแกรมเพื่อส่งเสริมการเรียนรู้</Pill>
+            <Pill color="gray">ประเภทที่ 22 โปรแกรมเพื่อส่งเสริมการเรียนรู้</Pill>
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3">
-            TunDee ทุนดี — Live Demo
+            TunDee ทุนดี Live Demo
           </h1>
           <p className="text-gray-400 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
             AI-powered scholarship matching with Fairness-Aware Ranking
@@ -376,9 +376,9 @@ export default function DemoPage() {
       </header>
 
       <main className="px-4 py-10 space-y-10">
-        {/* ── SECTION 1 — Ploy's Profile ───────────────────────────────────── */}
+        {/* ── SECTION 1 Ploy's Profile ───────────────────────────────────── */}
         <section className="max-w-2xl mx-auto">
-          <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+          <div className="bg-white dark:bg-[#232B3E] rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
             <h2 className="text-lg font-bold text-[#1D1D1F] dark:text-white mb-1">
               🎓 สถานการณ์: พลอย / Scenario: Ploy
             </h2>
@@ -395,7 +395,7 @@ export default function DemoPage() {
               <Pill color="gray">ม.6 / M6</Pill>
             </div>
 
-            <div className="mt-5 bg-[#F5F5F7] dark:bg-gray-800/40 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-[#6E6E73] dark:text-gray-400">
+            <div className="mt-5 bg-[#F7F9FC] dark:bg-gray-800/40 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-[#6E6E73] dark:text-gray-400">
               <div><span className="font-semibold text-[#1D1D1F] dark:text-white">Province ID</span><br/>TH-32 · สุรินทร์</div>
               <div><span className="font-semibold text-[#1D1D1F] dark:text-white">Income bracket</span><br/>2 (฿5,001–10,000/mo)</div>
               <div><span className="font-semibold text-[#1D1D1F] dark:text-white">Demographic group</span><br/><span className="text-amber-600 dark:text-amber-400 font-medium">Disadvantaged (A=1)</span></div>
@@ -403,7 +403,7 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* ── SECTION 2 — Run Matching button ─────────────────────────────── */}
+        {/* ── SECTION 2 Run Matching button ─────────────────────────────── */}
         <section className="max-w-2xl mx-auto text-center">
           {error && (
             <div className="mb-5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl px-5 py-3 text-sm">
@@ -414,7 +414,7 @@ export default function DemoPage() {
           <button
             onClick={runMatching}
             disabled={loading}
-            className="inline-flex items-center gap-3 bg-[#F0A500] hover:bg-[#D4920A] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-base px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+            className="inline-flex items-center gap-3 bg-[#2E6BE6] hover:bg-[#1E57CC] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-base px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
           >
             {loading ? (
               <>
@@ -431,7 +431,7 @@ export default function DemoPage() {
           {loading && <LoadingSpinner />}
         </section>
 
-        {/* ── SECTION 3 — Match Results ────────────────────────────────────── */}
+        {/* ── SECTION 3 Match Results ────────────────────────────────────── */}
         {results !== null && !loading && (
           <section className="max-w-4xl mx-auto space-y-6">
             {/* Count header */}
@@ -454,8 +454,8 @@ export default function DemoPage() {
                 onClick={() => setActiveTab('all')}
                 className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${
                   activeTab === 'all'
-                    ? 'bg-[#F0A500] text-white shadow'
-                    : 'bg-white dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#3A3A3C]'
+                    ? 'bg-[#2E6BE6] text-white shadow'
+                    : 'bg-white dark:bg-[#232B3E] text-[#6E6E73] dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#3A3A3C]'
                 }`}
               >
                 {lang === 'en' ? 'All Results' : 'ผลลัพธ์ทั้งหมด / All Results'}
@@ -465,7 +465,7 @@ export default function DemoPage() {
                 className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${
                   activeTab === 'boosted'
                     ? 'bg-emerald-600 text-white shadow'
-                    : 'bg-white dark:bg-[#2C2C2E] text-[#6E6E73] dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#3A3A3C]'
+                    : 'bg-white dark:bg-[#232B3E] text-[#6E6E73] dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#3A3A3C]'
                 }`}
               >
                 {lang === 'en' ? `Fairness Boosted (${boostedCount})` : `ปรับความยุติธรรม / Fairness Boosted (${boostedCount})`}
@@ -487,7 +487,7 @@ export default function DemoPage() {
           </section>
         )}
 
-        {/* ── SECTION 4 — Fairness Demonstration ──────────────────────────── */}
+        {/* ── SECTION 4 Fairness Demonstration ──────────────────────────── */}
         {results !== null && !loading && top5ByRaw.length > 0 && (
           <section className="max-w-4xl mx-auto space-y-4">
             <div className="text-center">
@@ -502,11 +502,11 @@ export default function DemoPage() {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-6">
-              {/* LEFT — Before */}
-              <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+              {/* LEFT Before */}
+              <div className="bg-white dark:bg-[#232B3E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
                 <h3 className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
-                  {lang === 'en' ? 'Before — Raw Score' : 'ก่อนปรับ / Before'}
+                  {lang === 'en' ? 'Before Raw Score' : 'ก่อนปรับ / Before'}
                 </h3>
                 <div className="space-y-2">
                   {top5ByRaw.map((r, i) => {
@@ -524,11 +524,11 @@ export default function DemoPage() {
                 </div>
               </div>
 
-              {/* RIGHT — After */}
-              <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+              {/* RIGHT After */}
+              <div className="bg-white dark:bg-[#232B3E] rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
                 <h3 className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#F0A500] inline-block" />
-                  {lang === 'en' ? 'After — Fairness Score' : 'หลังปรับ / After (Fairness)'}
+                  <span className="w-2 h-2 rounded-full bg-[#2E6BE6] inline-block" />
+                  {lang === 'en' ? 'After Fairness Score' : 'หลังปรับ / After (Fairness)'}
                 </h3>
                 <div className="space-y-2">
                   {top5ByFair.map((r, i) => {
@@ -549,18 +549,18 @@ export default function DemoPage() {
 
             {/* Legend */}
             <p className="text-xs text-center text-[#6E6E73] dark:text-gray-400">
-              <span className="inline-block w-3 h-3 rounded bg-[#F0A500]/30 border border-[#F0A500]/40 mr-1 align-middle" />
+              <span className="inline-block w-3 h-3 rounded bg-[#2E6BE6]/30 border border-[#2E6BE6]/40 mr-1 align-middle" />
               {lang === 'en' ? 'Gold highlight = rank changed after fairness correction' : 'สีทอง = ลำดับเปลี่ยนหลังปรับความยุติธรรม'}
             </p>
           </section>
         )}
 
-        {/* ── SECTION 5 — Technical Details ───────────────────────────────── */}
+        {/* ── SECTION 5 Technical Details ───────────────────────────────── */}
         {results !== null && !loading && (
           <TechnicalDetails results={results} lang={lang} />
         )}
 
-        {/* ── SECTION 6 — Tech Stack ───────────────────────────────────────── */}
+        {/* ── SECTION 6 Tech Stack ───────────────────────────────────────── */}
         <section className="max-w-4xl mx-auto">
           <h2 className="text-xl font-bold text-[#1D1D1F] dark:text-white text-center mb-6">
             {lang === 'en' ? 'Tech Stack' : 'เทคโนโลยีที่ใช้ / Tech Stack'}
@@ -576,7 +576,7 @@ export default function DemoPage() {
             ].map((t) => (
               <div
                 key={t.name}
-                className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col gap-1"
+                className="bg-white dark:bg-[#232B3E] rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col gap-1"
               >
                 <span className="text-2xl">{t.icon}</span>
                 <p className="font-semibold text-sm text-[#1D1D1F] dark:text-white">{t.name}</p>
@@ -590,8 +590,8 @@ export default function DemoPage() {
       {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
       <footer className="text-center py-8 px-4 border-t border-gray-200 dark:border-gray-700 mt-6 space-y-2">
         <p className="text-xs text-[#6E6E73] dark:text-gray-500">
-          Built for NSC 2026 by Jenissa Vichiansin (เจนิสาศ์ วิเชียรสินธุ์) — Grade 11, ISB ·{' '}
-          <a href="https://www.tundee.org" className="text-[#F0A500] hover:underline" target="_blank" rel="noopener noreferrer">
+          Built for NSC 2026 by Jenissa Vichiansin (เจนิสาศ์ วิเชียรสินธุ์) Grade 11, ISB ·{' '}
+          <a href="https://www.tundee.org" className="text-[#2E6BE6] hover:underline" target="_blank" rel="noopener noreferrer">
             tundee.org
           </a>
         </p>
@@ -600,7 +600,7 @@ export default function DemoPage() {
             href="https://github.com/jenissavichiansin/tundee"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#F0A500] hover:underline"
+            className="text-[#2E6BE6] hover:underline"
           >
             View source on GitHub →
           </a>

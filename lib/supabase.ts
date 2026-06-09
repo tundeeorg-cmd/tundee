@@ -6,14 +6,14 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 
 const isConfigured = supabaseUrl.startsWith('https://') && supabaseAnonKey.length > 0
 
-// Singleton browser client — safe to use in client components for data fetching
+// Singleton browser client safe to use in client components for data fetching
 export const supabase = isConfigured
   ? createBrowserClient(supabaseUrl, supabaseAnonKey)
   : createBrowserClient('https://placeholder.supabase.co', 'placeholder')
 
 export async function getScholarships(): Promise<Scholarship[]> {
   if (!isConfigured) {
-    console.warn('[TunDee] Supabase not configured — check env vars')
+    console.warn('[TunDee] Supabase not configured check env vars')
     return []
   }
   // Fetch all rows; filter client-side so NULL is_active rows are included
@@ -35,7 +35,7 @@ export async function getScholarshipById(id: string): Promise<Scholarship | null
     .from('scholarships')
     .select('*')
     .eq('id', id)
-    .maybeSingle()  // deliberately no is_active filter — detail page should still show expired ones (with warning banner)
+    .maybeSingle()  // deliberately no is_active filter detail page should still show expired ones (with warning banner)
   if (error) {
     console.error('Error fetching scholarship:', error.message)
     return null

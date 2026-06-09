@@ -6,7 +6,7 @@ type Tier = 'SAFETY' | 'TARGET' | 'REACH';
 
 const TIER_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   SAFETY: { bg: '#EAFAF1', text: '#1E8449', dot: '🟢' },
-  TARGET: { bg: '#FFF8E7', text: '#D35400', dot: '🟡' },
+  TARGET: { bg: '#EFF4FF', text: '#D35400', dot: '🟡' },
   REACH:  { bg: '#FDEDEC', text: '#C0392B', dot: '🔴' },
 };
 
@@ -21,7 +21,7 @@ export default function TierBadge({ tier, lang, size = 'sm' }: Props) {
   const key = tier.toUpperCase() as Tier;
   const style = TIER_STYLES[key];
 
-  // Unknown tier value — render nothing rather than crash
+  // Unknown tier value render nothing rather than crash
   if (!style) return null;
 
   const tierTranslations = translations.tier as Record<string, { th: string; en: string }>;

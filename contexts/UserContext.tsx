@@ -37,7 +37,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setAvatarUrl(data.avatar_url ?? null);
         setDisplayName(data.display_name ?? null);
       }
-    } catch { /* ignore — columns may not exist yet */ }
+    } catch { /* ignore columns may not exist yet */ }
   }
 
   // Load on mount + whenever auth changes

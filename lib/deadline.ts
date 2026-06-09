@@ -1,4 +1,4 @@
-// ── Deadline utility — shared across Tracker, Browse, Detail pages ────────
+// ── Deadline utility shared across Tracker, Browse, Detail pages ────────
 
 export interface DeadlineInfo {
   label: string;        // Thai label e.g. "อีก 14 วัน"
