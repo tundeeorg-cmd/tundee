@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     images: ['/og-image.svg'],
   },
   verification: {
-    google: 'tundee-google-site-verification',
+    google: 'nIhOC7OGoxjBxX-QBcW5KoakP8FzT_C7kexuCrX61WU',
   },
 };
 
