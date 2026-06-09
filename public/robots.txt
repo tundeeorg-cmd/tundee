@@ -1,7 +1,12 @@
 User-agent: *
 Allow: /
-Disallow: /api/
+Allow: /scholarships
+Allow: /about
 Disallow: /profile
 Disallow: /tracker
+Disallow: /admin
+Disallow: /auth
+Disallow: /api/
+Disallow: /health
 
 Sitemap: https://www.tundee.org/sitemap.xml

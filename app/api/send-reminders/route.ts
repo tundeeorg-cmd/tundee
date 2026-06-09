@@ -21,16 +21,6 @@ const RESEND_API = 'https://api.resend.com/emails';
 const FROM = 'ทุนดี TunDee <reminders@tundee.org>';
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.tundee.org';
 
-interface ReminderRow {
-  user_id: string;
-  email: string;
-  scholarship_id: string;
-  name_th: string;
-  name_en: string | null;
-  deadline_date: string;
-  days_left: number;
-}
-
 export async function GET(request: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const authHeader = request.headers.get('authorization');
