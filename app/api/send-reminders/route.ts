@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
       // Build scholarship list for this user
       const schList = userApps.map((a) => {
-        const s = a.scholarships as { name_th: string; name_en: string | null; deadline_date: string };
+        const s = a.scholarships as unknown as { name_th: string; name_en: string | null; deadline_date: string };
         const deadline = new Date(s.deadline_date);
         const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         return { name_th: s.name_th, name_en: s.name_en, deadline_date: s.deadline_date, days_left: daysLeft, id: a.scholarship_id };
