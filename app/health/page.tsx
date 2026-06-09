@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
 interface Check {
   name: string;
@@ -10,107 +9,68 @@ interface Check {
 
 export default function HealthPage() {
   const [checks, setChecks] = useState<Check[]>([
-    { name: 'Database connection',    status: 'checking', detail: '' },
-    { name: 'Scholarships loading',   status: 'checking', detail: '' },
-    { name: 'Auth system',            status: 'checking', detail: '' },
-    { name: 'OG image exists',        status: 'checking', detail: '' },
-    { name: 'Sitemap accessible',     status: 'checking', detail: '' },
-    { name: 'Environment variables',  status: 'checking', detail: '' },
+    { name: 'Database connection',   status: 'checking', detail: '' },
+    { name: 'Scholarships loading',  status: 'checking', detail: '' },
+    { name: 'Auth system',           status: 'checking', detail: '' },
+    { name: 'OG image exists',       status: 'checking', detail: '' },
+    { name: 'Sitemap accessible',    status: 'checking', detail: '' },
+    { name: 'Environment variables', status: 'checking', detail: '' },
   ]);
 
   function update(index: number, status: 'ok' | 'error', detail: string) {
-    setChecks(prev => prev.map((c, i) =>
-      i === index ? { ...c, status, detail } : c
-    ));
+    setChecks(prev =>
+      prev.map((c, i) => (i === index ? { ...c, status, detail } : c))
+    );
   }
 
   useEffect(() => {
-    const supabase = createClient();
+    // ── Checks 0–2: server-side via /api/health ──────────────────────────────
+    fetch('/api/health')
+      .then(r => r.json())
+      .then((res: Record<string, { ok: boolean; detail: string }>) => {
+        const map: [number, string][] = [[0, 'db'], [1, 'scholarships'], [2, 'auth']];
+        for (const [idx, key] of map) {
+          if (res[key]) update(idx, res[key].ok ? 'ok' : 'error', res[key].detail);
+          else update(idx, 'error', 'No response from /api/health');
+        }
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Failed to reach /api/health';
+        update(0, 'error', msg);
+        update(1, 'error', msg);
+        update(2, 'error', msg);
+      });
 
-    // Check 0: Database connection
-    void (async () => {
-      try {
-        const { count, error } = await supabase
-          .from('scholarships')
-          .select('count', { count: 'exact', head: true });
-        if (error) update(0, 'error', error.message);
-        else update(0, 'ok', `Connected — ${count} scholarships`);
-      } catch (e: unknown) {
-        update(0, 'error', e instanceof Error ? e.message : 'Unexpected error');
-      }
-    })();
-
-    // Check 1: Scholarships loading
-    void (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('scholarships')
-          .select('id, name_th')
-          .eq('is_active', true)
-          .limit(3);
-        if (error) update(1, 'error', error.message);
-        else if (!data || data.length === 0)
-          update(1, 'error', 'No scholarships returned — check RLS');
-        else update(1, 'ok', `Loading OK — first: ${data[0].name_th}`);
-      } catch (e: unknown) {
-        update(1, 'error', e instanceof Error ? e.message : 'Unexpected error');
-      }
-    })();
-
-    // Check 2: Auth system
-    void (async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) update(2, 'error', error.message);
-        else
-          update(
-            2,
-            'ok',
-            data.session
-              ? `Logged in as ${data.session.user.email}`
-              : 'Not logged in (auth system working)',
-          );
-      } catch (e: unknown) {
-        update(2, 'error', e instanceof Error ? e.message : 'Unexpected error');
-      }
-    })();
-
-    // Check 3: OG image — prefer .svg, fall back to .png
+    // ── Check 3: OG image ────────────────────────────────────────────────────
     fetch('/og-image.svg', { method: 'HEAD' })
       .then(r => {
-        if (r.ok) {
-          update(3, 'ok', 'og-image.svg exists');
-        } else {
+        if (r.ok) update(3, 'ok', 'og-image.svg exists');
+        else
           fetch('/og-image.png', { method: 'HEAD' }).then(r2 => {
             if (r2.ok) update(3, 'ok', 'og-image.png exists');
-            else update(3, 'error', 'Neither og-image.svg nor og-image.png found in /public');
-          });
-        }
+            else update(3, 'error', 'Neither og-image.svg nor og-image.png found');
+          }).catch(() => update(3, 'error', 'OG image not found'));
       })
       .catch(() => update(3, 'error', 'OG image fetch failed'));
 
-    // Check 4: Sitemap
+    // ── Check 4: Sitemap ─────────────────────────────────────────────────────
     fetch('/sitemap.xml', { method: 'HEAD' })
       .then(r => {
         if (r.ok) update(4, 'ok', 'sitemap.xml accessible');
-        else update(4, 'error', `sitemap.xml not found (${r.status})`);
+        else update(4, 'error', `sitemap.xml returned ${r.status}`);
       })
       .catch(() => update(4, 'error', 'sitemap.xml fetch failed'));
 
-    // Check 5: Public environment variables
+    // ── Check 5: Public env vars ─────────────────────────────────────────────
     const vars: Record<string, boolean> = {
       SUPABASE_URL:  !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       SUPABASE_ANON: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       SITE_URL:      !!process.env.NEXT_PUBLIC_SITE_URL,
       GA_ID:         !!process.env.NEXT_PUBLIC_GA_ID,
     };
-    const missing = Object.entries(vars)
-      .filter(([, v]) => !v)
-      .map(([k]) => k);
-    if (missing.length > 0)
-      update(5, 'error', `Missing: ${missing.join(', ')}`);
-    else
-      update(5, 'ok', 'All public env vars present');
+    const missing = Object.entries(vars).filter(([, v]) => !v).map(([k]) => k);
+    if (missing.length > 0) update(5, 'error', `Missing: ${missing.join(', ')}`);
+    else update(5, 'ok', 'All public env vars present');
   }, []);
 
   const allDone = checks.every(c => c.status !== 'checking');
