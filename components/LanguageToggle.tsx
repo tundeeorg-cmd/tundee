@@ -9,13 +9,13 @@ export default function LanguageToggle() {
   return (
     <button
       onClick={() => setLang(th ? 'en' : 'th')}
-      className="text-sm font-medium text-[#4A5568] dark:text-[#8892A4] hover:text-[#0F1C33] dark:hover:text-[#EEF2FF] transition-colors duration-200"
-      style={{ fontFamily: 'Inter, system-ui, sans-serif', letterSpacing: '0.02em' }}
+      className="text-sm font-medium text-[#8A96A8] dark:text-[#7A8FA8] hover:text-[#0A2342] dark:hover:text-white transition-colors duration-200"
+      style={{ fontFamily: 'var(--font-lato), Lato, sans-serif', letterSpacing: '0.02em' }}
       aria-label="Toggle language"
     >
-      <span className={th ? 'text-[#0F1C33] dark:text-[#EEF2FF] font-semibold' : 'text-[#4A5568] dark:text-[#8892A4]'}>TH</span>
-      <span className="mx-1 text-[#DDE4EF] dark:text-[#232B3E]">/</span>
-      <span className={!th ? 'text-[#0F1C33] dark:text-[#EEF2FF] font-semibold' : 'text-[#4A5568] dark:text-[#8892A4]'}>EN</span>
+      <span className={th ? 'text-[#0A2342] dark:text-white font-semibold' : 'text-[#8A96A8] dark:text-[#7A8FA8]'}>TH</span>
+      <span className="mx-1 text-[#DDE3EE] dark:text-[#1A2E4A]">/</span>
+      <span className={!th ? 'text-[#0A2342] dark:text-white font-semibold' : 'text-[#8A96A8] dark:text-[#7A8FA8]'}>EN</span>
     </button>
   );
 }

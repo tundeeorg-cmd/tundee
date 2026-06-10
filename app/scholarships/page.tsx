@@ -69,11 +69,8 @@ const INCOME_CEILING: Record<number, number> = {
 };
 
 // ── Score colour helper ───────────────────────────────────────────────────────
-function getScoreColor(score: number) {
-  if (score >= 0.85) return { bar: '#22C55E', text: '#16A34A', label: { th: 'ตรงมาก', en: 'Excellent' } };
-  if (score >= 0.70) return { bar: '#2E6BE6', text: '#1E57CC', label: { th: 'ตรงดี',  en: 'Good'      } };
-  if (score >= 0.50) return { bar: '#F97316', text: '#EA580C', label: { th: 'พอดี',   en: 'Fair'      } };
-  return               { bar: '#94A3B8', text: '#64748B', label: { th: 'น้อย',   en: 'Low'       } };
+function getScoreColor(_score: number) {
+  return { bar: '#1B3A6B', text: '#1B3A6B', label: { th: '', en: '' } };
 }
 
 // ── Inline scoring engine ─────────────────────────────────────────────────────
@@ -293,7 +290,7 @@ function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[
 function EmptyState({ lang }: { lang: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <div className="text-6xl mb-6">🎓</div>
+      <div className="mb-6" />
       <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-3"
           style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
         {lang === 'th' ? 'ยังไม่พบทุนการศึกษา' : 'No scholarships found'}
@@ -304,7 +301,7 @@ function EmptyState({ lang }: { lang: string }) {
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="text-sm font-semibold text-white bg-[#2E6BE6] hover:bg-[#1E57CC] transition-colors px-6 py-2.5 rounded-full"
+        className="text-sm font-semibold text-white bg-[#1B3A6B] hover:bg-[#2E5FA3] transition-colors px-6 py-2.5 rounded-full"
       >
         {lang === 'th' ? 'รีเฟรชหน้านี้' : 'Refresh page'}
       </button>
@@ -332,7 +329,7 @@ function ScoreTooltip({ lang }: { lang: string }) {
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        className="w-4 h-4 rounded-full bg-[#E5E5EA] dark:bg-[#3a3a3c] text-[#6E6E73] dark:text-[#8E8E93] text-[10px] font-bold flex items-center justify-center hover:bg-[#2E6BE6]/20 hover:text-[#2E6BE6] transition-colors ml-1 shrink-0"
+        className="w-4 h-4 rounded-full bg-[#E5E5EA] dark:bg-[#3a3a3c] text-[#6E6E73] dark:text-[#8E8E93] text-[10px] font-bold flex items-center justify-center hover:bg-[#1B3A6B]/20 hover:text-[#1B3A6B] transition-colors ml-1 shrink-0"
         aria-label="Score info"
       >
         i
@@ -364,7 +361,7 @@ function MatchScoreBar({ scholarship, lang }: { scholarship: ScoredScholarship; 
   const color = getScoreColor(scholarship.fairnessScore);
 
   return (
-    <div className="mt-2 pt-3 border-t border-[#F5F5F7] dark:border-[#232B3E]">
+    <div className="mt-2 pt-3 border-t border-[#F5F5F7] dark:border-[#1A2E4A]">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center">
           <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
@@ -373,22 +370,18 @@ function MatchScoreBar({ scholarship, lang }: { scholarship: ScoredScholarship; 
           <ScoreTooltip lang={lang} />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold" style={{ color: color.text }}>{pct}%</span>
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                style={{ backgroundColor: color.bar + '20', color: color.text }}>
-            {color.label[lang as 'th' | 'en']}
-          </span>
+          <span className="text-xs font-bold text-[#1B3A6B] dark:text-[#4A7FD4]">{pct}%</span>
         </div>
       </div>
-      <div className="h-1.5 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[#E8ECF2] dark:bg-[#1A2E4A] rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: color.bar }}
+          className="h-full rounded-full transition-all duration-500 bg-[#1B3A6B] dark:bg-[#4A7FD4]"
+          style={{ width: `${pct}%` }}
         />
       </div>
       {scholarship.boosted && (
-        <p className="mt-1.5 text-[10px] text-[#2E6BE6] font-medium">
-          ⚖️ {lang === 'th' ? 'ปรับความเป็นธรรมแล้ว' : 'Fairness-adjusted'}
+        <p className="mt-1.5 text-[10px] text-[#6E7A8A] dark:text-[#7A8FA8]">
+          {lang === 'th' ? 'ปรับความเป็นธรรมแล้ว' : 'Fairness-adjusted'}
         </p>
       )}
     </div>
@@ -426,12 +419,12 @@ function MatchCard({
   }
 
   return (
-    <article className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 flex flex-col gap-3 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow duration-200">
+    <article className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 flex flex-col gap-3 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow duration-200">
 
       {/* Header row: rank + name + amount + save */}
       <div className="flex items-start gap-2">
         {/* Rank circle */}
-        <span className="w-6 h-6 rounded-full bg-[#2E6BE6] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+        <span className="w-6 h-6 rounded-full bg-[#8A96A8] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
           {rank}
         </span>
 
@@ -449,7 +442,7 @@ function MatchCard({
         {/* Amount + score badge + save */}
         <div className="flex flex-col items-end gap-1 shrink-0">
           {s.amount_thb ? (
-            <span className="text-sm font-bold text-[#2E6BE6]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <span className="text-sm font-bold text-[#1B3A6B] dark:text-[#4A7FD4]" style={{ fontFamily: 'var(--font-lato), Lato, sans-serif' }}>
               ฿{s.amount_thb.toLocaleString('th-TH')}
             </span>
           ) : (
@@ -457,9 +450,8 @@ function MatchCard({
               {lang === 'th' ? 'ติดต่อโดยตรง' : 'Contact funder'}
             </span>
           )}
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: color.bar + '20', color: color.text }}>
-            {Math.round(s.fairnessScore * 100)}% {color.label[lang as 'th' | 'en']}
+          <span className="text-[10px] font-bold text-[#1B3A6B] dark:text-[#4A7FD4]">
+            {Math.round(s.fairnessScore * 100)}%
           </span>
           <SaveButton scholarshipId={s.id} size="sm" />
         </div>
@@ -474,7 +466,7 @@ function MatchCard({
           <ul className="space-y-0.5">
             {reasons.slice(0, 3).map((r, i) => (
               <li key={i} className="flex items-start gap-1.5 text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-                <span className="text-[#2E6BE6] mt-0.5 shrink-0">✓</span>
+                <span className="text-[#1B3A6B] mt-0.5 shrink-0">✓</span>
                 <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>{r}</span>
               </li>
             ))}
@@ -488,10 +480,10 @@ function MatchCard({
       {/* Footer: deadline + detail link */}
       <div className="flex items-center justify-between pt-1">
         {s.deadline_date ? (
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            deadlineColorKey === 'red' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
-            deadlineColorKey === 'orange' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' :
-            'bg-[#F7F9FC] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93]'
+          <span className={`text-xs font-medium ${
+            deadlineColorKey === 'red' ? 'text-red-600 dark:text-red-400' :
+            deadlineColorKey === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+            'text-[#6E7A8A] dark:text-[#7A8FA8]'
           }`}>
             {lang === 'th' ? deadlineLabel : deadlineLabelEn}
           </span>
@@ -503,7 +495,7 @@ function MatchCard({
         <Link
           href={`/scholarships/${s.id}`}
           onClick={storeMatchData}
-          className="text-xs text-[#2E6BE6] font-semibold hover:underline"
+          className="text-xs text-[#1B3A6B] font-semibold hover:underline"
         >
           {lang === 'th' ? 'ดูรายละเอียด →' : 'View details →'}
         </Link>
@@ -525,9 +517,9 @@ interface MatchControlsProps {
 
 function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
   const SORT_OPTS: { key: MatchSortKey; th: string; en: string }[] = [
-    { key: 'match',    th: '🎯 ความเหมาะสม',  en: '🎯 Best Match'    },
-    { key: 'amount',   th: '💰 เงินมากสุด',    en: '💰 Most Money'    },
-    { key: 'deadline', th: '📅 ใกล้หมดเขต',   en: '📅 Deadline Soon' },
+    { key: 'match',    th: 'ความเหมาะสม',  en: 'Best Match'    },
+    { key: 'amount',   th: 'เงินมากสุด',    en: 'Most Money'    },
+    { key: 'deadline', th: 'ใกล้หมดเขต',   en: 'Deadline Soon' },
     { key: 'name',     th: 'ก–ฮ ชื่อ',        en: 'A–Z Name'         },
   ];
 
@@ -539,7 +531,7 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
   ];
 
   return (
-    <div className="mb-6 space-y-4 bg-[#F7F9FC] dark:bg-[#161B27] rounded-xl p-4 border border-[#E5E5EA] dark:border-[#232B3E]">
+    <div className="mb-6 space-y-4 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-xl p-4 border border-[#E5E5EA] dark:border-[#1A2E4A]">
       {/* Result summary */}
       <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]"
          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
@@ -566,8 +558,8 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
               onClick={() => setSortBy(opt.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 sortBy === opt.key
-                  ? 'bg-[#2E6BE6] text-white shadow-sm'
-                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6]'
+                  ? 'bg-[#1B3A6B] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#1B3A6B]'
               }`}
               style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
             >
@@ -589,8 +581,8 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
               onClick={() => setMinScore(opt.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 minScore === opt.key
-                  ? 'bg-[#1D1D1F] dark:bg-[#F7F9FC] text-white dark:text-[#1D1D1F]'
-                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1D1D1F] dark:hover:border-[#F5F5F7]'
+                  ? 'bg-[#1D1D1F] dark:bg-[#F5F7FA] text-white dark:text-[#1D1D1F]'
+                  : 'bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1D1D1F] dark:hover:border-[#F5F5F7]'
               }`}
             >
               {lang === 'th' ? opt.th : opt.en}
@@ -805,7 +797,7 @@ export default function BrowsePage() {
     <div className="bg-white dark:bg-[#000000] min-h-screen">
 
       {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="bg-[#F7F9FC] dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
+      <div className="bg-[#F5F7FA] dark:bg-[#0A1628] border-b border-[#E5E5EA] dark:border-[#1A2E4A]">
         <div className="max-w-[1200px] mx-auto px-6 py-12">
           <h1
             className="text-3xl md:text-4xl text-[#1D1D1F] dark:text-white mb-3"
@@ -823,7 +815,7 @@ export default function BrowsePage() {
                   onClick={() => setActiveTab(t)}
                   className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
                     activeTab === t
-                      ? 'bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white shadow-sm'
+                      ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
                       : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
                   style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
@@ -845,7 +837,7 @@ export default function BrowsePage() {
                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
               {b.loginBanner[lang]}
             </p>
-            <a href="/auth?from=signup" className="text-sm font-semibold text-[#2E6BE6] hover:underline shrink-0">
+            <a href="/auth?from=signup" className="text-sm font-semibold text-[#1B3A6B] hover:underline shrink-0">
               {b.loginBannerCta[lang]}
             </a>
           </div>
@@ -877,7 +869,7 @@ export default function BrowsePage() {
               /* Skeleton */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-64 bg-[#F7F9FC] dark:bg-[#161B27] rounded-[12px] animate-pulse" />
+                  <div key={i} className="h-64 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-[12px] animate-pulse" />
                 ))}
               </div>
 
@@ -891,7 +883,7 @@ export default function BrowsePage() {
                 </h3>
                 <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-xs mb-6">{b.completeProfileSub[lang]}</p>
                 <Link href="/profile/setup"
-                      className="bg-[#2E6BE6] text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-[#1E57CC] transition-colors">
+                      className="bg-[#1B3A6B] text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-[#2E5FA3] transition-colors">
                   {lang === 'th' ? 'กรอกโปรไฟล์' : 'Set up profile'}
                 </Link>
               </div>
@@ -911,12 +903,12 @@ export default function BrowsePage() {
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   <Link href="/profile/setup"
-                        className="px-5 py-2.5 bg-[#2E6BE6] text-white rounded-full text-sm font-semibold hover:bg-[#1E57CC] transition-colors">
+                        className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-full text-sm font-semibold hover:bg-[#2E5FA3] transition-colors">
                     {lang === 'th' ? 'อัปเดตโปรไฟล์' : 'Update Profile'}
                   </Link>
                   <button
                     onClick={() => setActiveTab('browse')}
-                    className="px-5 py-2.5 border border-[#E5E5EA] dark:border-[#232B3E] rounded-full text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors"
+                    className="px-5 py-2.5 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-full text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6] hover:text-[#1B3A6B] transition-colors"
                   >
                     {lang === 'th' ? 'ดูทุนทั้งหมด' : 'Browse All'}
                   </button>
@@ -951,7 +943,7 @@ export default function BrowsePage() {
                     </p>
                     <button
                       onClick={() => setMatchMinScore(matchMinScore === 0.9 ? 0.7 : matchMinScore === 0.7 ? 0.5 : 0)}
-                      className="px-5 py-2.5 bg-[#2E6BE6] text-white rounded-full text-sm font-semibold hover:bg-[#1E57CC] transition-colors"
+                      className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-full text-sm font-semibold hover:bg-[#2E5FA3] transition-colors"
                     >
                       {matchMinScore === 0.9
                         ? (lang === 'th' ? 'ดูทุน 70%+' : 'Show 70%+ matches')
@@ -991,7 +983,7 @@ export default function BrowsePage() {
               <div className="flex-1 min-w-0">
                 {/* Mobile filter toggle */}
                 <button
-                  className="md:hidden flex items-center gap-2 text-sm font-medium text-[#1D1D1F] dark:text-white border border-[#E5E5EA] dark:border-[#232B3E] rounded-lg px-4 py-2 mb-6 w-full justify-center"
+                  className="md:hidden flex items-center gap-2 text-sm font-medium text-[#1D1D1F] dark:text-white border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg px-4 py-2 mb-6 w-full justify-center"
                   onClick={() => setFiltersOpen(!filtersOpen)}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1017,7 +1009,7 @@ export default function BrowsePage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search by scholarship or funder name...'}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#232B3E] rounded-[10px] bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
+                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
                       style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
                     />
                     {searchQuery && (
@@ -1035,7 +1027,7 @@ export default function BrowsePage() {
                   {searchQuery && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs text-[#6E6E73]">{lang === 'th' ? 'ค้นหา:' : 'Searching:'}</span>
-                      <span className="inline-flex items-center gap-1 text-xs bg-[#EFF4FF] border border-[#2E6BE6]/30 text-[#2E6BE6] px-2.5 py-0.5 rounded-full font-medium">
+                      <span className="inline-flex items-center gap-1 text-xs bg-[#EFF4FF] border border-[#2E6BE6]/30 text-[#1B3A6B] px-2.5 py-0.5 rounded-full font-medium">
                         {searchQuery}
                         <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-[#1E57CC]">×</button>
                       </span>
@@ -1053,14 +1045,14 @@ export default function BrowsePage() {
                   {!loading && (
                     <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
                       <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
-                      <div className="flex gap-1 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-lg p-0.5">
+                      <div className="flex gap-1 bg-[#F5F7FA] dark:bg-[#232B3E] rounded-lg p-0.5">
                         {(['deadline', 'amount', 'name'] as BrowseSortKey[]).map((key) => (
                           <button
                             key={key}
                             onClick={() => setBrowseSortKey(key)}
                             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                               browseSortKey === key
-                                ? 'bg-white dark:bg-[#161B27] text-[#1D1D1F] dark:text-white shadow-sm'
+                                ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
                                 : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
                             }`}
                           >
@@ -1075,7 +1067,7 @@ export default function BrowsePage() {
                 {loading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-52 bg-[#F7F9FC] dark:bg-[#161B27] rounded-[12px] animate-pulse" />
+                      <div key={i} className="h-52 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-[12px] animate-pulse" />
                     ))}
                   </div>
                 ) : filtered.length === 0 ? (
@@ -1085,7 +1077,7 @@ export default function BrowsePage() {
                     <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm mb-6">{b.noResultsSub[lang]}</p>
                     <button
                       onClick={() => { setFilters(EMPTY_FILTERS); setSearchQuery(''); }}
-                      className="text-sm text-[#2E6BE6] font-medium hover:underline"
+                      className="text-sm text-[#1B3A6B] font-medium hover:underline"
                     >
                       {b.clearFilters[lang]}
                     </button>

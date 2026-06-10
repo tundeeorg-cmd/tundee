@@ -1,5 +1,5 @@
-/* Thai + display fonts via Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=Noto+Serif+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+/* Thai font via Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,48 +7,82 @@
 
 /* ── Design tokens ─────────────────────────────────────────────────────── */
 :root {
-  --font-display:      'Cormorant Garamond', Georgia, serif;
-  --font-display-thai: 'Noto Serif Thai', serif;
+  --font-en: var(--font-lato), 'Lato', system-ui, sans-serif;
+  --font-th: 'Sarabun', system-ui, sans-serif;
+
+  /* Legacy token names kept for backward compat */
+  --font-display:      var(--font-lato), 'Lato', system-ui, sans-serif;
+  --font-display-thai: 'Sarabun', system-ui, sans-serif;
   --font-body-thai:    'Sarabun', system-ui, sans-serif;
 
-  --color-primary:        #2E6BE6;
-  --color-primary-hover:  #1E57CC;
-  --color-primary-light:  #EFF4FF;
-  --color-primary-tint:   #DDEAFF;
-  --color-primary-dark:   #1B3A6B;
+  /* Navy palette */
+  --navy-950: #07111F;
+  --navy-900: #0A2342;
+  --navy-800: #0D1F35;
+  --navy-700: #1A2E4A;
+  --navy-600: #1B3A6B;
+  --navy-500: #2E5FA3;
+  --navy-400: #4A7FD4;
+  --navy-100: #EBF2FF;
+  --navy-50:  #F5F7FA;
 
-  --color-bg:             #F7F9FC;
+  /* Legacy color tokens mapped to navy */
+  --color-primary:        #1B3A6B;
+  --color-primary-hover:  #2E5FA3;
+  --color-primary-light:  #EBF2FF;
+  --color-primary-tint:   #EBF2FF;
+  --color-primary-dark:   #0A2342;
+
+  --color-bg:             #F5F7FA;
   --color-card:           #FFFFFF;
-  --color-border:         #DDE4EF;
-  --color-text-primary:   #0F1C33;
-  --color-text-secondary: #4A5568;
-  --color-text-muted:     #8892A4;
+  --color-border:         #E8ECF2;
+  --color-text-primary:   #0A2342;
+  --color-text-secondary: #6E7A8A;
+  --color-text-muted:     #8A96A8;
+
+  --text-primary:   #0A2342;
+  --text-secondary: #6E7A8A;
+  --text-hint:      #8A96A8;
+  --border:         #DDE3EE;
+  --border-sm:      #E8ECF2;
 }
 
 .dark {
-  --color-bg:             #0D1117;
-  --color-card:           #161B27;
-  --color-border:         #232B3E;
-  --color-text-primary:   #EEF2FF;
-  --color-text-secondary: #8892A4;
-  --color-text-muted:     #4A5568;
+  --color-bg:             #07111F;
+  --color-card:           #0A1628;
+  --color-border:         #1A2E4A;
+  --color-text-primary:   #E8EDF5;
+  --color-text-secondary: #7A8FA8;
+  --color-text-muted:     #4A6080;
 }
 
-/* ── Base ──────────────────────────────────────────────────────────────── */
+/* ── Base typography ─────────────────────────────────────────────────────── */
+* {
+  font-family: var(--font-en);
+}
+
+:lang(th),
+.lang-th,
+.thai-mode {
+  font-family: var(--font-th);
+  line-height: 1.85;
+}
+
 html {
+  font-size: 16px;
   scroll-behavior: smooth;
-}
-
-body {
-  color: var(--color-text-primary);
-  background: var(--color-bg);
-  font-family: 'Sarabun', system-ui, sans-serif;
-  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Headings ──────────────────────────────────────────────────────────── */
+body {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+}
+
+/* ── Headings — legacy font-display still resolves to Lato */
 h1, h2, h3 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
@@ -58,7 +92,7 @@ h1, h2, h3 {
 .thai-mode h1,
 .thai-mode h2,
 .thai-mode h3 {
-  font-family: var(--font-display-thai);
+  font-family: var(--font-th);
   letter-spacing: 0;
   line-height: 1.4;
 }
@@ -68,17 +102,8 @@ h1, h2, h3 {
 .thai-mode span:not(.icon),
 .thai-mode label,
 .thai-mode button {
-  font-family: var(--font-body-thai);
-  line-height: 1.8;
-}
-
-/* ── Hero grid ─────────────────────────────────────────────────────────── */
-.hero-grid {
-  background-image:
-    linear-gradient(#DDE4EF 1px, transparent 1px),
-    linear-gradient(90deg, #DDE4EF 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.4;
+  font-family: var(--font-th);
+  line-height: 1.85;
 }
 
 /* ── Section padding ───────────────────────────────────────────────────── */
@@ -92,12 +117,11 @@ h1, h2, h3 {
 
 /* ── Card hover ────────────────────────────────────────────────────────── */
 .scholarship-card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 .scholarship-card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 24px rgba(46, 107, 230, 0.08);
-  border-color: rgba(46, 107, 230, 0.3) !important;
+  box-shadow: 0 4px 20px rgba(10, 35, 66, 0.10);
+  transform: translateY(-1px);
 }
 
 /* ── Page fade-in ──────────────────────────────────────────────────────── */
@@ -109,7 +133,7 @@ main > * { animation: pageFadeIn 0.3s ease both; }
 
 /* ── Focus ─────────────────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid #2E6BE6;
+  outline: 2px solid #1B3A6B;
   outline-offset: 2px;
 }
 
@@ -120,6 +144,12 @@ main > * { animation: pageFadeIn 0.3s ease both; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #DDE3EE; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb { background: #1A2E4A; }
 
 /* ── Utilities ─────────────────────────────────────────────────────────── */
 @layer utilities {
@@ -135,13 +165,13 @@ main > * { animation: pageFadeIn 0.3s ease both; }
 
   .font-display {
     font-family: var(--font-display);
-    font-weight: 300;
+    font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.1;
   }
 
   .font-display-thai {
-    font-family: var(--font-display-thai);
+    font-family: var(--font-th);
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.4;

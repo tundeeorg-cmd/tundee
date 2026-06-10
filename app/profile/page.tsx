@@ -130,7 +130,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ── Card wrapper ───────────────────────────────────────────────────────────
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-2xl p-6 space-y-4">
+    <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-2xl p-6 space-y-4">
       {children}
     </div>
   );
@@ -143,7 +143,7 @@ function SaveButton({ saving, lang, onClick }: { saving: boolean; lang: string; 
       type="button"
       onClick={onClick}
       disabled={saving}
-      className="flex items-center justify-center gap-2 bg-[#2E6BE6] hover:bg-[#1E57CC] active:scale-[0.98] text-white font-semibold px-6 py-3 rounded-xl transition-all disabled:opacity-50 text-sm w-full sm:w-auto"
+      className="flex items-center justify-center gap-2 bg-[#1B3A6B] hover:bg-[#2E5FA3] active:scale-[0.98] text-white font-semibold px-6 py-3 rounded-xl transition-all disabled:opacity-50 text-sm w-full sm:w-auto"
     >
       {saving && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -164,8 +164,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative w-12 h-7 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E] ${
-        checked ? 'bg-[#2E6BE6]' : 'bg-[#E5E5EA] dark:bg-[#38383A]'
+      className={`relative w-12 h-7 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#1B3A6B] focus:ring-offset-2 dark:focus:ring-offset-[#1C1C1E] ${
+        checked ? 'bg-[#1B3A6B]' : 'bg-[#E5E5EA] dark:bg-[#38383A]'
       }`}
     >
       <span
@@ -371,7 +371,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-[3px] border-[#2E6BE6] border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-[3px] border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
             {lang === 'th' ? 'กำลังโหลด...' : 'Loading...'}
           </p>
@@ -388,7 +388,7 @@ export default function ProfilePage() {
           <p className="text-[#6E6E73] dark:text-[#8E8E93] mb-4 text-sm">
             {lang === 'th' ? 'กำลังพาไปหน้าเข้าสู่ระบบ...' : 'Redirecting to login...'}
           </p>
-          <Link href="/auth" className="text-[#2E6BE6] font-semibold text-sm hover:underline">
+          <Link href="/auth" className="text-[#1B3A6B] font-semibold text-sm hover:underline">
             {lang === 'th' ? 'คลิกที่นี่หากไม่ redirect' : 'Click here if not redirected'}
           </Link>
         </div>
@@ -411,7 +411,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111]">
 
       {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
+      <div className="bg-white dark:bg-[#0A1628] border-b border-[#E5E5EA] dark:border-[#1A2E4A]">
         <div className="max-w-[560px] mx-auto px-4 h-14 flex items-center justify-between">
           <Link
             href="/scholarships"
@@ -437,14 +437,14 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="block w-24 h-24 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] focus:ring-offset-2 dark:focus:ring-offset-[#111111]"
+              className="block w-24 h-24 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#1B3A6B] focus:ring-offset-2 dark:focus:ring-offset-[#111111]"
               aria-label={lang === 'th' ? 'เปลี่ยนรูปโปรไฟล์' : 'Change profile photo'}
             >
               {avatarUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="w-full h-full bg-[#2E6BE6] text-white flex items-center justify-center text-3xl font-bold select-none">
+                <span className="w-full h-full bg-[#1B3A6B] text-white flex items-center justify-center text-3xl font-bold select-none">
                   {initials}
                 </span>
               )}
@@ -462,7 +462,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-3 text-sm font-medium text-[#2E6BE6] hover:text-[#1E57CC] transition-colors flex items-center gap-1.5"
+            className="mt-3 text-sm font-medium text-[#1B3A6B] hover:text-[#1E57CC] transition-colors flex items-center gap-1.5"
           >
             <span>📷</span>
             {lang === 'th' ? 'เปลี่ยนรูปภาพ' : 'Change photo'}
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder={lang === 'th' ? 'ชื่อของคุณ' : 'Your name'}
-                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#232B3E] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] focus:ring-1 focus:ring-[#2E6BE6] transition-colors placeholder:text-[#AEAEB2]"
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors placeholder:text-[#AEAEB2]"
               />
               <p className="text-xs text-[#AEAEB2] mt-1 text-right">{displayName.length}/50</p>
             </div>
@@ -506,7 +506,7 @@ export default function ProfilePage() {
                 type="email"
                 readOnly
                 value={user.email ?? ''}
-                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#232B3E] bg-[#F7F9FC] dark:bg-[#3A3A3C] text-[15px] text-[#AEAEB2] cursor-not-allowed"
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-[#F7F9FC] dark:bg-[#3A3A3C] text-[15px] text-[#AEAEB2] cursor-not-allowed"
               />
               <p className="text-xs text-[#AEAEB2] mt-1">
                 {lang === 'th' ? 'ไม่สามารถเปลี่ยนอีเมลได้' : 'Email cannot be changed'}
@@ -548,8 +548,8 @@ export default function ProfilePage() {
                     onClick={() => setGradeLevel(gl)}
                     className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
                       gradeLevel === gl
-                        ? 'bg-[#2E6BE6] text-white border-[#2E6BE6] font-semibold'
-                        : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/60'
+                        ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/60'
                     }`}
                   >
                     {GRADE_LABELS[gl][lang as 'th' | 'en']}
@@ -571,10 +571,10 @@ export default function ProfilePage() {
                 value={gpa}
                 onChange={e => setGpa(e.target.value)}
                 placeholder="0.00 – 4.00"
-                className={`w-full px-[14px] py-3 rounded-[10px] border bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] focus:ring-1 focus:ring-[#2E6BE6] transition-colors placeholder:text-[#AEAEB2] ${
+                className={`w-full px-[14px] py-3 rounded-[10px] border bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors placeholder:text-[#AEAEB2] ${
                   gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4)
                     ? 'border-red-400'
-                    : 'border-[#E5E5EA] dark:border-[#232B3E]'
+                    : 'border-[#E5E5EA] dark:border-[#1A2E4A]'
                 }`}
               />
               {gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4) && (
@@ -594,12 +594,12 @@ export default function ProfilePage() {
                 value={provinceSearch}
                 onChange={e => setProvinceSearch(e.target.value)}
                 placeholder={lang === 'th' ? 'ค้นหาจังหวัด...' : 'Search province...'}
-                className="w-full px-[14px] py-2.5 rounded-[10px] border border-[#E5E5EA] dark:border-[#232B3E] bg-white dark:bg-[#232B3E] text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] transition-colors placeholder:text-[#AEAEB2] mb-2"
+                className="w-full px-[14px] py-2.5 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] transition-colors placeholder:text-[#AEAEB2] mb-2"
               />
               <select
                 value={province}
                 onChange={e => { setProvince(e.target.value); setProvinceSearch(''); }}
-                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#232B3E] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] focus:ring-1 focus:ring-[#2E6BE6] transition-colors"
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors"
               >
                 <option value="">{lang === 'th' ? 'เลือกจังหวัด' : 'Select province'}</option>
                 {filteredProvinces.map(p => (
@@ -618,7 +618,7 @@ export default function ProfilePage() {
               <select
                 value={incomeBracket}
                 onChange={e => setIncomeBracket(Number(e.target.value))}
-                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#232B3E] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#2E6BE6] focus:ring-1 focus:ring-[#2E6BE6] transition-colors"
+                className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors"
               >
                 {([
                   [1, { th: 'น้อยกว่า 5,000 บาท', en: 'Under 5,000 THB' }],
@@ -649,8 +649,8 @@ export default function ProfilePage() {
                       onClick={() => toggleField(f.id)}
                       className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
                         active
-                          ? 'bg-[#2E6BE6] text-white border-[#2E6BE6] font-medium'
-                          : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/60'
+                          ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-medium'
+                          : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/60'
                       }`}
                     >
                       {f[lang as 'th' | 'en']}
@@ -683,8 +683,8 @@ export default function ProfilePage() {
                     onClick={() => setSchoolType(schoolType === opt.value ? '' : opt.value)}
                     className={`py-2.5 px-3 rounded-xl border-2 text-sm font-medium transition-all ${
                       schoolType === opt.value
-                        ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552] text-[#1E57CC] dark:text-[#5B8EF0]'
-                        : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/50'
+                        ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1E57CC] dark:text-[#5B8EF0]'
+                        : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/50'
                     }`}
                   >
                     {lang === 'th' ? opt.th : opt.en}
@@ -739,8 +739,8 @@ export default function ProfilePage() {
                     onClick={() => setTheme(key)}
                     className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all text-sm ${
                       theme === key
-                        ? 'bg-[#EFF4FF] dark:bg-[#162552] border-[#2E6BE6] text-[#1E57CC] dark:text-[#5B8EF0] font-semibold'
-                        : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/50'
+                        ? 'bg-[#EBF2FF] dark:bg-[#162552] border-[#1B3A6B] text-[#1E57CC] dark:text-[#5B8EF0] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/50'
                     }`}
                   >
                     <span className="text-lg leading-none">{icon}</span>
@@ -766,8 +766,8 @@ export default function ProfilePage() {
                     onClick={() => setLang(key)}
                     className={`flex-1 py-3 rounded-xl border transition-all text-sm font-medium ${
                       lang === key
-                        ? 'bg-[#EFF4FF] dark:bg-[#162552] border-[#2E6BE6] text-[#1E57CC] dark:text-[#5B8EF0] font-semibold'
-                        : 'border-[#E5E5EA] dark:border-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#2E6BE6]/50'
+                        ? 'bg-[#EBF2FF] dark:bg-[#162552] border-[#1B3A6B] text-[#1E57CC] dark:text-[#5B8EF0] font-semibold'
+                        : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/50'
                     }`}
                   >
                     {label}

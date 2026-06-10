@@ -47,9 +47,9 @@ export default function HomePage() {
       <StatsBar scholarshipCount={totalCount} />
 
       {/* How It Works */}
-      <section className="section-pad bg-white dark:bg-[#161B27]">
+      <section className="section-pad bg-white dark:bg-[#0A1628]">
         <div className="max-w-[1200px] mx-auto px-6">
-          <p className="text-[11px] font-semibold tracking-[3px] uppercase text-[#2E6BE6] mb-12"
+          <p className="text-[11px] font-semibold tracking-[3px] uppercase text-[#1B3A6B] mb-12"
             style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {th ? 'วิธีการทำงาน' : 'HOW IT WORKS'}
           </p>
@@ -58,13 +58,13 @@ export default function HomePage() {
               <div key={step.num} className="flex flex-col gap-4">
                 <span
                   className="text-[0.7rem] text-[#DDE4EF] dark:text-[#232B3E] tracking-[1px]"
-                  style={{ fontFamily: 'var(--font-display, Cormorant Garamond, Georgia, serif)' }}
+                  style={{ fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif' }}
                 >
                   {step.num}
                 </span>
                 <h3
                   className="text-[1.125rem] font-semibold text-[#0F1C33] dark:text-[#EEF2FF]"
-                  style={{ fontFamily: th ? 'Noto Serif Thai, serif' : 'var(--font-display, Cormorant Garamond, Georgia, serif)' }}
+                  style={{ fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}
                 >
                   {th ? step.th_title : step.en_title}
                 </h3>
@@ -79,18 +79,18 @@ export default function HomePage() {
       </section>
 
       {/* Featured Scholarships */}
-      <section className="section-pad bg-[#F7F9FC] dark:bg-[#0D1117]">
+      <section className="section-pad bg-[#F5F7FA] dark:bg-[#07111F]">
         <div className="max-w-[1200px] mx-auto px-6">
           <div className="flex items-end justify-between mb-10">
             <div>
-              <p className="text-[11px] font-semibold tracking-[3px] uppercase text-[#2E6BE6] mb-2"
+              <p className="text-[11px] font-semibold tracking-[3px] uppercase text-[#1B3A6B] mb-2"
                 style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
                 {th ? 'ทุนแนะนำ' : 'FEATURED'}
               </p>
               <h2
                 className="text-2xl md:text-3xl text-[#0F1C33] dark:text-[#EEF2FF]"
                 style={{
-                  fontFamily: th ? 'Noto Serif Thai, serif' : 'var(--font-display, Cormorant Garamond, Georgia, serif)',
+                  fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
                   fontWeight: th ? 600 : 300,
                 }}
               >
@@ -98,7 +98,7 @@ export default function HomePage() {
               </h2>
             </div>
             <Link href="/scholarships"
-              className="text-sm text-[#2E6BE6] font-medium hover:underline hidden md:block"
+              className="text-sm text-[#1B3A6B] font-medium hover:underline hidden md:block"
               style={{ fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
               {f.viewAll[lang]}
             </Link>
@@ -112,7 +112,7 @@ export default function HomePage() {
             </div>
           ) : scholarships.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="text-5xl mb-4">🎓</div>
+              <div className="mb-4" />
               <h3 className="text-lg font-semibold text-[#0F1C33] dark:text-[#EEF2FF] mb-2"
                 style={{ fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
                 {translations.browse.emptyHeading[lang]}
@@ -132,7 +132,7 @@ export default function HomePage() {
 
           <div className="mt-8 text-center md:hidden">
             <Link href="/scholarships"
-              className="inline-block text-sm text-[#2E6BE6] font-medium hover:underline">
+              className="inline-block text-sm text-[#1B3A6B] font-medium hover:underline">
               {f.viewAll[lang]}
             </Link>
           </div>
@@ -140,12 +140,12 @@ export default function HomePage() {
       </section>
 
       {/* CTA band — dark navy */}
-      <section className="bg-[#0F1C33]">
+      <section className="bg-[#0A2342]">
         <div className="max-w-[1200px] mx-auto px-6 py-20 text-center">
           <h2
             className="text-white mb-4"
             style={{
-              fontFamily: th ? 'Noto Serif Thai, serif' : 'var(--font-display, Cormorant Garamond, Georgia, serif)',
+              fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
               fontSize: 'clamp(2rem, 4vw, 3.5rem)',
               fontWeight: th ? 600 : 300,
               lineHeight: th ? 1.3 : 1.1,
@@ -168,7 +168,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/auth"
-              className="px-7 py-3 rounded-full text-sm font-semibold bg-white text-[#0F1C33] hover:bg-[#EFF4FF] hover:text-[#2E6BE6] transition-colors"
+              className="px-7 py-3 rounded-full text-sm font-semibold bg-white text-[#0F1C33] hover:bg-[#EBF2FF] hover:text-[#1B3A6B] transition-colors"
               style={{ fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
             >
               {th ? 'สร้างบัญชีฟรี' : 'Create Free Account'}

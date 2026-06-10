@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { Cormorant_Garamond, Inter } from 'next/font/google';
+import { Lato } from 'next/font/google';
 import './globals.css';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
@@ -11,16 +11,10 @@ import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider } from '@/contexts/UserContext';
 
-const cormorant = Cormorant_Garamond({
+const lato = Lato({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-display',
-  display: 'swap',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-body-next',
+  weight: ['300', '400', '700'],
+  variable: '--font-lato',
   display: 'swap',
 });
 
@@ -66,6 +60,10 @@ export const metadata: Metadata = {
     description: 'รวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติ ฟรีตลอด',
     images: ['/og-image.svg'],
   },
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
   verification: {
     google: 'nIhOC7OGoxjBxX-QBcW5KoakP8FzT_C7kexuCrX61WU',
   },
@@ -75,23 +73,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
-    <html lang="th" className={`${cormorant.variable} ${inter.variable}`}>
+    <html lang="th" className={lato.variable} suppressHydrationWarning>
       <head>
-        {/* Dark mode init — must be before body renders */}
+        {/* Dark mode + Thai mode init — must be before body renders */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('tundee_theme');var l=localStorage.getItem('tundee_lang')||'th';var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark');if(l==='th')document.documentElement.classList.add('thai-mode');}catch(e){}})();`,
           }}
         />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Sarabun + Noto Serif Thai — loaded here for Thai text */}
+        {/* Sarabun for Thai text */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen flex flex-col bg-[#F7F9FC] dark:bg-[#0D1117]">
+      <body className="min-h-screen flex flex-col bg-[#F5F7FA] dark:bg-[#07111F]">
         {/* Google Analytics */}
         {GA_ID && (
           <>
@@ -109,12 +108,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UserProvider>
               <SessionStartLogger />
               <Nav />
-              <main className="flex-1 pt-16 pb-[70px] md:pb-0">
+              <main className="flex-1 pt-[52px] pb-[60px] md:pb-0">
                 {children}
               </main>
-              <div className="hidden md:block">
-                <Footer />
-              </div>
+              <Footer />
               <BackToTop />
               <BottomNav />
             </UserProvider>

@@ -10,28 +10,33 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        navy: {
+          950: '#07111F',
+          900: '#0A2342',
+          800: '#0D1F35',
+          700: '#1A2E4A',
+          600: '#1B3A6B',
+          500: '#2E5FA3',
+          400: '#4A7FD4',
+          100: '#EBF2FF',
+          50:  '#F5F7FA',
+        },
+        // keep legacy aliases for backward compat
         primary: {
-          DEFAULT: '#2E6BE6',
-          hover:   '#1E57CC',
-          light:   '#EFF4FF',
-          tint:    '#DDEAFF',
-          dark:    '#1B3A6B',
+          DEFAULT: '#1B3A6B',
+          hover:   '#2E5FA3',
+          light:   '#EBF2FF',
+          tint:    '#EBF2FF',
+          dark:    '#0A2342',
         },
-        surface: {
-          light: '#F7F9FC',
-          dark:  '#0D1117',
-        },
-        // Legacy aliases kept for backward compat
-        saffron:       "#2E6BE6",
-        "apple-black": "#0F1C33",
-        "apple-white": "#F7F9FC",
-        "apple-gray":  "#4A5568",
       },
       fontFamily: {
-        display:    ["var(--font-display)", "Cormorant Garamond", "Georgia", "serif"],
-        sarabun:    ["Sarabun", "system-ui", "sans-serif"],
-        inter:      ["Inter", "system-ui", "sans-serif"],
-        dm:         ["DM Sans", "sans-serif"],
+        lato:    ['var(--font-lato)', 'Lato', 'system-ui', 'sans-serif'],
+        sarabun: ['Sarabun', 'system-ui', 'sans-serif'],
+        // legacy aliases
+        display: ['var(--font-lato)', 'Lato', 'system-ui', 'sans-serif'],
+        inter:   ['var(--font-lato)', 'Lato', 'system-ui', 'sans-serif'],
+        dm:      ['var(--font-lato)', 'Lato', 'system-ui', 'sans-serif'],
       },
       maxWidth: {
         content: "1200px",

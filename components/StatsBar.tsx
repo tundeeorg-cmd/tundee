@@ -12,28 +12,28 @@ export default function StatsBar({ scholarshipCount }: Props) {
   const count = scholarshipCount ?? 90;
 
   const stats = [
-    { value: `${count}+`, th_label: 'ทุนการศึกษา', en_label: 'Scholarships' },
-    { value: '77',        th_label: 'จังหวัด',      en_label: 'Provinces' },
-    { value: th ? 'ฟรี' : 'Free', th_label: 'ตลอด', en_label: 'Always' },
+    { value: `${count}+`, thLabel: 'ทุนการศึกษา',    enLabel: 'Scholarships' },
+    { value: '77',        thLabel: 'จังหวัดทั่วไทย', enLabel: 'Provinces' },
+    { value: th ? 'ฟรี' : 'Free', thLabel: 'ตลอด',  enLabel: 'Always' },
   ];
 
   return (
-    <div className="bg-white dark:bg-[#161B27] border-y border-[#DDE4EF] dark:border-[#232B3E]">
-      <div className="max-w-[1200px] mx-auto px-6 py-6">
-        <div className="grid grid-cols-3 divide-x divide-[#DDE4EF] dark:divide-[#232B3E]">
+    <div className="bg-white border-t border-b border-[#E8ECF2] dark:bg-[#0A1628] dark:border-[#1A2E4A]">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-3 divide-x divide-[#E8ECF2] dark:divide-[#1A2E4A]">
           {stats.map((stat, i) => (
-            <div key={i} className="text-center px-4">
+            <div key={i} className="py-5 px-4 text-center">
               <div
-                className="text-[2.5rem] font-light text-[#2E6BE6] leading-none mb-1"
-                style={{ fontFamily: 'var(--font-display, Cormorant Garamond, Georgia, serif)' }}
+                className="text-2xl font-bold text-[#1B3A6B] dark:text-[#4A7FD4] leading-none mb-1"
+                style={{ fontFamily: 'var(--font-lato), Lato, sans-serif' }}
               >
                 {stat.value}
               </div>
               <div
-                className="text-[0.7rem] font-semibold text-[#4A5568] dark:text-[#8892A4] uppercase tracking-[2px]"
-                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                className="text-[13px] text-[#6E7A8A] dark:text-[#7A8FA8] leading-tight"
+                style={{ fontFamily: th ? "'Sarabun', sans-serif" : 'var(--font-lato), Lato, sans-serif' }}
               >
-                {th ? stat.th_label : stat.en_label}
+                {th ? stat.thLabel : stat.enLabel}
               </div>
             </div>
           ))}

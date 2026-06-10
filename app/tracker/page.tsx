@@ -71,10 +71,10 @@ function formatDate(isoString: string, lang: string): string {
 }
 
 const STATUS_CONFIG = {
-  won:       { emoji: '🏆', th: 'ได้รับทุน',  en: 'Won',         color: 'text-green-600  dark:text-green-400',  bg: 'bg-green-50  dark:bg-green-900/20' },
+  won:       { emoji: '',   th: 'ได้รับทุน',  en: 'Won',         color: 'text-green-600  dark:text-green-400',  bg: 'bg-green-50  dark:bg-green-900/20' },
   submitted: { emoji: '✓',  th: 'ส่งแล้ว',    en: 'Submitted',   color: 'text-blue-600   dark:text-blue-400',   bg: 'bg-blue-50   dark:bg-blue-900/20'  },
   lost:      { emoji: '✗',  th: 'ไม่ผ่าน',   en: 'Not selected', color: 'text-[#6E6E73]  dark:text-[#8E8E93]', bg: 'bg-gray-100  dark:bg-gray-800/40'  },
-  no_reply:  { emoji: '⏳', th: 'รอผล',       en: 'Awaiting',    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+  no_reply:  { emoji: '',   th: 'รอผล',       en: 'Awaiting',    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
 } as const;
 
 // ─── Summary stats ────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ interface SummaryStatsProps {
 
 function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStatsProps) {
   const stats = [
-    { n: saved,      th: 'บันทึก',     en: 'Saved',       icon: '🔖', color: 'text-[#2E6BE6]' },
+    { n: saved,      th: 'บันทึก',     en: 'Saved',       icon: '🔖', color: 'text-[#1B3A6B]' },
     { n: inProgress, th: 'กำลังสมัคร', en: 'In Progress',  icon: '📝', color: 'text-blue-600 dark:text-blue-400' },
     { n: submitted,  th: 'ส่งแล้ว',    en: 'Submitted',    icon: '✅', color: 'text-green-600 dark:text-green-400' },
     { n: total,      th: 'ทั้งหมด',    en: 'Total',        icon: '📋', color: 'text-[#1D1D1F] dark:text-[#F5F5F7]' },
@@ -100,9 +100,8 @@ function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStat
       {stats.map((s) => (
         <div
           key={s.en}
-          className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-4 text-center"
+          className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-4 text-center"
         >
-          <div className="text-xl mb-1">{s.icon}</div>
           <div className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {s.n}
           </div>
@@ -119,7 +118,7 @@ function SummaryStats({ saved, inProgress, submitted, total, lang }: SummaryStat
 
 function SkeletonCard() {
   return (
-    <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 animate-pulse">
+    <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 animate-pulse">
       <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
       <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
       <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2" />
@@ -141,14 +140,13 @@ interface EmptyStateProps {
 function EmptyState({ emoji, th, en, lang, link }: EmptyStateProps) {
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-10 text-center">
-      <span className="text-4xl mb-3">{emoji}</span>
       <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm">
         {lang === 'th' ? th : en}
       </p>
       {link && (
         <Link
           href={link.href}
-          className="mt-3 text-sm font-medium text-[#2E6BE6] hover:text-[#1E57CC] transition-colors"
+          className="mt-3 text-sm font-medium text-[#1B3A6B] hover:text-[#2E5FA3] transition-colors"
         >
           {lang === 'th' ? link.th : link.en}
         </Link>
@@ -190,7 +188,7 @@ function StepList({ progress, dates, lang }: StepListProps) {
         const dateStr = dates?.[stepNum.toString()];
         return (
           <div key={stepNum} className="flex items-center gap-2 text-xs">
-            <span className="w-4 h-4 rounded-full bg-[#2E6BE6] flex items-center justify-center shrink-0">
+            <span className="w-4 h-4 rounded-full bg-[#1B3A6B] flex items-center justify-center shrink-0">
               <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                 <path d="M1 4l2.5 2.5 3.5-3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -207,7 +205,7 @@ function StepList({ progress, dates, lang }: StepListProps) {
       })}
       {nextStep && progress.length < 7 && (
         <div className="flex items-center gap-2 text-xs">
-          <span className="w-4 h-4 rounded-full border-2 border-[#E5E5EA] dark:border-[#232B3E] shrink-0" />
+          <span className="w-4 h-4 rounded-full border-2 border-[#E5E5EA] dark:border-[#1A2E4A] shrink-0" />
           <span className="text-[#ADADB8] italic truncate flex-1"
                 style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
             {lang === 'th' ? `→ ${STEP_NAMES_TH[nextStep - 1]}` : `→ ${STEP_NAMES_EN[nextStep - 1]}`}
@@ -259,7 +257,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
   const detailHref = scholarship ? `/scholarships/${scholarship.id}` : `/scholarships/${app.scholarship_id}`;
 
   return (
-    <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] p-5 flex flex-col gap-3">
+    <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -274,7 +272,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
           )}
         </div>
         {scholarship?.amount_thb && (
-          <span className="text-xs font-bold text-[#2E6BE6] shrink-0" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <span className="text-xs font-bold text-[#1B3A6B] shrink-0" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {formatAmount(scholarship.amount_thb, scholarship.amount_type, lang)}
           </span>
         )}
@@ -283,8 +281,8 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
       {/* Deadline */}
       {deadline && deadlineColors && (
         <span
-          className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border w-fit"
-          style={{ backgroundColor: deadlineColors.bg, color: deadlineColors.text, borderColor: deadlineColors.border }}
+          className="inline-flex items-center text-xs font-medium w-fit"
+          style={{ color: deadlineColors.text }}
         >
           {lang === 'th' ? deadline.label : deadline.labelEn}
         </span>
@@ -304,7 +302,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progressPct}%`,
-                backgroundColor: allDone ? '#22C55E' : '#2E6BE6',
+                backgroundColor: allDone ? '#2E5FA3' : '#1B3A6B',
               }}
             />
           </div>
@@ -327,7 +325,7 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
       <div className="mt-auto pt-1 flex items-center justify-between gap-3">
         <Link
           href={detailHref}
-          className="text-xs font-semibold text-[#2E6BE6] hover:text-[#1E57CC] transition-colors"
+          className="text-xs font-semibold text-[#1B3A6B] hover:text-[#2E5FA3] transition-colors"
         >
           {actionLabel}
         </Link>
@@ -348,22 +346,22 @@ function ApplicationCard({ app, section, lang, onDelete, onStatusUpdate }: AppCa
             <button
               type="button"
               onClick={() => setShowStatusMenu((v) => !v)}
-              className="text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white border border-[#E5E5EA] dark:border-[#232B3E] rounded-lg px-2 py-1 transition-colors"
+              className="text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg px-2 py-1 transition-colors"
             >
               {lang === 'th' ? 'อัปเดตผล ▾' : 'Update result ▾'}
             </button>
             {showStatusMenu && (
-              <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[10px] shadow-lg overflow-hidden w-44">
+              <div className="absolute bottom-8 right-0 z-20 bg-white dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] shadow-lg overflow-hidden w-44">
                 {[
-                  { status: 'won'      as Application['status'], th: '🏆 ได้รับทุน',          en: '🏆 Won' },
+                  { status: 'won'      as Application['status'], th: 'ได้รับทุน',          en: 'Won' },
                   { status: 'lost'     as Application['status'], th: '✗ ไม่ผ่านการคัดเลือก',  en: '✗ Not selected' },
-                  { status: 'no_reply' as Application['status'], th: '⏳ รอผลต่อ',            en: '⏳ Still waiting' },
+                  { status: 'no_reply' as Application['status'], th: 'รอผลต่อ',            en: 'Still waiting' },
                 ].map((opt) => (
                   <button
                     key={opt.status}
                     type="button"
                     onClick={() => { onStatusUpdate(app.id, opt.status); setShowStatusMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#3A3A3C] transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F7FA] dark:hover:bg-[#3A3A3C] transition-colors"
                   >
                     {lang === 'th' ? opt.th : opt.en}
                   </button>
@@ -543,8 +541,8 @@ export default function TrackerPage() {
 
   if (loading) {
     return (
-      <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
-        <div className="bg-white dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
+      <div className="bg-[#F5F7FA] dark:bg-[#07111F] min-h-screen" style={{ fontFamily }}>
+        <div className="bg-white dark:bg-[#0A1628] border-b border-[#E5E5EA] dark:border-[#1A2E4A]">
           <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
             <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded w-48 animate-pulse mb-2" />
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-72 animate-pulse" />
@@ -553,7 +551,7 @@ export default function TrackerPage() {
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
           <div className="grid grid-cols-4 gap-3 mb-8">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[12px] animate-pulse" />
+              <div key={i} className="h-24 bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] animate-pulse" />
             ))}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -566,9 +564,11 @@ export default function TrackerPage() {
 
   if (!loggedIn) {
     return (
-      <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen flex items-center justify-center px-4" style={{ fontFamily }}>
-        <div className="bg-white dark:bg-[#161B27] border border-[#E5E5EA] dark:border-[#232B3E] rounded-[16px] p-10 max-w-sm w-full text-center shadow-sm">
-          <span className="text-5xl mb-5 block">🔒</span>
+      <div className="bg-[#F5F7FA] dark:bg-[#07111F] min-h-screen flex items-center justify-center px-4" style={{ fontFamily }}>
+        <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[16px] p-10 max-w-sm w-full text-center shadow-sm">
+          <svg className="w-12 h-12 text-[#8A96A8] mx-auto mb-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
           <h2 className="text-lg font-bold text-[#1D1D1F] dark:text-white mb-2">
             {lang === 'th' ? 'ต้องเข้าสู่ระบบก่อน' : 'Login required'}
           </h2>
@@ -592,9 +592,9 @@ export default function TrackerPage() {
   const submittedApps = historyApps.filter((a) => a.status === 'submitted');
 
   return (
-    <div className="bg-[#F7F9FC] dark:bg-[#000000] min-h-screen" style={{ fontFamily }}>
+    <div className="bg-[#F5F7FA] dark:bg-[#07111F] min-h-screen" style={{ fontFamily }}>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#161B27] border-b border-[#E5E5EA] dark:border-[#232B3E]">
+      <div className="bg-white dark:bg-[#0A1628] border-b border-[#E5E5EA] dark:border-[#1A2E4A]">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
           <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-white">
             {lang === 'th' ? 'ติดตามการสมัคร' : 'My Applications'}
