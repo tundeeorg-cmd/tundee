@@ -17,8 +17,8 @@ import { logMatchingResultsViewed, logSearchPerformed } from '@/lib/research/eve
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
-type BrowseSortKey = 'amount' | 'deadline' | 'name';
-type MatchSortKey = 'match' | 'amount' | 'deadline' | 'name';
+type BrowseSortKey = 'deadline' | 'name';
+type MatchSortKey = 'match' | 'deadline' | 'name';
 type MinScore = 0 | 0.5 | 0.7 | 0.9;
 
 interface StudentProfile {
@@ -208,15 +208,6 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
 }
 
 // ── Browse tab helpers ────────────────────────────────────────────────────────
-function sortByAmount(scholarships: Scholarship[]): Scholarship[] {
-  return [...scholarships].sort((a, b) => {
-    if (a.amount_thb === null && b.amount_thb === null) return 0;
-    if (a.amount_thb === null) return 1;
-    if (b.amount_thb === null) return -1;
-    return b.amount_thb - a.amount_thb;
-  });
-}
-
 function sortByDeadline(scholarships: Scholarship[]): Scholarship[] {
   return [...scholarships].sort((a, b) => {
     const daysA = getDeadlineInfo(a.deadline_date).days;
@@ -518,7 +509,6 @@ interface MatchControlsProps {
 function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
   const SORT_OPTS: { key: MatchSortKey; th: string; en: string }[] = [
     { key: 'match',    th: 'ความเหมาะสม',  en: 'Best Match'    },
-    { key: 'amount',   th: 'เงินมากสุด',    en: 'Most Money'    },
     { key: 'deadline', th: 'ใกล้หมดเขต',   en: 'Deadline Soon' },
     { key: 'name',     th: 'ก–ฮ ชื่อ',        en: 'A–Z Name'         },
   ];
@@ -697,11 +687,6 @@ export default function BrowsePage() {
       switch (matchSortBy) {
         case 'match':
           return b.fairnessScore - a.fairnessScore || (b.amount_thb ?? 0) - (a.amount_thb ?? 0);
-        case 'amount':
-          if (!a.amount_thb && !b.amount_thb) return 0;
-          if (!a.amount_thb) return 1;
-          if (!b.amount_thb) return -1;
-          return b.amount_thb - a.amount_thb;
         case 'deadline': {
           if (!a.deadline_date && !b.deadline_date) return 0;
           if (!a.deadline_date) return 1;
@@ -769,7 +754,6 @@ export default function BrowsePage() {
     let base = applyFilters(scholarships, filters);
     base = searchFilter(base, searchQuery, lang);
     if (browseSortKey === 'deadline') return sortByDeadline(base);
-    if (browseSortKey === 'amount')   return sortByAmount(base);
     return sortByName(base, lang);
   }, [scholarships, filters, browseSortKey, searchQuery, lang]);
 
@@ -1046,7 +1030,7 @@ export default function BrowsePage() {
                     <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
                       <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
                       <div className="flex gap-1 bg-[#F5F7FA] dark:bg-[#232B3E] rounded-lg p-0.5">
-                        {(['deadline', 'amount', 'name'] as BrowseSortKey[]).map((key) => (
+                        {(['deadline', 'name'] as BrowseSortKey[]).map((key) => (
                           <button
                             key={key}
                             onClick={() => setBrowseSortKey(key)}
@@ -1056,7 +1040,7 @@ export default function BrowsePage() {
                                 : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
                             }`}
                           >
-                            {key === 'deadline' ? b.sortDeadline[lang] : key === 'amount' ? b.sortAmount[lang] : (lang === 'th' ? 'ก–ฮ' : 'A–Z')}
+                            {key === 'deadline' ? b.sortDeadline[lang] : (lang === 'th' ? 'ก–ฮ' : 'A–Z')}
                           </button>
                         ))}
                       </div>
