@@ -521,10 +521,13 @@ export default function ScholarshipDetailPage() {
                   try {
                     const { data: { user: clickUser } } = await supabase.auth.getUser();
                     if (clickUser) {
-                      // Fetch GPA at time of click — key variable for Regression Discontinuity analysis
+                      // Fetch profile fields needed for research stamping:
+                      //   gpa_at_application → Regression Discontinuity analysis
+                      //   ab_arm             → treatment indicator for DiD
+                      //   income_bracket     → subgroup analysis (denormalised, immutable at click time)
                       const { data: profile } = await supabase
                         .from('profiles')
-                        .select('gpa')
+                        .select('gpa, ab_arm, income_bracket')
                         .eq('id', clickUser.id)
                         .maybeSingle();
 
@@ -534,12 +537,16 @@ export default function ScholarshipDetailPage() {
                           scholarship_id:      s.id,
                           status:              'started',
                           clicked_through_at:  new Date().toISOString(),
-                          gpa_at_application:  profile?.gpa ?? null,
+                          gpa_at_application:  profile?.gpa           ?? null,
+                          ab_arm:              profile?.ab_arm         ?? null,
+                          income_bracket:      profile?.income_bracket ?? null,
                         },
                         { onConflict: 'user_id,scholarship_id' }
                       );
 
                       // Research: log apply event (fire-and-forget)
+                      // ab_arm + income_bracket picked up from module-level context
+                      // (set when scholarships page loaded profile)
                       logScholarshipApplied(s.id);
                     }
                   } catch { /* silent */ }

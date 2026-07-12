@@ -295,6 +295,12 @@ export default function ProfileSetupPage() {
         console.log('[TunDee Setup] saved via upsert');
       }
 
+      // ── Write immutable baseline snapshot (fire-and-forget, non-blocking) ──
+      // ON CONFLICT DO NOTHING on the server — safe to call every time.
+      void fetch('/api/profile/baseline', { method: 'POST' }).catch(() => {
+        console.warn('[TunDee Setup] baseline snapshot failed — non-fatal');
+      });
+
       router.replace('/scholarships');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
