@@ -13,7 +13,7 @@ import { getDeadlineInfo } from '@/lib/deadline';
 import type { FilterState, Scholarship } from '@/lib/types';
 import type { User } from '@supabase/supabase-js';
 import SaveButton from '@/components/SaveButton';
-import { logMatchingResultsViewed, logSearchPerformed } from '@/lib/research/events';
+import { logMatchingResultsViewed, logSearchPerformed, setUserResearchContext, assignAbArm } from '@/lib/research/events';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'matches' | 'browse';
@@ -28,6 +28,8 @@ interface StudentProfile {
   fields_of_interest: string[];
   welfare_card: boolean;
   grade_level: string;
+  /** A/B arm: 'treatment' = fairness-adjusted ranking, 'control' = raw score ranking */
+  ab_arm: 'treatment' | 'control' | null;
 }
 
 type ScoredScholarship = Scholarship & {
@@ -645,16 +647,31 @@ export default function BrowsePage() {
           .maybeSingle();
 
         if (profile) {
-          setUserProfile({
-            province_id:       profile.province_id      ?? '',
-            income_bracket:    profile.income_bracket   ?? 4,
-            gpa:               parseFloat(profile.gpa ?? '3.0'),
-            fields_of_interest: profile.fields_of_interest ?? ['any'],
-            welfare_card:      profile.welfare_card     ?? false,
-            grade_level:       profile.grade_level      ?? '',
-          });
+          // ── A/B arm: assign if null (new user), write back to DB ─────────
+          let arm = (profile.ab_arm ?? null) as 'treatment' | 'control' | null;
+          if (!arm) {
+            arm = assignAbArm(authUser.id);
+            // Write assignment (fire-and-forget — don't block UI)
+            void supabase
+              .from('profiles')
+              .update({ ab_arm: arm, ab_assigned_at: new Date().toISOString() })
+              .eq('id', authUser.id);
+          }
 
-          // (last_active_at removed column does not exist in profiles table)
+          const incomeBracket = profile.income_bracket ?? 4;
+
+          // Expose ab_arm + income_bracket to all subsequent event logs
+          setUserResearchContext(arm, incomeBracket);
+
+          setUserProfile({
+            province_id:        profile.province_id      ?? '',
+            income_bracket:     incomeBracket,
+            gpa:                parseFloat(profile.gpa ?? '3.0'),
+            fields_of_interest: profile.fields_of_interest ?? ['any'],
+            welfare_card:       profile.welfare_card     ?? false,
+            grade_level:        profile.grade_level      ?? '',
+            ab_arm:             arm,
+          });
         }
       } catch {
         // silently ignore
@@ -674,8 +691,16 @@ export default function BrowsePage() {
       const scored = scoreOne(s as unknown as Record<string, unknown>, userProfile);
       if (scored) results.push(scored);
     }
-    // Sort by fairness score descending initially for rank assignment
-    results.sort((a, b) => b.fairnessScore - a.fairnessScore || (b.amount_thb ?? 0) - (a.amount_thb ?? 0));
+    // ── A/B BRANCH ───────────────────────────────────────────────────────────
+    // treatment (default): rank by fairness-adjusted score (equalized odds)
+    // control:             rank by raw eligibility score (no fairness correction)
+    // This is the core treatment variable for the DiD / ITT analysis.
+    const isControl = userProfile.ab_arm === 'control';
+    results.sort((a, b) => {
+      const scoreA = isControl ? a.rawScore      : a.fairnessScore;
+      const scoreB = isControl ? b.rawScore      : b.fairnessScore;
+      return scoreB - scoreA || (b.amount_thb ?? 0) - (a.amount_thb ?? 0);
+    });
     return results;
   }, [userProfile, scholarships]);
 
@@ -713,6 +738,15 @@ export default function BrowsePage() {
 
         const top10 = allMatches.slice(0, 10);
 
+        // ── Fetch arm from loaded profile (already in state, but we need it here) ──
+        const { data: profileForArm } = await supabase
+          .from('profiles')
+          .select('ab_arm, income_bracket')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        const arm           = profileForArm?.ab_arm           ?? null;
+        const incomeBracket = profileForArm?.income_bracket   ?? null;
+
         // Upsert recommendations with full research metadata (IV treatment variable)
         const rows = allMatches.map((s, i) => ({
           user_id:                    session.user.id,
@@ -724,11 +758,13 @@ export default function BrowsePage() {
           fairness_correction_applied: s.boosted ?? false,
           correction_multiplier:      s.boosted ? s.fairnessScore / s.rawScore : null,
           algorithm_version:          'v1',
+          ab_arm:                     arm,
           generated_at:               new Date().toISOString(),
         }));
         await supabase.from('recommendations').upsert(rows, { onConflict: 'user_id,scholarship_id' });
 
         // Mark applications as "was_recommended" for top 10 — key PSM variable
+        // Also stamp ab_arm + income_bracket for click-through analysis
         for (const s of top10) {
           const rank = allMatches.findIndex((m) => m.id === s.id) + 1;
           await supabase.from('applications').upsert(
@@ -737,6 +773,8 @@ export default function BrowsePage() {
               scholarship_id:      s.id,
               was_recommended:     true,
               recommendation_rank: rank,
+              ab_arm:              arm,
+              income_bracket:      incomeBracket,
             },
             { onConflict: 'user_id,scholarship_id' }
           );
