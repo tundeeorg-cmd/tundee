@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local tool config
+.claude/
+
+# staging / scratch data (not for source control)
+*.jsonl
+scholarships_gaps.md
+*_LATEST_*.xlsx
+*_LATEST_*.csv

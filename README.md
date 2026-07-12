@@ -1,59 +1,172 @@
-# ทุนดี (TunDee) — Thai Scholarship Discovery Platform
+# TunDee — Thai Scholarship Discovery and Matching
 
-A bilingual Thai/English scholarship discovery platform for Thai students. Built with Next.js 14, TypeScript, Tailwind CSS, and Supabase.
+TunDee (ทุนดี) is a scholarship discovery and matching platform for Thai
+students, focused on closing the information gap for rural and low-income
+applicants who qualify for scholarships but never hear about them.
 
 **Live:** [tundee.org](https://tundee.org)
 
 ---
 
-## Stack
+## Overview
+
+Many qualified Thai students never apply for scholarships — not for lack of
+merit, but because scholarship information is scattered across dozens of
+university and government websites, rarely reaches rural schools, and is
+almost never translated into language a high-school student can act on.
+
+TunDee lets students build a profile (grade, GPA, province, household income,
+field of interest) and receive a ranked list of scholarships they qualify for,
+with a plain-language explanation of why each one matched. Matching is
+personalised: a student from Khon Kaen with a 3.2 GPA sees a different ranked
+list than one from Bangkok with a 3.8 GPA.
+
+All scholarships are human-verified before they appear in any results. No
+unconfirmed listing, expired deadline, or unreviewed record is ever shown to
+students.
+
+---
+
+## Key Features
+
+- **Profile-based matching** — students enter grade, GPA, province, household
+  income, field of interest, and welfare card status; the engine returns only
+  scholarships they are eligible for.
+- **Explainable recommendations** — every matched scholarship shows the
+  specific reasons it was surfaced (e.g. "Your GPA 3.40 meets the 3.00
+  minimum", "This scholarship is specifically for your province").
+- **Fairness-aware ranking** — an equalized-odds post-processing layer
+  adjusts recommendation rates for rural and low-income students so that
+  qualified students from northeastern provinces receive fair visibility
+  relative to Bangkok students.
+- **Verified-only data** — a `review_status = 'verified'` gate enforced by
+  both the import pipeline and Row Level Security means no unverified
+  scholarship is ever visible.
+- **Application checklist and tracker** — step-by-step guidance for each
+  scholarship, with progress saved per user.
+- **Bilingual** — all UI and scholarship data available in Thai and English.
+- **Admin import** — CSV/XLSX upload from Google Sheets with dry-run preview,
+  idempotent upsert, and a verified-only filter.
+
+---
+
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS |
-| Database | Supabase (PostgreSQL) |
+| Database + Auth | Supabase (PostgreSQL, RLS, Magic Link, Google OAuth) |
+| Email | Resend |
 | Deployment | Vercel |
-| Fonts | Sarabun (Thai) + DM Sans (English) |
+| Analytics | Google Analytics 4 |
 
 ---
 
-## Local Development
+## How It Works
 
-### 1. Clone and install
+### Matching
+
+Each scholarship is scored against the student's profile in two stages.
+
+**Stage 1 — Content-based eligibility scoring.**
+Hard disqualifiers (GPA below minimum, income above ceiling, field or province
+mismatch) eliminate scholarships immediately. Remaining scholarships receive a
+normalised score (0–1) based on how closely they match: GPA margin above the
+minimum, income proximity to the ceiling, welfare card priority, field of
+study overlap, and province specificity. Targeted scholarships rank higher
+than broad ones.
+
+**Stage 2 — Equalized odds post-processing.**
+Inspired by Hardt, Price & Srebro (NeurIPS 2016), the engine applies a
+correction multiplier to scholarships with a high `historical_bias_score`
+when the student is from a rural northeastern province *and* has household
+income below ฿15,000/month. The multiplier is derived from the scholarship's
+historical recommendation rate gap between advantaged and disadvantaged
+student groups, and scales linearly to a hard cap of 2.0. The criterion is
+equalized odds, not demographic parity — correction only applies within the
+pool of students who already qualify for a scholarship.
+
+### A/B Experiment
+
+Each user is assigned a stable arm (`treatment` / `control`) by a
+deterministic hash of their user UUID. The treatment arm receives
+fairness-adjusted rankings; the control arm receives raw eligibility rankings.
+Both arms are recorded in `profiles.ab_arm` and stamped on every
+recommendation, click-through event, and user event row for
+difference-in-differences analysis.
+
+### Research Instrumentation
+
+See [`docs/research-data-dictionary.md`](docs/research-data-dictionary.md)
+for the full event schema, field definitions, and which causal-inference
+analysis each field supports (PSM covariates, DiD time variable, ITT outcome,
+subgroup analysis).
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- A [Supabase](https://supabase.com) project
+
+### Install
 
 ```bash
-git clone https://github.com/your-org/tundee.git
+git clone https://github.com/tundeeorg-cmd/tundee.git
 cd tundee
 npm install
 ```
 
-### 2. Set up Supabase
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. In the SQL editor, run **`supabase/schema.sql`** first, then **`supabase/seed.sql`**
-3. Copy your project URL and anon key from **Project Settings → API**
-
-### 3. Configure environment
+### Environment variables
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 Edit `.env.local`:
+
 ```
+# Supabase — get these from Project Settings → API
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+
+# Server-only — used for admin writes and the baseline snapshot API
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+
+# Admin dashboard access (must match a Supabase auth user email)
+NEXT_PUBLIC_ADMIN_EMAIL=your@email.com
+
+# Optional — Google Analytics 4 measurement ID
+NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
+
+# Optional — Resend API key for deadline reminder emails
+RESEND_API_KEY=re_...
 ```
 
-### 4. Run locally
+### Database setup
+
+In the Supabase SQL editor, run the files in order:
+
+```
+supabase/schema.sql
+scripts/add_import_columns.sql
+scripts/add_consent_columns.sql
+scripts/add_ab_arm.sql
+scripts/add_profile_baselines.sql
+scripts/add_research_views.sql
+```
+
+### Run locally
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -62,102 +175,39 @@ Open [http://localhost:3000](http://localhost:3000)
 ```
 tundee/
 ├── app/
-│   ├── page.tsx                  # Homepage
-│   ├── layout.tsx                # Root layout (Nav + Footer)
-│   ├── globals.css               # Global styles + Google Fonts
-│   ├── scholarships/
-│   │   ├── page.tsx              # Browse & filter page
-│   │   └── [id]/page.tsx         # Scholarship detail page
-│   └── about/page.tsx            # About TunDee
-├── components/
-│   ├── Nav.tsx                   # Sticky nav with language toggle
-│   ├── Footer.tsx
-│   ├── HeroSection.tsx
-│   ├── StatsBar.tsx
-│   ├── ScholarshipCard.tsx       # Card used in browse + homepage
-│   ├── ScholarshipFilters.tsx    # Filter sidebar/panel
-│   ├── ChecklistUI.tsx           # 7-step application guide
-│   └── LanguageToggle.tsx        # ไทย/EN switcher + useLanguage hook
+│   ├── layout.tsx              # Root layout (Nav, Footer, GA)
+│   ├── page.tsx                # Homepage
+│   ├── about/                  # About + trust pillars page
+│   ├── admin/                  # Admin dashboard (email-gated)
+│   ├── api/
+│   │   ├── admin/import/       # CSV/XLSX scholarship import endpoint
+│   │   └── profile/baseline/   # Immutable research snapshot endpoint
+│   ├── auth/                   # Auth callback handler
+│   ├── privacy/                # PDPA privacy policy
+│   ├── scholarships/           # Browse, match, and detail pages
+│   ├── terms/                  # Terms of use
+│   └── tracker/                # Application tracker
+├── components/                 # Shared UI components
+├── docs/
+│   └── research-data-dictionary.md
 ├── lib/
-│   ├── types.ts                  # TypeScript types
-│   ├── translations.ts           # All UI strings (th + en)
-│   └── supabase.ts               # Supabase client + data fetchers
+│   ├── matching/               # Eligibility scoring + fairness engine
+│   ├── research/               # Event logging, A/B context, arm assignment
+│   ├── supabase/               # Client and server Supabase helpers
+│   ├── translations.ts         # All bilingual UI strings (th + en)
+│   └── types.ts                # TypeScript types
+├── public/                     # Static assets
+├── scripts/                    # SQL migrations (run in Supabase SQL editor)
 └── supabase/
-    ├── schema.sql                # Database schema + RLS policies
-    └── seed.sql                  # 15 sample scholarships + checklist steps
+    └── schema.sql              # Database schema + RLS policies
 ```
 
 ---
 
-## Deploying to Vercel
+## Author
 
-### Automatic (recommended)
-
-1. Push to GitHub
-2. Import repo at [vercel.com/new](https://vercel.com/new)
-3. Add environment variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Set custom domain: `tundee.org`
-
-### Manual deploy
-
-```bash
-npm install -g vercel
-vercel --prod
-```
-
----
-
-## Bilingual System
-
-All UI strings live in [`lib/translations.ts`](lib/translations.ts). Every visible text has a `th` and `en` value. The current language is stored in `localStorage` under the key `tundee_lang` and toggled via the top-right nav button.
-
-Components receive the language from the `useLanguage()` hook (exported from `LanguageToggle.tsx`).
-
----
-
-## Database Schema
-
-See [`supabase/schema.sql`](supabase/schema.sql) for the full schema.
-
-Key tables:
-- **`scholarships`** — all scholarship data with RLS (public read for `is_active = true`)
-- **`scholarship_checklist_steps`** — the 7-step application guide (static lookup)
-
----
-
-## Fairness Layer
-
-TunDee implements post-processing equalized odds correction based on:
-
-> Hardt, M., Price, E., & Srebro, N. (2016). *Equality of Opportunity in Supervised Learning.* NeurIPS 2016. [arXiv:1610.02413](https://arxiv.org/abs/1610.02413)
-
-**Criterion:** Equalized Odds
-- Among students who qualify for a scholarship, recommendation rates must be equal regardless of whether they are from Bangkok or rural northeastern provinces.
-- Both true positive rate parity AND false positive rate parity must hold.
-
-**Why not demographic parity:** Would recommend scholarships to students who don't qualify just to balance numbers. Equalized odds only equalizes among qualified students.
-
-**Why post-processing:** Scholarship eligibility rules are set by funders (EEF, Chulalongkorn, PTT) and cannot be changed. Pre-processing and in-processing are not available. Post-processing is the only technically valid approach.
-
-**Protected attributes:**
-- Region: Bangkok/urban (A=0) vs. rural/northeastern provinces (A=1)
-- Income: Brackets 4-7 (A=0) vs. brackets 1-3 under 15,000 THB/month (A=1)
-
-Correction activates when A=1 on BOTH attributes simultaneously.
-
-**Bias audit:** Run `computeEqualizedOddsGap()` monthly from Month 7. Publish results publicly. Target: 60% reduction in EO gap for scholarships with `historical_bias_score > 0.6`.
-
----
-
-## v1 Limitations (by design)
-
-- No authentication — all data is public read
-- Client-side filtering only (no server-side search)
-- No AI matching (planned for v2)
-- No deadline reminders (planned for v3)
-- ChecklistUI is visual only — no state persistence
+**Jenissa Vichiansin**  
+International School Bangkok
 
 ---
 
