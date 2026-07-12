@@ -49,6 +49,9 @@ export default function Footer() {
               <Link href="/" className="text-sm text-white/40 hover:text-white/70 transition-colors">{nav.home[lang]}</Link>
               <Link href="/scholarships" className="text-sm text-white/40 hover:text-white/70 transition-colors">{nav.search[lang]}</Link>
               <Link href="/tracker" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'ติดตาม' : 'Tracker'}</Link>
+              <Link href="/about" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'เกี่ยวกับเรา' : 'About'}</Link>
+              <Link href="/privacy" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'นโยบายความเป็นส่วนตัว' : 'Privacy Policy'}</Link>
+              <Link href="/terms" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'ข้อกำหนดการใช้งาน' : 'Terms of Use'}</Link>
             </nav>
           </div>
 

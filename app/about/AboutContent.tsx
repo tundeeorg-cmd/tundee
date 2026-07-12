@@ -238,82 +238,53 @@ export default function AboutContent() {
         </div>
       </section>
 
-      {/* ── SECTION 4: WHAT MAKES IT DIFFERENT ── */}
+      {/* ── SECTION 4: TRUST PILLARS ── */}
       <section className="bg-[#F5F7FA] dark:bg-[#0A1628] px-6 py-16 md:py-20">
         <div className="max-w-[900px] mx-auto">
           <p
             className="mb-6"
-            style={{
-              fontSize: '11px',
-              textTransform: 'uppercase',
-              letterSpacing: '2px',
-              color: '#8A96A8',
-              fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif',
-            }}
+            style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px', color: '#8A96A8', fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif' }}
           >
             {th ? 'ทำไมต้อง TunDee' : 'WHY TUNDEE'}
           </p>
-
           <h2
-            style={{
-              fontSize: '2rem',
-              fontWeight: 300,
-              color: '#0A2342',
-              fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
-            }}
+            style={{ fontSize: '2rem', fontWeight: 300, color: '#0A2342', fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}
             className="mb-10 dark:text-[#E8EDF5]"
           >
             {th ? 'ไม่ใช่แค่การค้นหา' : 'More than just a search'}
           </h2>
-
           <div className="divide-y divide-[#E8ECF2] dark:divide-[#1A2E4A]">
             {[
               {
-                headingTh: 'เฉพาะทุนที่คุณมีสิทธิ์',
-                headingEn: 'Only scholarships you qualify for',
-                descTh: 'เราไม่แสดงทุนที่คุณสมัครไม่ได้ ทุกรายการที่เห็นผ่านเกณฑ์ของคุณแล้ว',
-                descEn: 'We filter out scholarships you cannot apply for. Everything you see is relevant to you.',
+                headingTh: '✅ เฉพาะทุนที่ผ่านการตรวจสอบโดยมนุษย์',
+                headingEn: '✅ Only human-verified scholarships',
+                descTh: 'ทุกทุนในทุนดีผ่านการตรวจสอบโดยทีมงานมนุษย์ก่อนนำขึ้นระบบ เราไม่ใช้ AI สร้างข้อมูลทุน ไม่แสดงทุนที่หมดอายุ และไม่นำทุนที่ยังไม่ผ่านการยืนยันขึ้นแสดง นี่คือสิ่งที่ทำให้ทุนดีแตกต่างจากเว็บรวมทุนทั่วไป',
+                descEn: 'Every scholarship on TunDee is verified by a human before it goes live. We do not use AI to generate scholarship data, do not show expired listings, and do not surface unconfirmed information. This is what sets TunDee apart from general scholarship aggregators.',
               },
               {
-                headingTh: 'ข้อมูลที่ตรวจสอบแล้ว',
-                headingEn: 'Verified information',
-                descTh: 'ทุนทุกรายการตรวจสอบจากแหล่งข้อมูลจริง และอัปเดตสม่ำเสมอ ไม่มีข้อมูลที่ล้าสมัย',
-                descEn: 'Every scholarship is verified from its official source and updated regularly. No outdated deadlines.',
+                headingTh: '⚖️ ระบบจับคู่ที่เป็นธรรมสำหรับนักเรียนต่างจังหวัด',
+                headingEn: '⚖️ Fair matching for rural and low-income students',
+                descTh: 'ระบบจับคู่ของเราออกแบบมาเพื่อให้นักเรียนในชนบทและกลุ่มรายได้น้อยมองเห็นทุนที่เหมาะกับตัวเองได้ง่ายขึ้น ไม่ใช่แค่ทุนยอดนิยม เราวัดและแก้ไข bias ในอัลกอริทึมอย่างต่อเนื่อง',
+                descEn: 'Our matching system is specifically designed to give rural and lower-income students clear visibility into scholarships that match their profile — not just the most popular ones. We actively measure and correct algorithmic bias.',
               },
               {
-                headingTh: 'ฟรีตลอด ไม่มีเงื่อนไข',
-                headingEn: 'Always free, no conditions',
-                descTh: 'TunDee ฟรีสำหรับนักเรียนทุกคน ไม่ต้องสมัครสมาชิกก่อนก็ดูทุนได้',
-                descEn: 'TunDee is free for every student. You can browse scholarships without even creating an account.',
+                headingTh: '🆓 ฟรีตลอด ไม่รับเงินโฆษณาจากผู้ให้ทุน',
+                headingEn: '🆓 Free always — no advertising from funders',
+                descTh: 'TunDee ฟรีสำหรับนักเรียนทุกคน ทุกเวลา เราไม่รับเงินโฆษณาจากผู้ให้ทุน เพื่อให้ผลการค้นหาเป็นกลางอย่างแท้จริง',
+                descEn: 'TunDee is free for every student, always. We accept no advertising revenue from funders, so search results stay genuinely unbiased.',
               },
               {
-                headingTh: 'ครอบคลุมทุกจังหวัด',
-                headingEn: 'Covers all 77 provinces',
-                descTh: 'รวมทั้งทุนระดับชาติและทุนเฉพาะจังหวัด ทุนท้องถิ่นที่ไม่ค่อยมีคนรู้จักก็มีอยู่ที่นี่',
-                descEn: 'Including national scholarships and province-specific grants. Local scholarships that rarely get attention are here too.',
+                headingTh: '📍 ครอบคลุมทุกจังหวัด รวมทุนท้องถิ่น',
+                headingEn: '📍 All 77 provinces, including local scholarships',
+                descTh: 'รวมทั้งทุนระดับชาติและทุนเฉพาะจังหวัด ทุนท้องถิ่นที่ไม่ค่อยปรากฏในผลการค้นหาทั่วไปก็มีอยู่ที่นี่',
+                descEn: 'Covers both national scholarships and province-specific grants. Local scholarships that rarely appear in general search results are here too.',
               },
             ].map((point, i) => (
               <div key={i} style={{ padding: '20px 0' }}>
-                <p
-                  className="mb-1"
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: 500,
-                    color: '#0A2342',
-                    fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
-                  }}
-                >
+                <p className="mb-1" style={{ fontSize: '15px', fontWeight: 500, color: '#0A2342', fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}>
                   <span className="dark:text-[#E8EDF5]">{th ? point.headingTh : point.headingEn}</span>
                 </p>
-                <p
-                  style={{
-                    fontSize: '14px',
-                    color: '#6E7A8A',
-                    lineHeight: 1.75,
-                    fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
-                  }}
-                  className="dark:text-[#7A8FA8]"
-                >
+                <p style={{ fontSize: '14px', color: '#6E7A8A', lineHeight: 1.75, fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }} className="dark:text-[#7A8FA8]">
                   {th ? point.descTh : point.descEn}
                 </p>
               </div>

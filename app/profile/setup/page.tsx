@@ -23,7 +23,8 @@ import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
+const CONSENT_VERSION = '1.0';
 
 const GRADE_OPTIONS = [
   { value: 'M1-M3',     th: 'ม.1–3',        en: 'Grade 7–9' },
@@ -187,6 +188,10 @@ export default function ProfileSetupPage() {
   // Research fields
   const [priorKnowledge,    setPriorKnowledge]    = useState<number | null>(null);
   const [recruitmentSource, setRecruitmentSource] = useState('');
+  // Consent (PDPA)
+  const [consentTerms,           setConsentTerms]           = useState(false);
+  const [researchOptIn,          setResearchOptIn]          = useState(false);
+  const [guardianAcknowledged,   setGuardianAcknowledged]   = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -212,8 +217,8 @@ export default function ProfileSetupPage() {
 
   function nextStep() {
     setError('');
-    // GPA is now step 3
-    if (step === 3 && gpa) {
+    // GPA is now step 4 (shifted by consent step 0)
+    if (step === 4 && gpa) {
       const n = parseFloat(gpa);
       if (isNaN(n) || n < 0 || n > 4) {
         setError(lang === 'th' ? 'GPA ต้องอยู่ระหว่าง 0.00 – 4.00' : 'GPA must be between 0.00 and 4.00');
@@ -255,6 +260,11 @@ export default function ProfileSetupPage() {
         prior_scholarship_knowledge: priorKnowledge !== null ? priorKnowledge : null,
         recruitment_source:          recruitmentSource || 'unknown',
         signup_cohort:               province ? determineSignupCohort(province) : 'wave_3_national',
+        // Consent (PDPA)
+        consent_version:             consentTerms ? CONSENT_VERSION : null,
+        consent_at:                  consentTerms ? new Date().toISOString() : null,
+        research_opt_in:             researchOptIn,
+        guardian_acknowledged:       guardianAcknowledged,
         updated_at:                  new Date().toISOString(),
       };
 
@@ -312,9 +322,97 @@ export default function ProfileSetupPage() {
   const font   = lang === 'th' ? fontTh : fontEn;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 0 Name
+  // STEP 0 Consent (PDPA)
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 0) {
+    return (
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error}>
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">🔒</div>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
+            {lang === 'th' ? 'ก่อนเริ่มต้น' : 'Before we begin'}
+          </h1>
+          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'กรุณาอ่านและยืนยันการยินยอมด้านล่าง'
+              : 'Please read and confirm the items below'}
+          </p>
+        </div>
+
+        {/* Required consent */}
+        <label className="flex items-start gap-3 p-4 rounded-xl border-2 border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] cursor-pointer mb-3 hover:border-[#2E6BE6]/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={consentTerms}
+            onChange={(e) => setConsentTerms(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-[#d1d1d6] accent-[#2E6BE6] flex-shrink-0"
+          />
+          <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
+            {lang === 'th' ? (
+              <>ฉันยอมรับ <a href="/terms" target="_blank" className="text-[#2E6BE6] underline">ข้อกำหนดการใช้งาน</a> และ <a href="/privacy" target="_blank" className="text-[#2E6BE6] underline">นโยบายความเป็นส่วนตัว</a> และยินยอมให้ทุนดีเก็บข้อมูลโปรไฟล์เพื่อจับคู่ทุนการศึกษา <span className="text-red-500">*</span></>
+            ) : (
+              <>I accept the <a href="/terms" target="_blank" className="text-[#2E6BE6] underline">Terms of Use</a> and <a href="/privacy" target="_blank" className="text-[#2E6BE6] underline">Privacy Policy</a>, and consent to TunDee storing my profile to match scholarships. <span className="text-red-500">*</span></>
+            )}
+          </span>
+        </label>
+
+        {/* Optional research opt-in */}
+        <label className="flex items-start gap-3 p-4 rounded-xl border-2 border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] cursor-pointer mb-3 hover:border-[#2E6BE6]/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={researchOptIn}
+            onChange={(e) => setResearchOptIn(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-[#d1d1d6] accent-[#2E6BE6] flex-shrink-0"
+          />
+          <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'ฉันยินยอมให้ใช้ข้อมูลโปรไฟล์ที่ไม่ระบุตัวตนเพื่องานวิจัยด้านการเข้าถึงทุนการศึกษา (ไม่บังคับ)'
+              : 'I consent to my anonymised profile data being used for scholarship-access research. (Optional)'}
+          </span>
+        </label>
+
+        {/* Guardian acknowledgment */}
+        <label className="flex items-start gap-3 p-4 rounded-xl border-2 border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] cursor-pointer mb-5 hover:border-[#2E6BE6]/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={guardianAcknowledged}
+            onChange={(e) => setGuardianAcknowledged(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-[#d1d1d6] accent-[#2E6BE6] flex-shrink-0"
+          />
+          <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
+            {lang === 'th'
+              ? 'หากอายุต่ำกว่า 20 ปี ผู้ปกครองหรือบิดามารดาของฉันรับทราบการใช้งานนี้แล้ว (ไม่บังคับ)'
+              : 'If I am under 20 years old, my parent or guardian is aware of this registration. (Optional)'}
+          </span>
+        </label>
+
+        <button
+          onClick={() => {
+            if (!consentTerms) {
+              setError(lang === 'th' ? 'กรุณายอมรับข้อกำหนดและนโยบายความเป็นส่วนตัวก่อน' : 'Please accept the Terms and Privacy Policy to continue.');
+              return;
+            }
+            setError('');
+            nextStep();
+          }}
+          className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
+          style={{ fontFamily: font }}
+        >
+          {lang === 'th' ? 'ยืนยันและเริ่มต้น →' : 'Confirm & Continue →'}
+        </button>
+        <p className="text-xs text-[#aeaeb2] text-center mt-3" style={{ fontFamily: font }}>
+          {lang === 'th'
+            ? 'คุณสามารถขอลบข้อมูลได้ตลอดเวลาที่ hello@tundee.org'
+            : 'You can request data deletion at any time: hello@tundee.org'}
+        </p>
+      </WizardContainer>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 1 Name
+  // ══════════════════════════════════════════════════════════════════════════
+  if (step === 1) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-8">
@@ -359,9 +457,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 1 Prior scholarship knowledge (research)
+  // STEP 2 Prior scholarship knowledge (research)
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 1) {
+  if (step === 2) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -410,9 +508,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 2 Grade level
+  // STEP 3 Grade level
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 2) {
+  if (step === 3) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -426,7 +524,7 @@ export default function ProfileSetupPage() {
           {GRADE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => { setGradeLevel(opt.value); setStep(3); }}
+              onClick={() => { setGradeLevel(opt.value); setStep(4); }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all ${
                 gradeLevel === opt.value
                   ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
@@ -446,7 +544,7 @@ export default function ProfileSetupPage() {
 
         <p className="text-center">
           <button
-            onClick={() => setStep(3)}
+            onClick={() => setStep(4)}
             className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
@@ -457,9 +555,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 3 GPA
+  // STEP 4 GPA
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 3) {
+  if (step === 4) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-8">
@@ -510,9 +608,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 4 Province
+  // STEP 5 Province
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 4) {
+  if (step === 5) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -539,7 +637,7 @@ export default function ProfileSetupPage() {
           {filteredProvinces.slice(0, 20).map((pv) => (
             <button
               key={pv}
-              onClick={() => { setProvince(pv); setStep(5); }}
+              onClick={() => { setProvince(pv); setStep(6); }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                 province === pv
                   ? 'bg-[#EFF4FF] dark:bg-[#162552] text-[#2E6BE6] font-semibold'
@@ -560,7 +658,7 @@ export default function ProfileSetupPage() {
 
         <p className="text-center">
           <button
-            onClick={() => setStep(5)}
+            onClick={() => setStep(6)}
             className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
@@ -571,9 +669,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 5 Income & welfare card
+  // STEP 6 Income & welfare card
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 5) {
+  if (step === 6) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -640,9 +738,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 6 Fields of interest
+  // STEP 7 Fields of interest
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 6) {
+  if (step === 7) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
@@ -693,9 +791,9 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 7 Recruitment source (research) + final save
+  // STEP 8 Recruitment source (research) + final save
   // ══════════════════════════════════════════════════════════════════════════
-  if (step === 7) {
+  if (step === 8) {
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
         <div className="text-center mb-6">
