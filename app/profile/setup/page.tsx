@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
+import { logEvent } from '@/lib/research/events';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,16 @@ export default function ProfileSetupPage() {
   const [consentTerms,           setConsentTerms]           = useState(false);
   const [researchOptIn,          setResearchOptIn]          = useState(false);
   const [guardianAcknowledged,   setGuardianAcknowledged]   = useState(false);
+  // Channel attribution — read from localStorage (set by /students?src=)
+  const [acquisitionSource,      setAcquisitionSource]      = useState('direct');
+
+  // Read acquisition source set by /students?src= landing page
+  useEffect(() => {
+    try {
+      const src = localStorage.getItem('tundee_src');
+      if (src) setAcquisitionSource(src);
+    } catch { /* localStorage unavailable */ }
+  }, []);
 
   // Auth guard
   useEffect(() => {
@@ -265,6 +276,8 @@ export default function ProfileSetupPage() {
         consent_at:                  consentTerms ? new Date().toISOString() : null,
         research_opt_in:             researchOptIn,
         guardian_acknowledged:       guardianAcknowledged,
+        // Channel attribution (from /students?src= landing page)
+        acquisition_source:          acquisitionSource,
         updated_at:                  new Date().toISOString(),
       };
 
@@ -299,6 +312,16 @@ export default function ProfileSetupPage() {
       // ON CONFLICT DO NOTHING on the server — safe to call every time.
       void fetch('/api/profile/baseline', { method: 'POST' }).catch(() => {
         console.warn('[TunDee Setup] baseline snapshot failed — non-fatal');
+      });
+
+      // Clear acquisition source from localStorage after it's been saved to profile
+      try { localStorage.removeItem('tundee_src'); } catch { /* ignore */ }
+
+      // Fire profile_completed event — feeds research funnel (signup → profile → match)
+      // acquisition_source in metadata lets us measure completion rate by channel
+      void logEvent({
+        eventType: 'profile_completed',
+        metadata:  { acquisition_source: acquisitionSource },
       });
 
       router.replace('/scholarships');
