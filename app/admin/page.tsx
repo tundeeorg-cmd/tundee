@@ -21,6 +21,7 @@ import {
 } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import type { Scholarship, FunderType, AmountType } from '@/lib/types';
+import type { ImportSummary, ImportRowResult } from '@/lib/import-types';
 
 // ── CHANGE THIS to match NEXT_PUBLIC_ADMIN_EMAIL in your .env.local ──────────
 // If NEXT_PUBLIC_ADMIN_EMAIL is set as an env var this is used as fallback.
@@ -45,7 +46,7 @@ function provinceName(id: string): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'list' | 'add' | 'analytics';
+type Tab = 'list' | 'add' | 'analytics' | 'import';
 type SortField = 'created_at' | 'amount_thb' | 'name_th';
 type Range = '7' | '30' | '90' | '365';
 
@@ -195,6 +196,13 @@ export default function AdminPage() {
   const [mounted,           setMounted]           = useState(false);   // hydration guard for recharts
   // Research data
   const [eventCount,        setEventCount]        = useState(0);
+
+  // ── Import tab ──────────────────────────────────────────────────────────────
+  const [importFile,    setImportFile]    = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [dryRunResult,  setDryRunResult]  = useState<ImportSummary | null>(null);
+  const [importResult,  setImportResult]  = useState<ImportSummary | null>(null);
+  const [importError,   setImportError]   = useState('');
   const [outcomesTracked,   setOutcomesTracked]   = useState(0);
   const [priorKnowledgeCount, setPriorKnowledgeCount] = useState(0);
   const [recruitmentSources, setRecruitmentSources] = useState<{ source: string; count: number }[]>([]);
@@ -389,6 +397,40 @@ export default function AdminPage() {
     setSaving(false);
   }
 
+  // ── Import handlers ───────────────────────────────────────────────────────
+  async function runImport(dryRun: boolean) {
+    if (!importFile) return;
+    setImportLoading(true);
+    setImportError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', importFile);
+      fd.append('dry_run', String(dryRun));
+      const res  = await fetch('/api/admin/import', { method: 'POST', body: fd });
+      const json = await res.json() as ImportSummary & { error?: string };
+      if (!res.ok) {
+        setImportError(json.error ?? `Server error ${res.status}`);
+        return;
+      }
+      if (dryRun) {
+        setDryRunResult(json);
+        setImportResult(null);
+      } else {
+        setImportResult(json);
+        setDryRunResult(null);
+        // Refresh the scholarship list so the new rows appear immediately
+        fetchScholarships();
+      }
+    } catch (e) {
+      setImportError('Network error — check browser console for details.');
+      console.error('[TunDee import]', e);
+    } finally {
+      setImportLoading(false);
+    }
+  }
+  const handleDryRun       = () => runImport(true);
+  const handleConfirmImport = () => runImport(false);
+
   // ── Derived values ────────────────────────────────────────────────────────
   const filtered = scholarships.filter(s => {
     if (filterActive === 'active'   && !s.is_active) return false;
@@ -468,6 +510,7 @@ export default function AdminPage() {
             { key: 'list',      label: '📋 Scholarships' },
             { key: 'add',       label: '➕ Add New' },
             { key: 'analytics', label: '📊 Analytics' },
+            { key: 'import',    label: '📥 Import' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button
               key={key}
@@ -982,6 +1025,168 @@ export default function AdminPage() {
 
           </div>
         )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 4 IMPORT (Google Sheet CSV / XLSX)
+        ════════════════════════════════════════════════════════════════ */}
+        {tab === 'import' && (
+          <div className="space-y-6">
+
+            {/* ── Upload card ──────────────────────────────────────────── */}
+            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+              <SectionHead>📥 Import from Google Sheet</SectionHead>
+
+              {/* Instructions */}
+              <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1.5 font-mono">
+                <p className="font-sans font-semibold text-[#1D1D1F] dark:text-white text-sm mb-2">
+                  Expected columns (14, in order):
+                </p>
+                <p>name_th · funder · amount_thb · is_loan · min_gpa · max_income_thb</p>
+                <p>welfare_card_priority · field_ids · province_ids · deadline_date</p>
+                <p>application_url · source_url · review_status · notes</p>
+                <p className="font-sans text-xs mt-2 text-[#8E8E93]">
+                  Only rows with <strong className="text-[#1D1D1F] dark:text-white">review_status = verified</strong> and
+                  a <strong className="text-[#1D1D1F] dark:text-white">future deadline_date</strong> are imported.
+                  All other rows are counted as skipped.
+                </p>
+              </div>
+
+              {/* File picker */}
+              <div>
+                <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1.5">
+                  Choose file (.csv or .xlsx)
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={e => {
+                    setImportFile(e.target.files?.[0] ?? null);
+                    setDryRunResult(null);
+                    setImportResult(null);
+                    setImportError('');
+                  }}
+                  className="block w-full text-sm text-[#6E6E73] dark:text-[#8E8E93]
+                    file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                    file:text-sm file:font-medium file:bg-[#EEF3FD] file:text-[#2E6BE6]
+                    hover:file:bg-[#2E6BE6] hover:file:text-white file:cursor-pointer
+                    file:transition-colors"
+                />
+              </div>
+
+              {/* Dry-run button */}
+              <div className="flex gap-3 flex-wrap">
+                <button
+                  onClick={handleDryRun}
+                  disabled={!importFile || importLoading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#F7F9FC] dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#1D1D1F] dark:text-white hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {importLoading && !importResult ? <Spinner size={4} /> : '🔍'}
+                  Dry Run — preview changes (no writes)
+                </button>
+
+                {importFile && (
+                  <span className="self-center text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                    {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                )}
+              </div>
+
+              {importError && (
+                <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                  ⚠️ {importError}
+                </p>
+              )}
+            </div>
+
+            {/* ── Dry-run results ───────────────────────────────────────── */}
+            {dryRunResult && !importResult && (
+              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <SectionHead>🔍 Dry-Run Results</SectionHead>
+                  <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full font-medium">
+                    Nothing has been written yet
+                  </span>
+                </div>
+
+                {/* Counts */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Would Insert', value: dryRunResult.inserted,              icon: '➕', accent: true  },
+                    { label: 'Would Update', value: dryRunResult.updated,               icon: '✏️', accent: false },
+                    { label: 'Not Verified', value: dryRunResult.skipped_not_verified,  icon: '⏭️', accent: false },
+                    { label: 'Past Deadline', value: dryRunResult.skipped_past_deadline, icon: '⏰', accent: false },
+                    { label: 'No Deadline',  value: dryRunResult.skipped_no_deadline,   icon: '📭', accent: false },
+                    { label: 'Invalid',      value: dryRunResult.skipped_invalid,       icon: '⛔', accent: false },
+                    { label: 'Auto-translated', value: dryRunResult.translated,         icon: '🌐', accent: false },
+                  ].map(({ label, value, icon, accent }) => (
+                    <div key={label} className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-base">{icon}</span>
+                        <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{label}</span>
+                      </div>
+                      <div className={`text-2xl font-bold ${accent ? 'text-[#2E6BE6]' : 'text-[#1D1D1F] dark:text-white'}`}>
+                        {value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Confirm button */}
+                {(dryRunResult.inserted + dryRunResult.updated) > 0 ? (
+                  <div className="pt-2">
+                    <button
+                      onClick={handleConfirmImport}
+                      disabled={importLoading}
+                      className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {importLoading ? <Spinner /> : '✅'}
+                      Confirm Import — write {dryRunResult.inserted + dryRunResult.updated} row
+                      {(dryRunResult.inserted + dryRunResult.updated) !== 1 ? 's' : ''} to database
+                    </button>
+                    <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-2">
+                      This will INSERT {dryRunResult.inserted} new row{dryRunResult.inserted !== 1 ? 's' : ''} and
+                      UPDATE {dryRunResult.updated} existing row{dryRunResult.updated !== 1 ? 's' : ''}.
+                      Rows will be publicly visible immediately (is_active = true).
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] bg-[#F7F9FC] dark:bg-[#232B3E] rounded-lg px-4 py-3">
+                    Nothing to import — all rows were skipped or invalid. Review the table below for details.
+                  </p>
+                )}
+
+                {/* Per-row table */}
+                <ImportRowsTable rows={dryRunResult.rows} />
+              </div>
+            )}
+
+            {/* ── Final import result ───────────────────────────────────── */}
+            {importResult && (
+              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">✅</span>
+                  <div>
+                    <h3 className="font-semibold text-[#1D1D1F] dark:text-white">Import complete</h3>
+                    <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+                      {importResult.inserted} inserted · {importResult.updated} updated ·
+                      {importResult.skipped_not_verified + importResult.skipped_past_deadline +
+                       importResult.skipped_no_deadline + importResult.skipped_invalid} skipped
+                    </p>
+                  </div>
+                </div>
+                <ImportRowsTable rows={importResult.rows} />
+                <button
+                  onClick={() => { setImportResult(null); setImportFile(null); setDryRunResult(null); }}
+                  className="text-sm text-[#2E6BE6] hover:underline"
+                >
+                  ← Import another file
+                </button>
+              </div>
+            )}
+
+          </div>
+        )}
+
       </div>
     </main>
   );
@@ -1012,6 +1217,62 @@ function TextareaField({ label, value, onChange }: {
       <textarea value={value} onChange={e => onChange(e.target.value)} rows={3}
         className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] resize-y"
       />
+    </div>
+  );
+}
+
+// ── Import rows table ────────────────────────────────────────────────────────
+
+const ACTION_STYLE: Record<string, string> = {
+  insert: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400',
+  update: 'bg-blue-50  text-blue-700  dark:bg-blue-900/20  dark:text-blue-400',
+  skip:   'bg-[#F7F9FC] text-[#6E6E73] dark:bg-[#232B3E]  dark:text-[#8E8E93]',
+  invalid:'bg-red-50   text-red-600   dark:bg-red-900/20   dark:text-red-400',
+};
+
+function ImportRowsTable({ rows }: { rows: ImportRowResult[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="overflow-x-auto mt-2">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F7F9FC] dark:bg-[#232B3E]">
+            {['Row', 'ชื่อทุน', 'ผู้ให้ทุน', 'Action', 'หมายเหตุ'].map((h, i) => (
+              <th key={h}
+                className={`px-3 py-2 font-medium text-[#6E6E73] dark:text-[#8E8E93] ${i < 2 ? 'text-left' : 'text-center'}`}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.row}
+              className="border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E]">
+              <td className="px-3 py-2 text-center text-[#ADADB8]">{r.row}</td>
+              <td className="px-3 py-2 max-w-[200px] truncate text-[#1D1D1F] dark:text-white"
+                  title={r.name_th}>{r.name_th}</td>
+              <td className="px-3 py-2 max-w-[160px] truncate text-[#6E6E73] dark:text-[#8E8E93]"
+                  title={r.funder}>{r.funder}</td>
+              <td className="px-3 py-2 text-center">
+                <span className={`inline-block px-2 py-0.5 rounded-full font-medium capitalize ${ACTION_STYLE[r.action] ?? ''}`}>
+                  {r.action}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93] max-w-[240px]">
+                {r.skip_reason && (
+                  <span className="text-red-500 dark:text-red-400">{r.skip_reason}</span>
+                )}
+                {r.flags.length > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400 ml-1">
+                    {r.flags.join(' · ')}
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

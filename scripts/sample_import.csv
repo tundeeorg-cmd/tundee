@@ -1,0 +1,7 @@
+name_th,funder,amount_thb,is_loan,min_gpa,max_income_thb,welfare_card_priority,field_ids,province_ids,deadline_date,application_url,source_url,review_status,notes
+ทุนทดสอบ ก — วิทยาศาสตร์,มูลนิธิทดสอบ ก,50000,FALSE,2.75,360000,FALSE,วิทยาศาสตร์,national,2026-11-30,https://example.com/applyA,https://example.com/A,verified,แถวนี้ควร INSERT
+ทุนทดสอบ ข — ยากจนพิเศษ,มูลนิธิทดสอบ ก,30000,FALSE,,240000,TRUE,any,"เชียงใหม่,ลำปาง",2026-12-31,https://example.com/applyB,https://example.com/B,verified,สองจังหวัด welfare-card
+ทุนหมดอายุแล้ว,มูลนิธิทดสอบ ข,20000,FALSE,,,FALSE,any,national,2025-01-01,https://example.com/old,,verified,past deadline → should skip
+ทุนรอตรวจสอบ,มูลนิธิทดสอบ ข,10000,FALSE,,,FALSE,any,national,2026-10-01,https://example.com/draft,,in_review,not verified → should skip
+ทุน GPA ผิดพลาด,มูลนิธิทดสอบ ค,15000,FALSE,5.0,,FALSE,any,national,2026-10-15,https://example.com/bad,,verified,min_gpa=5 → invalid → should skip
+ทุนไม่มี URL,มูลนิธิทดสอบ ค,8000,FALSE,,,FALSE,any,national,2026-10-20,,,verified,no application_url → invalid → should skip
