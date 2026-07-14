@@ -210,6 +210,7 @@ export default function ScholarshipDetailPage() {
     bond_obligation?: boolean;
     english_level?: string;
     english_score_required?: string | null;
+    enrolled_university_required?: string | null;
     special_skills?: string[];
     talents?: string[];
     grade_levels?: string[];
@@ -229,6 +230,14 @@ export default function ScholarshipDetailPage() {
     vocational: { th: 'สายอาชีพ', en: 'Vocational' },
     uni: { th: 'ปริญญาตรี', en: 'Undergraduate' },
     graduate: { th: 'บัณฑิตศึกษา', en: 'Graduate' },
+    any: { th: 'ทุกระดับ', en: 'All levels' },
+  };
+
+  const AMOUNT_TYPE_LABELS: Record<string, { th: string; en: string }> = {
+    annual:  { th: '/ปี',  en: '/year' },
+    monthly: { th: '/เดือน', en: '/month' },
+    once:    { th: ' (ครั้งเดียว)', en: ' (one-time)' },
+    full:    { th: ' (เต็มหลักสูตร)', en: ' (full program)' },
   };
 
   const name = lang === 'th' ? s.name_th : (s.name_en ?? s.name_th);
@@ -248,9 +257,10 @@ export default function ScholarshipDetailPage() {
   function formatAmount(): string {
     if (!s.amount_thb) return d.contactFunder[lang];
     const amt = s.amount_thb.toLocaleString('th-TH');
-    if (s.amount_type === 'monthly') return `${amt} ${d.perMonth[lang]}`;
-    if (s.amount_type === 'annual') return `${amt} ${d.perYear[lang]}`;
-    return `${amt} ${d.oneTime[lang]}`;
+    const suffix = s.amount_type
+      ? (AMOUNT_TYPE_LABELS[s.amount_type]?.[lang as 'th' | 'en'] ?? '/ปี')
+      : '/ปี';
+    return `฿${amt}${suffix}`;
   }
 
   function formatDeadline(): string {
@@ -373,26 +383,37 @@ export default function ScholarshipDetailPage() {
                 {d.eligibility[lang]}
               </h2>
               <dl className="border border-[#E5E5EA] rounded-[12px] px-5 divide-y divide-[#F5F5F7]">
+                {/* 1. Grade levels */}
+                {sx.grade_levels && sx.grade_levels.length > 0 && (
+                  <InfoRow
+                    label={d.gradeLevelsLabel[lang]}
+                    value={
+                      sx.grade_levels.includes('any')
+                        ? (lang === 'th' ? 'ทุกระดับ' : 'All levels')
+                        : sx.grade_levels.map(g => GRADE_LABEL[g]?.[lang as 'th' | 'en'] ?? g).join(', ')
+                    }
+                  />
+                )}
+                {/* 2. Min GPA */}
                 <InfoRow
                   label={d.minGpa[lang]}
                   value={s.min_gpa ? s.min_gpa.toFixed(2) : d.gpaAny[lang]}
                 />
-                <InfoRow
-                  label={d.maxIncome[lang]}
-                  value={
-                    s.max_income_thb
-                      ? `${s.max_income_thb.toLocaleString('th-TH')} ${d.incomeUnit[lang]}`
-                      : d.incomeAny[lang]
-                  }
-                />
-                <InfoRow
-                  label={d.provinces[lang]}
-                  value={
-                    isNational
-                      ? translations.common.national[lang]
-                      : (s.province_restriction ?? []).map((p) => translateProvince(p, lang)).join(', ')
-                  }
-                />
+                {/* 3. Max income */}
+                {s.max_income_thb && (
+                  <InfoRow
+                    label={d.maxIncome[lang]}
+                    value={`${s.max_income_thb.toLocaleString('th-TH')} ${d.incomeUnit[lang]}`}
+                  />
+                )}
+                {/* 4. Welfare card — only show when priority is true */}
+                {s.welfare_card_priority && (
+                  <InfoRow
+                    label={d.welfareCard[lang]}
+                    value={d.welfareYes[lang]}
+                  />
+                )}
+                {/* 5. Field of study */}
                 <InfoRow
                   label={d.fields[lang]}
                   value={
@@ -401,43 +422,74 @@ export default function ScholarshipDetailPage() {
                       : (s.field_of_study ?? []).join(', ')
                   }
                 />
+                {/* 6. Province */}
                 <InfoRow
-                  label={d.welfareCard[lang]}
-                  value={s.welfare_card_priority ? d.welfareYes[lang] : d.welfareNo[lang]}
+                  label={d.provinces[lang]}
+                  value={
+                    isNational
+                      ? translations.common.national[lang]
+                      : (s.province_restriction ?? []).map((p) => translateProvince(p, lang)).join(', ')
+                  }
                 />
-                {/* Grade levels (new array field) */}
-                {sx.grade_levels && sx.grade_levels.length > 0 && (
+                {/* 7. Enrolled university required (NEW) */}
+                {sx.enrolled_university_required && sx.enrolled_university_required.trim() !== '' && (
                   <InfoRow
-                    label={d.gradeLevelsLabel[lang]}
-                    value={sx.grade_levels.map(g => GRADE_LABEL[g]?.[lang as 'th' | 'en'] ?? g).join(', ')}
+                    label={lang === 'th' ? 'ต้องเป็นนักศึกษาของ' : 'Must be enrolled at'}
+                    value={
+                      <div>
+                        <span className="font-medium text-[#0A2342]">{sx.enrolled_university_required}</span>
+                        <p className="text-xs text-[#6E7A8A] font-normal mt-0.5">
+                          {lang === 'th'
+                            ? 'ทุนนี้สำหรับนักศึกษาของมหาวิทยาลัยนี้เท่านั้น'
+                            : 'This scholarship is only for students enrolled at this university'}
+                        </p>
+                      </div>
+                    }
                   />
                 )}
-                {/* Renewable */}
-                {sx.renewable != null && (
-                  <InfoRow
-                    label={d.renewable[lang]}
-                    value={sx.renewable ? d.boolYes[lang] : d.boolNo[lang]}
-                  />
-                )}
-                {/* Bond obligation */}
-                {sx.bond_obligation != null && (
-                  <InfoRow
-                    label={d.bondObligation[lang]}
-                    value={sx.bond_obligation ? d.boolYes[lang] : d.boolNo[lang]}
-                  />
-                )}
-                {/* English level */}
+                {/* 8. English level */}
                 {sx.english_level && sx.english_level !== 'none' && (
                   <InfoRow
                     label={d.englishLevel[lang]}
                     value={sx.english_level}
                   />
                 )}
-                {/* English score required */}
+                {/* 9. English score required */}
                 {sx.english_score_required && (
                   <InfoRow
                     label={d.scoreRequired[lang]}
                     value={sx.english_score_required}
+                  />
+                )}
+                {/* 10. Renewable — human-readable */}
+                {sx.renewable != null && (
+                  <InfoRow
+                    label={d.renewable[lang]}
+                    value={
+                      sx.renewable ? (
+                        <div>
+                          <span className="font-medium" style={{ color: '#1B3A6B' }}>
+                            {lang === 'th' ? 'ต่ออายุได้ทุกปี' : 'Renewable annually'}
+                          </span>
+                          <p className="text-xs text-[#6E7A8A] font-normal mt-0.5">
+                            {lang === 'th'
+                              ? 'ได้รับทุนต่อเนื่องตลอดหลักสูตร หากรักษาเกรดตามเกณฑ์'
+                              : 'Scholarship continues each year if you maintain the required GPA'}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-[#6E7A8A]">
+                          {lang === 'th' ? 'ครั้งเดียว' : 'One-time only'}
+                        </span>
+                      )
+                    }
+                  />
+                )}
+                {/* 11. Bond obligation — only show when true */}
+                {sx.bond_obligation && (
+                  <InfoRow
+                    label={d.bondObligation[lang]}
+                    value={d.boolYes[lang]}
                   />
                 )}
                 {/* Special skills */}

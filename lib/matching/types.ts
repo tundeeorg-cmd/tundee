@@ -30,6 +30,11 @@ export interface ScholarshipRow {
   description_en: string | null
   historical_bias_score: number  // 0.1-0.9, default 0.5
   grade_levels: string[] | null
+  enrolled_university_required?: string | null
+  documents_required?: string[]
+  source_url?: string | null
+  last_verified_at?: string | null
+  created_at?: string | null
   // New columns from real scholarship data import
   tier?: 'SAFETY' | 'TARGET' | 'REACH'
   renewable?: boolean

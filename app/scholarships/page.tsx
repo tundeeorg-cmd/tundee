@@ -178,6 +178,15 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
     reasons_en.push('Matches your grade level');
   }
 
+  // ── Enrolled university requirement ───────────────────────────────────────
+  const univReq = (s.enrolled_university_required as string | null | undefined) ?? null;
+  if (univReq && univReq.trim() !== '') {
+    // We don't know the user's university — show the requirement without disqualifying
+    score -= 0.5;
+    reasons.push(`ต้องเป็นนักศึกษาของ ${univReq}`);
+    reasons_en.push(`Must be enrolled at ${univReq}`);
+  }
+
   // ── Amount bonus (0–0.5 pts) ──────────────────────────────────────────────
   const amount = (s.amount_thb as number | null) ?? 0;
   if (amount > 0) {

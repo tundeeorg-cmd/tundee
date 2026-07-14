@@ -103,7 +103,7 @@ interface RecentProfile {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const FUNDER_TYPES: FunderType[] = ['government', 'corporate', 'foundation', 'royal', 'university'];
-const AMOUNT_TYPES: AmountType[] = ['annual', 'monthly', 'one-time'];
+const AMOUNT_TYPES: AmountType[] = ['annual', 'monthly', 'once', 'full'];
 
 const EMPTY_FORM = {
   name_th: '',            name_en: '',

@@ -1,5 +1,5 @@
 export type FunderType = 'government' | 'corporate' | 'foundation' | 'royal' | 'university';
-export type AmountType = 'monthly' | 'one-time' | 'annual';
+export type AmountType = 'monthly' | 'once' | 'annual' | 'full';
 export type Language = 'th' | 'en';
 
 export interface Scholarship {
@@ -35,6 +35,7 @@ export interface Scholarship {
   awards_required?: string[];
   grade_levels?: string[];
   historical_bias_score?: number;
+  enrolled_university_required?: string | null;
 }
 
 export type ApplicationStatus =
