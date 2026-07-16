@@ -421,6 +421,13 @@ export default function AdminPage() {
     setImportError('');
     try {
       const result = await parseImportFile(importFile, scholarships);
+      console.log('[Import Preview]', {
+        toImport: result.validCount,
+        conflicts: result.conflictCount,
+        skipped: result.skipCount,
+        autoFixed: result.autoFixCount,
+        firstValidRow: result.rows.find(r => r.action !== 'skip')?.name_th,
+      });
       setImportParseResult(result);
       setImportUIState('preview');
     } catch (e) {
@@ -1152,6 +1159,26 @@ export default function AdminPage() {
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
                     🔧 {importParseResult.autoFixCount} auto-fix{importParseResult.autoFixCount !== 1 ? 'es' : ''} applied (see Notes column)
                   </p>
+                )}
+
+                {/* Skip reasons breakdown */}
+                {importParseResult.skipCount > 0 && (
+                  <details className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl px-4 py-3">
+                    <summary className="text-xs font-semibold text-[#6E6E73] dark:text-[#8E8E93] cursor-pointer select-none">
+                      ⏭️ ข้ามแล้ว {importParseResult.skipCount} รายการ (คลิกเพื่อดูสาเหตุ)
+                    </summary>
+                    <ul className="mt-2 space-y-1">
+                      {importParseResult.rows
+                        .filter(r => r.action === 'skip')
+                        .map(r => (
+                          <li key={r.rowNum} className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                            <span className="text-[#ADADB8] mr-1">Row {r.rowNum}:</span>
+                            {r.name_th ? <span className="text-[#1D1D1F] dark:text-white mr-1">{r.name_th.slice(0, 30)}{r.name_th.length > 30 ? '…' : ''}</span> : null}
+                            — {r.skipReason}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
                 )}
 
                 {/* Conflict resolution */}

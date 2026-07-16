@@ -1,15 +1,17 @@
 import type { Scholarship } from '@/lib/types';
 
 // ── Column aliases: field → accepted header names ────────────────────────────
+// Asterisks (*) are stripped from both alias keys and incoming headers during lookup,
+// so "name_th*" and "name_th" both resolve to the same canonical field.
 const COLUMN_MAP: Record<string, string[]> = {
-  name_th:                     ['name_th', 'ชื่อทุน (ภาษาไทย)*', 'ชื่อทุน'],
+  name_th:                     ['name_th', 'ชื่อทุน (ภาษาไทย)', 'ชื่อทุน'],
   name_en:                     ['name_en', 'ชื่อทุน (ภาษาอังกฤษ)'],
-  funder_name_th:              ['funder_name_th', 'funder', 'ผู้ให้ทุน (ภาษาไทย)*', 'ผู้ให้ทุน'],
-  funder_name_en:              ['funder_name_en', 'ผู้ให้ทุน (ภาษาอังกฤษ)'],
+  funder_name_th:              ['funder_name_th', 'funder', 'ผู้ให้ทุน (ภาษาไทย)', 'ผู้ให้ทุน'],
+  funder_name_en:              ['funder_name_en', 'funder_en', 'ผู้ให้ทุน (ภาษาอังกฤษ)'],
   funder_type:                 ['funder_type', 'ประเภทผู้ให้ทุน'],
   amount_thb:                  ['amount_thb', 'จำนวนเงิน (บาท)', 'amount'],
   amount_type:                 ['amount_type', 'รูปแบบทุน'],
-  is_loan:                     ['is_loan', 'เงินกู้ (TRUE/FALSE)*'],
+  is_loan:                     ['is_loan', 'เงินกู้ (TRUE/FALSE)'],
   min_gpa:                     ['min_gpa', 'เกรดขั้นต่ำ'],
   max_income_thb:              ['max_income_thb', 'รายได้สูงสุด (บาท/เดือน)'],
   welfare_card_priority:       ['welfare_card_priority', 'บัตรสวัสดิการ (TRUE/FALSE)'],
@@ -23,20 +25,27 @@ const COLUMN_MAP: Record<string, string[]> = {
   renewable:                   ['renewable', 'ต่ออายุได้ (TRUE/FALSE)'],
   documents_required:          ['documents_required', 'เอกสารที่ต้องใช้'],
   description_th:              ['description_th', 'คำอธิบาย (ภาษาไทย)'],
-  deadline_date:               ['deadline_date', 'วันปิดรับสมัคร*'],
-  application_url:             ['application_url', 'ลิงก์สมัคร*'],
-  source_url:                  ['source_url', 'ลิงก์แหล่งข้อมูล*'],
+  deadline_date:               ['deadline_date', 'วันปิดรับสมัคร'],
+  application_url:             ['application_url', 'ลิงก์สมัคร'],
+  source_url:                  ['source_url', 'ลิงก์แหล่งข้อมูล'],
   historical_bias_score:       ['historical_bias_score', 'Bias Score (วิจัย)'],
   review_status:               ['review_status'],
   is_active:                   ['is_active', 'แสดงบนเว็บ (TRUE/FALSE)'],
+  notes:                       ['notes', 'หมายเหตุ'],
 };
 
-// Reverse map: any accepted header → canonical field name
+// Normalize a header key: lowercase, trim, strip trailing asterisks.
+// This lets headers like "name_th*", "funder*", "review_status*" resolve correctly.
+function normalizeKey(k: string): string {
+  return k.toLowerCase().trim().replace(/\*+/g, '');
+}
+
+// Reverse map: normalized alias → canonical field name
 function buildReverseMap(): Map<string, string> {
   const m = new Map<string, string>();
   for (const [field, aliases] of Object.entries(COLUMN_MAP)) {
     for (const alias of aliases) {
-      m.set(alias.toLowerCase().trim(), field);
+      m.set(normalizeKey(alias), field);
     }
   }
   return m;
@@ -157,29 +166,37 @@ function parseDate(raw: unknown): string | null {
     const y = raw.getFullYear();
     const m = String(raw.getMonth() + 1).padStart(2, '0');
     const d = String(raw.getDate()).padStart(2, '0');
-    // Handle Buddhist Era dates (year > 2400)
     const year = y > 2400 ? y - 543 : y;
     return `${year}-${m}-${d}`;
   }
   const s = String(raw).trim();
   if (!s) return null;
-  // ISO format already
+  // ISO: YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
     const year = parseInt(s.substring(0, 4));
     const rest = s.substring(4);
     return year > 2400 ? `${year - 543}${rest}` : s.substring(0, 10);
   }
-  // DD/MM/YYYY or DD/MM/YY
+  // Slash/dash/dot separated: detect format by part sizes
   const parts = s.split(/[/\-.]/);
   if (parts.length === 3) {
-    let [a, b, c] = parts.map(Number);
-    // Guess: if first part > 12 it's a day
+    const [a, b, c] = parts.map(Number);
     let day: number, month: number, year: number;
-    if (a > 31) { year = a; month = b; day = c; }
-    else { day = a; month = b; year = c; }
+    if (a > 31) {
+      // YYYY/M/D
+      year = a; month = b; day = c;
+    } else if (b > 12) {
+      // M/D/YYYY — Excel US format (e.g. 9/30/2026)
+      month = a; day = b; year = c;
+    } else if (c > 31) {
+      // D/M/YYYY or M/D/YYYY (ambiguous when b ≤ 12) — assume D/M/YYYY
+      day = a; month = b; year = c;
+    } else {
+      day = a; month = b; year = c;
+    }
     if (year < 100) year += 2000;
     if (year > 2400) year -= 543;
-    if (!day || !month || !year) return null;
+    if (!day || !month || !year || month > 12 || day > 31) return null;
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
   return null;
@@ -199,19 +216,28 @@ export async function parseImportFile(
     type: 'array',
   });
 
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  // Use sheet named "Scholarships", otherwise first sheet with "scholarship" in name, otherwise sheet 0
+  const sheetName =
+    workbook.SheetNames.find(n => n === 'Scholarships') ??
+    workbook.SheetNames.find(n => n.toLowerCase().includes('scholarship')) ??
+    workbook.SheetNames[0];
+
+  console.log('[Import] All sheets:', workbook.SheetNames, '→ using:', sheetName);
+
+  const sheet = workbook.Sheets[sheetName];
+
+  // Use object-based parse without defval so that rows where ALL cells are empty are omitted.
+  // (defval:'' would force-include all 1001 rows in a default Excel sheet.)
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    defval: '',
     raw: false,
+    blankrows: false,
   });
 
-  // Detect if row 2 is a Thai-label header row (skip it)
-  // The exported sheet has: row 1 = field names, row 2 = Thai labels, row 3+ = data
-  // When imported back, sheet_to_json uses row 1 as headers — so row 2 shows up as a data row.
-  // We skip rows where name_th looks like a Thai column label.
-  const THAI_LABEL_SENTINEL = 'ชื่อทุน';
+  console.log('[Import] Rows from sheet_to_json:', rawRows.length);
+  if (rawRows.length > 0) {
+    console.log('[Import] First row keys:', Object.keys(rawRows[0]).slice(0, 8));
+  }
 
-  // Build existing scholarships lookup
   const existingByNameTh = new Map<string, Scholarship>();
   for (const s of existingScholarships) {
     existingByNameTh.set(s.name_th.trim().toLowerCase(), s);
@@ -227,18 +253,23 @@ export async function parseImportFile(
     const raw = rawRows[i];
     const rowNum = i + 2; // 1-indexed, +1 for header row
 
-    // Map raw keys → canonical field names
+    // Map raw keys → canonical field names; strip * from headers (e.g. "name_th*" → "name_th")
     const mapped: Record<string, unknown> = {};
     for (const [rawKey, val] of Object.entries(raw)) {
-      const canon = REVERSE.get(rawKey.toLowerCase().trim());
+      const canon = REVERSE.get(normalizeKey(rawKey));
       if (canon) mapped[canon] = val;
     }
 
     const nameTh = String(mapped.name_th ?? '').trim();
 
-    // Skip Thai-label sentinel row
-    if (nameTh === THAI_LABEL_SENTINEL || nameTh === 'ชื่อทุน (ภาษาไทย)*') continue;
+    // Skip empty rows
     if (!nameTh) continue;
+
+    // Skip Thai-label description row (row 2 in the template)
+    if (nameTh.startsWith('ชื่อทุน') || nameTh.includes('จำเป็น')) continue;
+
+    // Skip example rows
+    if (nameTh.startsWith('◆')) continue;
 
     const autoFixed: string[] = [];
 
@@ -341,6 +372,14 @@ export async function parseImportFile(
   const validCount = rows.filter(r => r.action !== 'skip').length;
   const skipCount = rows.filter(r => r.action === 'skip').length;
   const conflictCount = rows.filter(r => r.conflictType !== null && r.action !== 'skip').length;
+
+  console.log('[Import] Result — valid:', validCount, 'skip:', skipCount, 'conflicts:', conflictCount, 'autoFix:', autoFixCount);
+  if (rows.filter(r => r.action !== 'skip').length > 0) {
+    console.log('[Import] First valid row name_th:', rows.find(r => r.action !== 'skip')?.name_th);
+  }
+  rows.filter(r => r.action === 'skip').forEach(r =>
+    console.log(`[Import] Skipped row ${r.rowNum}: ${r.skipReason}`)
+  );
 
   return { rows, totalRows: rows.length, validCount, skipCount, conflictCount, autoFixCount };
 }
