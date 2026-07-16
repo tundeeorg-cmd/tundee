@@ -21,7 +21,9 @@ import {
 } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import type { Scholarship, FunderType, AmountType } from '@/lib/types';
-import type { ImportSummary, ImportRowResult } from '@/lib/import-types';
+import { parseImportFile, type ImportParseResult, type ParsedRow, type ConflictResolution } from '@/lib/admin/importEngine';
+import { executeImport, type ImportProgress } from '@/lib/admin/importActions';
+import { checkDeleteSafe } from '@/lib/admin/deleteProtection';
 
 // ── CHANGE THIS to match NEXT_PUBLIC_ADMIN_EMAIL in your .env.local ──────────
 // If NEXT_PUBLIC_ADMIN_EMAIL is set as an env var this is used as fallback.
@@ -47,6 +49,7 @@ function provinceName(id: string): string {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'list' | 'add' | 'analytics' | 'import';
+type ImportUIState = 'upload' | 'preview' | 'importing' | 'done';
 type SortField = 'created_at' | 'amount_thb' | 'name_th';
 type Range = '7' | '30' | '90' | '365';
 
@@ -177,6 +180,9 @@ export default function AdminPage() {
   const [filterActive,  setFilterActive]  = useState<'all' | 'active' | 'inactive'>('all');
   const [search,        setSearch]        = useState('');
   const [togglingId,    setTogglingId]    = useState<string | null>(null);
+  const [deleteCheckId,  setDeleteCheckId]  = useState<string | null>(null);
+  const [deleteCheckMsg, setDeleteCheckMsg] = useState('');
+  const [deleteChecking, setDeleteChecking] = useState(false);
 
   // ── Add tab ───────────────────────────────────────────────────────────────
   const [form,      setForm]      = useState(EMPTY_FORM);
@@ -198,11 +204,12 @@ export default function AdminPage() {
   const [eventCount,        setEventCount]        = useState(0);
 
   // ── Import tab ──────────────────────────────────────────────────────────────
-  const [importFile,    setImportFile]    = useState<File | null>(null);
-  const [importLoading, setImportLoading] = useState(false);
-  const [dryRunResult,  setDryRunResult]  = useState<ImportSummary | null>(null);
-  const [importResult,  setImportResult]  = useState<ImportSummary | null>(null);
-  const [importError,   setImportError]   = useState('');
+  const [importUIState,    setImportUIState]    = useState<ImportUIState>('upload');
+  const [importFile,       setImportFile]       = useState<File | null>(null);
+  const [importParsing,    setImportParsing]    = useState(false);
+  const [importParseResult, setImportParseResult] = useState<ImportParseResult | null>(null);
+  const [importProgress,   setImportProgress]   = useState<ImportProgress | null>(null);
+  const [importError,      setImportError]      = useState('');
   const [outcomesTracked,   setOutcomesTracked]   = useState(0);
   const [priorKnowledgeCount, setPriorKnowledgeCount] = useState(0);
   const [recruitmentSources, setRecruitmentSources] = useState<{ source: string; count: number }[]>([]);
@@ -355,6 +362,16 @@ export default function AdminPage() {
 
   // ── Toggle scholarship active ─────────────────────────────────────────────
   async function toggleActive(s: Scholarship) {
+    if (s.is_active) {
+      setDeleteChecking(true);
+      const check = await checkDeleteSafe(s.id);
+      setDeleteChecking(false);
+      if (!check.safe) {
+        setDeleteCheckId(s.id);
+        setDeleteCheckMsg(check.message);
+        return;
+      }
+    }
     setTogglingId(s.id);
     await supabase
       .from('scholarships')
@@ -398,38 +415,50 @@ export default function AdminPage() {
   }
 
   // ── Import handlers ───────────────────────────────────────────────────────
-  async function runImport(dryRun: boolean) {
+  async function handleParseAndPreview() {
     if (!importFile) return;
-    setImportLoading(true);
+    setImportParsing(true);
     setImportError('');
     try {
-      const fd = new FormData();
-      fd.append('file', importFile);
-      fd.append('dry_run', String(dryRun));
-      const res  = await fetch('/api/admin/import', { method: 'POST', body: fd });
-      const json = await res.json() as ImportSummary & { error?: string };
-      if (!res.ok) {
-        setImportError(json.error ?? `Server error ${res.status}`);
-        return;
-      }
-      if (dryRun) {
-        setDryRunResult(json);
-        setImportResult(null);
-      } else {
-        setImportResult(json);
-        setDryRunResult(null);
-        // Refresh the scholarship list so the new rows appear immediately
-        fetchScholarships();
-      }
+      const result = await parseImportFile(importFile, scholarships);
+      setImportParseResult(result);
+      setImportUIState('preview');
     } catch (e) {
-      setImportError('Network error — check browser console for details.');
-      console.error('[TunDee import]', e);
+      setImportError(`Failed to parse file: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setImportLoading(false);
+      setImportParsing(false);
     }
   }
-  const handleDryRun       = () => runImport(true);
-  const handleConfirmImport = () => runImport(false);
+
+  async function handleImport() {
+    if (!importParseResult) return;
+    setImportUIState('importing');
+    setImportProgress({ total: 0, done: 0, inserted: 0, updated: 0, errors: [] });
+    const result = await executeImport(importParseResult.rows, p => {
+      setImportProgress({ ...p });
+    });
+    setImportProgress(result);
+    setImportUIState('done');
+    fetchScholarships();
+  }
+
+  function handleConflictResolution(rowNum: number, resolution: ConflictResolution) {
+    setImportParseResult(prev => {
+      if (!prev) return prev;
+      const rows = prev.rows.map(r =>
+        r.rowNum === rowNum ? { ...r, conflictResolution: resolution } : r
+      );
+      return { ...prev, rows };
+    });
+  }
+
+  function resetImport() {
+    setImportUIState('upload');
+    setImportFile(null);
+    setImportParseResult(null);
+    setImportProgress(null);
+    setImportError('');
+  }
 
   // ── Derived values ────────────────────────────────────────────────────────
   const filtered = scholarships.filter(s => {
@@ -611,9 +640,9 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <button onClick={() => toggleActive(s)} disabled={togglingId === s.id}
+                          <button onClick={() => toggleActive(s)} disabled={togglingId === s.id || deleteChecking}
                             className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 ${s.is_active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
-                            {togglingId === s.id ? <Spinner size={3} /> : s.is_active ? 'Deactivate' : 'Activate'}
+                            {togglingId === s.id || deleteChecking ? <Spinner size={3} /> : s.is_active ? 'Deactivate' : 'Activate'}
                           </button>
                         </td>
                       </tr>
@@ -1027,101 +1056,89 @@ export default function AdminPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 4 IMPORT (Google Sheet CSV / XLSX)
+            TAB 4 IMPORT (smart client-side XLSX parser)
         ════════════════════════════════════════════════════════════════ */}
         {tab === 'import' && (
           <div className="space-y-6">
 
-            {/* ── Upload card ──────────────────────────────────────────── */}
-            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
-              <SectionHead>📥 Import from Google Sheet</SectionHead>
-
-              {/* Instructions */}
-              <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1.5 font-mono">
-                <p className="font-sans font-semibold text-[#1D1D1F] dark:text-white text-sm mb-2">
-                  Expected columns (14, in order):
-                </p>
-                <p>name_th · funder · amount_thb · is_loan · min_gpa · max_income_thb</p>
-                <p>welfare_card_priority · field_ids · province_ids · deadline_date</p>
-                <p>application_url · source_url · review_status · notes</p>
-                <p className="font-sans text-xs mt-2 text-[#8E8E93]">
-                  Only rows with <strong className="text-[#1D1D1F] dark:text-white">review_status = verified</strong> and
-                  a <strong className="text-[#1D1D1F] dark:text-white">future deadline_date</strong> are imported.
-                  All other rows are counted as skipped.
-                </p>
-              </div>
-
-              {/* File picker */}
-              <div>
-                <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1.5">
-                  Choose file (.csv or .xlsx)
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={e => {
-                    setImportFile(e.target.files?.[0] ?? null);
-                    setDryRunResult(null);
-                    setImportResult(null);
-                    setImportError('');
-                  }}
-                  className="block w-full text-sm text-[#6E6E73] dark:text-[#8E8E93]
-                    file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
-                    file:text-sm file:font-medium file:bg-[#EEF3FD] file:text-[#2E6BE6]
-                    hover:file:bg-[#2E6BE6] hover:file:text-white file:cursor-pointer
-                    file:transition-colors"
-                />
-              </div>
-
-              {/* Dry-run button */}
-              <div className="flex gap-3 flex-wrap">
-                <button
-                  onClick={handleDryRun}
-                  disabled={!importFile || importLoading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#F7F9FC] dark:bg-[#232B3E] border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#1D1D1F] dark:text-white hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {importLoading && !importResult ? <Spinner size={4} /> : '🔍'}
-                  Dry Run — preview changes (no writes)
-                </button>
-
-                {importFile && (
-                  <span className="self-center text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-                    {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
-                  </span>
-                )}
-              </div>
-
-              {importError && (
-                <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
-                  ⚠️ {importError}
-                </p>
-              )}
-            </div>
-
-            {/* ── Dry-run results ───────────────────────────────────────── */}
-            {dryRunResult && !importResult && (
+            {/* ── A. Upload ──────────────────────────────────────────────── */}
+            {importUIState === 'upload' && (
               <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <SectionHead>🔍 Dry-Run Results</SectionHead>
-                  <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full font-medium">
-                    Nothing has been written yet
-                  </span>
+                <SectionHead>📥 Import Scholarships (XLSX)</SectionHead>
+
+                <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1">
+                  <p className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-1">
+                    Export the NEWEST MASTERSHEET, then import it here.
+                  </p>
+                  <p>Only rows with <strong className="text-[#1D1D1F] dark:text-white">review_status = verified</strong> and a <strong className="text-[#1D1D1F] dark:text-white">future deadline_date</strong> are imported. All others are skipped.</p>
+                  <p className="mt-1">Auto-fixes: date formats, amount_type aliases (ปีละ→annual), funder_type Thai names, currency stripping.</p>
                 </div>
 
-                {/* Counts */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1.5">
+                    Choose file (.xlsx or .xls)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={e => {
+                      const f = e.target.files?.[0] ?? null;
+                      setImportFile(f);
+                      setImportError('');
+                    }}
+                    className="block w-full text-sm text-[#6E6E73] dark:text-[#8E8E93]
+                      file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                      file:text-sm file:font-medium file:bg-[#EEF3FD] file:text-[#2E6BE6]
+                      hover:file:bg-[#2E6BE6] hover:file:text-white file:cursor-pointer
+                      file:transition-colors"
+                  />
+                </div>
+
+                <div className="flex gap-3 flex-wrap items-center">
+                  <button
+                    onClick={handleParseAndPreview}
+                    disabled={!importFile || importParsing}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {importParsing ? <Spinner size={4} /> : '🔍'}
+                    Parse & Preview
+                  </button>
+                  {importFile && (
+                    <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                      {importFile.name} · {(importFile.size / 1024).toFixed(1)} KB
+                    </span>
+                  )}
+                </div>
+
+                {importError && (
+                  <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                    ⚠️ {importError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── B. Preview ─────────────────────────────────────────────── */}
+            {importUIState === 'preview' && importParseResult && (
+              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <SectionHead>🔍 Preview — nothing written yet</SectionHead>
+                  <button onClick={resetImport} className="text-sm text-[#6E6E73] hover:text-[#2E6BE6]">
+                    ← Choose another file
+                  </button>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: 'Would Insert', value: dryRunResult.inserted,              icon: '➕', accent: true  },
-                    { label: 'Would Update', value: dryRunResult.updated,               icon: '✏️', accent: false },
-                    { label: 'Not Verified', value: dryRunResult.skipped_not_verified,  icon: '⏭️', accent: false },
-                    { label: 'Past Deadline', value: dryRunResult.skipped_past_deadline, icon: '⏰', accent: false },
-                    { label: 'No Deadline',  value: dryRunResult.skipped_no_deadline,   icon: '📭', accent: false },
-                    { label: 'Invalid',      value: dryRunResult.skipped_invalid,       icon: '⛔', accent: false },
-                    { label: 'Auto-translated', value: dryRunResult.translated,         icon: '🌐', accent: false },
+                    { label: 'Total rows', value: importParseResult.totalRows, icon: '📄', accent: false },
+                    { label: 'Will import', value: importParseResult.validCount, icon: '✅', accent: true },
+                    { label: 'Skipped', value: importParseResult.skipCount, icon: '⏭️', accent: false },
+                    { label: 'Conflicts', value: importParseResult.conflictCount, icon: '⚠️', accent: false },
                   ].map(({ label, value, icon, accent }) => (
                     <div key={label} className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4">
                       <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-base">{icon}</span>
+                        <span>{icon}</span>
                         <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{label}</span>
                       </div>
                       <div className={`text-2xl font-bold ${accent ? 'text-[#2E6BE6]' : 'text-[#1D1D1F] dark:text-white'}`}>
@@ -1131,54 +1148,125 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                {/* Confirm button */}
-                {(dryRunResult.inserted + dryRunResult.updated) > 0 ? (
-                  <div className="pt-2">
-                    <button
-                      onClick={handleConfirmImport}
-                      disabled={importLoading}
-                      className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-50"
-                    >
-                      {importLoading ? <Spinner /> : '✅'}
-                      Confirm Import — write {dryRunResult.inserted + dryRunResult.updated} row
-                      {(dryRunResult.inserted + dryRunResult.updated) !== 1 ? 's' : ''} to database
-                    </button>
-                    <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-2">
-                      This will INSERT {dryRunResult.inserted} new row{dryRunResult.inserted !== 1 ? 's' : ''} and
-                      UPDATE {dryRunResult.updated} existing row{dryRunResult.updated !== 1 ? 's' : ''}.
-                      Rows will be publicly visible immediately (is_active = true).
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] bg-[#F7F9FC] dark:bg-[#232B3E] rounded-lg px-4 py-3">
-                    Nothing to import — all rows were skipped or invalid. Review the table below for details.
+                {importParseResult.autoFixCount > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                    🔧 {importParseResult.autoFixCount} auto-fix{importParseResult.autoFixCount !== 1 ? 'es' : ''} applied (see Notes column)
                   </p>
                 )}
 
-                {/* Per-row table */}
-                <ImportRowsTable rows={dryRunResult.rows} />
+                {/* Conflict resolution */}
+                {importParseResult.conflictCount > 0 && (
+                  <div className="border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                      ⚠️ {importParseResult.conflictCount} conflict{importParseResult.conflictCount !== 1 ? 's' : ''} detected — choose action per row:
+                    </p>
+                    <div className="space-y-2">
+                      {importParseResult.rows
+                        .filter(r => r.conflictType !== null && r.action !== 'skip')
+                        .map(r => (
+                          <div key={r.rowNum} className="flex items-center gap-3 flex-wrap text-sm">
+                            <span className="font-medium text-[#1D1D1F] dark:text-white min-w-0 truncate max-w-xs">
+                              Row {r.rowNum}: {r.name_th}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              r.conflictType === 'exact_duplicate'
+                                ? 'bg-gray-100 text-gray-600'
+                                : r.conflictType === 'same_name_diff_funder'
+                                ? 'bg-orange-50 text-orange-600'
+                                : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {r.conflictType === 'exact_duplicate' ? 'Exact duplicate' :
+                               r.conflictType === 'same_name_diff_funder' ? 'Different funder' :
+                               'Data conflict'}
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleConflictResolution(r.rowNum, 'overwrite')}
+                                className={`px-2.5 py-0.5 rounded-lg text-xs border transition-colors ${
+                                  r.conflictResolution === 'overwrite'
+                                    ? 'bg-[#2E6BE6] text-white border-[#2E6BE6]'
+                                    : 'border-[#E5E5EA] dark:border-[#3A3A3C] text-[#6E6E73] hover:border-[#2E6BE6]'
+                                }`}
+                              >
+                                Overwrite
+                              </button>
+                              <button
+                                onClick={() => handleConflictResolution(r.rowNum, 'skip')}
+                                className={`px-2.5 py-0.5 rounded-lg text-xs border transition-colors ${
+                                  r.conflictResolution === 'skip'
+                                    ? 'bg-gray-500 text-white border-gray-500'
+                                    : 'border-[#E5E5EA] dark:border-[#3A3A3C] text-[#6E6E73] hover:border-gray-400'
+                                }`}
+                              >
+                                Skip
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Row table */}
+                <ImportPreviewTable rows={importParseResult.rows} />
+
+                {/* Import button */}
+                {importParseResult.validCount > 0 ? (
+                  <button
+                    onClick={handleImport}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors"
+                  >
+                    ✅ Import {importParseResult.rows.filter(r => r.action !== 'skip' && r.conflictResolution !== 'skip').length} row
+                    {importParseResult.rows.filter(r => r.action !== 'skip' && r.conflictResolution !== 'skip').length !== 1 ? 's' : ''} to database
+                  </button>
+                ) : (
+                  <p className="text-sm text-[#6E6E73] bg-[#F7F9FC] dark:bg-[#232B3E] rounded-lg px-4 py-3">
+                    Nothing to import — all rows were skipped. Check that rows have review_status=verified and a future deadline.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* ── Final import result ───────────────────────────────────── */}
-            {importResult && (
-              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+            {/* ── C. Importing progress ──────────────────────────────────── */}
+            {importUIState === 'importing' && importProgress && (
+              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-4">
+                <SectionHead>⏳ Importing…</SectionHead>
+                <div className="flex items-center gap-3">
+                  <Spinner size={5} />
+                  <span className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+                    {importProgress.done} / {importProgress.total} rows processed
+                  </span>
+                </div>
+                <div className="h-2 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#2E6BE6] rounded-full transition-all duration-300"
+                    style={{ width: importProgress.total > 0 ? `${(importProgress.done / importProgress.total) * 100}%` : '0%' }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── D. Done ────────────────────────────────────────────────── */}
+            {importUIState === 'done' && importProgress && (
+              <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">✅</span>
                   <div>
                     <h3 className="font-semibold text-[#1D1D1F] dark:text-white">Import complete</h3>
                     <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
-                      {importResult.inserted} inserted · {importResult.updated} updated ·
-                      {importResult.skipped_not_verified + importResult.skipped_past_deadline +
-                       importResult.skipped_no_deadline + importResult.skipped_invalid} skipped
+                      {importProgress.inserted} inserted · {importProgress.updated} updated · {importProgress.errors.length} errors
                     </p>
                   </div>
                 </div>
-                <ImportRowsTable rows={importResult.rows} />
-                <button
-                  onClick={() => { setImportResult(null); setImportFile(null); setDryRunResult(null); }}
-                  className="text-sm text-[#2E6BE6] hover:underline"
-                >
+                {importProgress.errors.length > 0 && (
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 space-y-1">
+                    <p className="text-xs font-semibold text-red-600 dark:text-red-400">Errors:</p>
+                    {importProgress.errors.map((e, i) => (
+                      <p key={i} className="text-xs text-red-600 dark:text-red-400">{e}</p>
+                    ))}
+                  </div>
+                )}
+                <button onClick={resetImport} className="text-sm text-[#2E6BE6] hover:underline">
                   ← Import another file
                 </button>
               </div>
@@ -1188,6 +1276,41 @@ export default function AdminPage() {
         )}
 
       </div>
+
+      {/* ── Delete protection modal ─────────────────────────────────────────── */}
+      {deleteCheckId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 max-w-md w-full space-y-4">
+            <h3 className="font-semibold text-[#1D1D1F] dark:text-white">⚠️ Active Applications</h3>
+            <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">{deleteCheckMsg}</p>
+            <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+              Deactivating will hide this scholarship from students. Students who already saved or applied will still see it in their tracker. Are you sure?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  const id = deleteCheckId;
+                  setDeleteCheckId(null);
+                  setTogglingId(id);
+                  await supabase.from('scholarships').update({ is_active: false }).eq('id', id);
+                  setScholarships(prev => prev.map(x => x.id === id ? { ...x, is_active: false } : x));
+                  setTogglingId(null);
+                }}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+              >
+                Deactivate Anyway
+              </button>
+              <button
+                onClick={() => setDeleteCheckId(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#6E6E73] hover:border-[#2E6BE6] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
@@ -1221,23 +1344,22 @@ function TextareaField({ label, value, onChange }: {
   );
 }
 
-// ── Import rows table ────────────────────────────────────────────────────────
+// ── Import preview table ─────────────────────────────────────────────────────
 
-const ACTION_STYLE: Record<string, string> = {
+const ACTION_PILL: Record<string, string> = {
   insert: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400',
-  update: 'bg-blue-50  text-blue-700  dark:bg-blue-900/20  dark:text-blue-400',
-  skip:   'bg-[#F7F9FC] text-[#6E6E73] dark:bg-[#232B3E]  dark:text-[#8E8E93]',
-  invalid:'bg-red-50   text-red-600   dark:bg-red-900/20   dark:text-red-400',
+  update: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
+  skip:   'bg-[#F7F9FC] text-[#6E6E73] dark:bg-[#232B3E] dark:text-[#8E8E93]',
 };
 
-function ImportRowsTable({ rows }: { rows: ImportRowResult[] }) {
+function ImportPreviewTable({ rows }: { rows: ParsedRow[] }) {
   if (rows.length === 0) return null;
   return (
     <div className="overflow-x-auto mt-2">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F7F9FC] dark:bg-[#232B3E]">
-            {['Row', 'ชื่อทุน', 'ผู้ให้ทุน', 'Action', 'หมายเหตุ'].map((h, i) => (
+            {['Row', 'ชื่อทุน', 'ผู้ให้ทุน', 'Action', 'Notes'].map((h, i) => (
               <th key={h}
                 className={`px-3 py-2 font-medium text-[#6E6E73] dark:text-[#8E8E93] ${i < 2 ? 'text-left' : 'text-center'}`}>
                 {h}
@@ -1246,31 +1368,38 @@ function ImportRowsTable({ rows }: { rows: ImportRowResult[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
-            <tr key={r.row}
-              className="border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E]">
-              <td className="px-3 py-2 text-center text-[#ADADB8]">{r.row}</td>
-              <td className="px-3 py-2 max-w-[200px] truncate text-[#1D1D1F] dark:text-white"
-                  title={r.name_th}>{r.name_th}</td>
-              <td className="px-3 py-2 max-w-[160px] truncate text-[#6E6E73] dark:text-[#8E8E93]"
-                  title={r.funder}>{r.funder}</td>
-              <td className="px-3 py-2 text-center">
-                <span className={`inline-block px-2 py-0.5 rounded-full font-medium capitalize ${ACTION_STYLE[r.action] ?? ''}`}>
-                  {r.action}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93] max-w-[240px]">
-                {r.skip_reason && (
-                  <span className="text-red-500 dark:text-red-400">{r.skip_reason}</span>
-                )}
-                {r.flags.length > 0 && (
-                  <span className="text-amber-600 dark:text-amber-400 ml-1">
-                    {r.flags.join(' · ')}
+          {rows.map(r => {
+            const effectiveAction = r.action === 'skip' ? 'skip'
+              : r.conflictResolution === 'skip' ? 'skip'
+              : r.action;
+            return (
+              <tr key={r.rowNum}
+                className="border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E]">
+                <td className="px-3 py-2 text-center text-[#ADADB8]">{r.rowNum}</td>
+                <td className="px-3 py-2 max-w-[200px] truncate text-[#1D1D1F] dark:text-white" title={r.name_th}>
+                  {r.name_th}
+                </td>
+                <td className="px-3 py-2 max-w-[160px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.funder_name_th}>
+                  {r.funder_name_th}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className={`inline-block px-2 py-0.5 rounded-full font-medium capitalize ${ACTION_PILL[effectiveAction] ?? ''}`}>
+                    {effectiveAction}
                   </span>
-                )}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93] max-w-[240px]">
+                  {r.skipReason && (
+                    <span className="text-red-500 dark:text-red-400">{r.skipReason}</span>
+                  )}
+                  {r.autoFixed.length > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      {r.skipReason ? ' · ' : ''}{r.autoFixed.join(', ')}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
