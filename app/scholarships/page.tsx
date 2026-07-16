@@ -292,21 +292,15 @@ function applyFilters(scholarships: Scholarship[], f: FilterState): Scholarship[
 function EmptyState({ lang }: { lang: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <div className="mb-6" />
+      <div className="text-5xl mb-6">📚</div>
       <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-white mb-3"
           style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
-        {lang === 'th' ? 'ยังไม่พบทุนการศึกษา' : 'No scholarships found'}
+        {lang === 'th' ? 'ยังไม่มีทุนในระบบขณะนี้' : 'No scholarships available at this time'}
       </h2>
-      <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-sm leading-relaxed mb-6"
+      <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] max-w-sm leading-relaxed"
          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
-        {lang === 'th' ? 'กรุณา refresh หน้า หรือติดต่อผู้ดูแลระบบ' : 'Try refreshing the page, or contact the site admin.'}
+        {lang === 'th' ? 'กรุณากลับมาใหม่เร็ว ๆ นี้' : 'Please check back soon'}
       </p>
-      <button
-        onClick={() => window.location.reload()}
-        className="text-sm font-semibold text-white bg-[#1B3A6B] hover:bg-[#2E5FA3] transition-colors px-6 py-2.5 rounded-full"
-      >
-        {lang === 'th' ? 'รีเฟรชหน้านี้' : 'Refresh page'}
-      </button>
     </div>
   );
 }

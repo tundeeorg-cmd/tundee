@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export-scholarships": "node -e \"require('dotenv').config({path:'.env.local'}); require('child_process').execSync('python3 scripts/export_scholarships.py', {stdio:'inherit', env: {...process.env}})\"",
+    "hide-scholarships": "node -e \"require('dotenv').config({path:'.env.local'}); require('child_process').execSync('python3 scripts/hide_all_scholarships.py', {stdio:'inherit', env: {...process.env}})\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
