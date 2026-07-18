@@ -519,7 +519,12 @@ export default function AdminPage() {
         body: JSON.stringify({ rows: tdReport.rows }),
       });
       const json = await res.json();
-      setTdImportResult(json);
+      setTdImportResult({
+        inserted: json.inserted ?? 0,
+        updated:  json.updated  ?? 0,
+        skipped:  json.skipped  ?? 0,
+        errors:   Array.isArray(json.errors) ? json.errors : (json.error ? [String(json.error)] : ['Unknown server error']),
+      });
     } catch (e) {
       setTdImportResult({ inserted: 0, updated: 0, skipped: 0, errors: [String(e)] });
     } finally {

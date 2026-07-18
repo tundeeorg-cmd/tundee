@@ -66,76 +66,96 @@ export async function POST(request: NextRequest) {
 
     const todayBkk = bangkokMidnight();
 
-    let inserted = 0;
-    let updated  = 0;
-    let skipped  = 0;
+    // Separate skipped rows
+    const toUpsert = rows.filter(r => r.action !== 'skip');
+    const skipped  = rows.length - toUpsert.length;
     const errors: string[] = [];
 
-    for (const row of rows) {
-      if (row.action === 'skip') { skipped++; continue; }
+    if (toUpsert.length === 0) {
+      return NextResponse.json({ inserted: 0, updated: 0, skipped, errors: [] });
+    }
 
-      // Compute derived deadline fields
-      const dp = parseDeadline(row.deadline_raw ?? null);
+    // One query to find which IDs already exist (to count inserts vs updates)
+    const ids = toUpsert.map(r => r.scholarship_id);
+    const { data: existingRows } = await adminClient
+      .from('td_scholarships')
+      .select('scholarship_id')
+      .in('scholarship_id', ids);
 
-      // Compute display gate
-      const gateInput = {
-        verification_status: row.verification_status,
-        status: row.status,
-        deadline_date: dp.deadline_date,
-        last_verified: row.last_verified,
-      };
-      const gate = isDisplayable(gateInput, todayBkk);
+    const existingIds = new Set(
+      (existingRows ?? []).map((r: { scholarship_id: string }) => r.scholarship_id),
+    );
 
-      const payload = {
-        scholarship_id:      row.scholarship_id,
-        scholarship_name:    row.scholarship_name,
-        funder:              row.funder,
-        funder_type:         row.funder_type,
-        level:               row.level,
-        field_of_study:      row.field_of_study,
-        award_amount_thb:    row.award_amount_thb,
-        region_eligibility:  row.region_eligibility,
-        targets_low_income:  row.targets_low_income,
-        num_recipients:      row.num_recipients,
-        min_gpa:             row.min_gpa,
-        income_cap_thb:      row.income_cap_thb,
-        language:            row.language,
-        deadline_raw:        dp.deadline_note || null,
-        status:              row.status,
-        application_link:    row.application_link!,
-        source:              row.source,
-        verification_status: row.verification_status,
-        last_verified:       row.last_verified,
-        notes:               row.notes,
-        // Derived
-        deadline_date:       dp.deadline_date,
-        deadline_is_rolling: dp.deadline_is_rolling,
-        deadline_note:       dp.deadline_note || null,
-        is_displayed:        gate.is_displayed,
-        display_reason:      gate.display_reason,
-        stale:               gate.stale,
-        updated_at:          new Date().toISOString(),
-      };
+    // Build all payloads (per-row errors go to errors[], not a 500)
+    const payloads: Record<string, unknown>[] = [];
+    for (const row of toUpsert) {
+      try {
+        const dp = parseDeadline(row.deadline_raw ?? null);
+        const gate = isDisplayable(
+          {
+            verification_status: row.verification_status,
+            status:              row.status,
+            deadline_date:       dp.deadline_date,
+            last_verified:       row.last_verified,
+          },
+          todayBkk,
+        );
 
-      // Check if row exists to count correctly
-      const { data: existing } = await adminClient
-        .from('td_scholarships')
-        .select('scholarship_id')
-        .eq('scholarship_id', row.scholarship_id)
-        .maybeSingle();
+        payloads.push({
+          scholarship_id:      row.scholarship_id,
+          scholarship_name:    row.scholarship_name,
+          funder:              row.funder,
+          funder_type:         row.funder_type ?? null,
+          level:               row.level ?? null,
+          field_of_study:      row.field_of_study ?? null,
+          award_amount_thb:    row.award_amount_thb ?? null,
+          region_eligibility:  row.region_eligibility ?? null,
+          targets_low_income:  row.targets_low_income ?? null,
+          num_recipients:      row.num_recipients ?? null,
+          min_gpa:             row.min_gpa ?? null,
+          income_cap_thb:      row.income_cap_thb ?? null,
+          language:            row.language ?? null,
+          deadline_raw:        row.deadline_raw ?? null,
+          status:              row.status ?? null,
+          application_link:    row.application_link ?? '',
+          source:              row.source ?? null,
+          verification_status: row.verification_status ?? null,
+          last_verified:       row.last_verified ?? null,
+          notes:               row.notes ?? null,
+          deadline_date:       dp.deadline_date,
+          deadline_is_rolling: dp.deadline_is_rolling,
+          deadline_note:       dp.deadline_note || null,
+          is_displayed:        gate.is_displayed,
+          display_reason:      gate.display_reason,
+          stale:               gate.stale,
+          updated_at:          new Date().toISOString(),
+        });
+      } catch (err) {
+        errors.push(`Row ${row.rowNum} (${row.scholarship_id}): ${fmtErr(err)}`);
+      }
+    }
 
-      const isNew = !existing;
-
+    // Single bulk upsert — one round trip for all rows
+    if (payloads.length > 0) {
       const { error } = await adminClient
         .from('td_scholarships')
-        .upsert(payload, { onConflict: 'scholarship_id' });
+        .upsert(payloads, { onConflict: 'scholarship_id' });
 
       if (error) {
-        errors.push(`Row ${row.rowNum} (${row.scholarship_id}): ${fmtErr(error)}`);
-      } else if (isNew) {
-        inserted++;
-      } else {
+        console.error('[td-import] bulk upsert error:', error);
+        errors.push(`Bulk upsert error: ${fmtErr(error)}`);
+        return NextResponse.json({ inserted: 0, updated: 0, skipped, errors }, { status: 500 });
+      }
+    }
+
+    // Count inserts vs updates based on the pre-fetch
+    let inserted = 0;
+    let updated  = 0;
+    for (const p of payloads) {
+      if (existingIds.has(p.scholarship_id as string)) {
         updated++;
+      } else {
+        inserted++;
       }
     }
 

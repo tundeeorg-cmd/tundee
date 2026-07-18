@@ -73,7 +73,7 @@ function normalizeFunderType(v: unknown): TdFunderType | null {
   if (s.includes('thai government') || s.includes('royal') || s === 'government') return 'Thai Government / Royal';
   if (s.includes('corporate') || s.includes('bank') || s.includes('foundation') || s === 'corporate') return 'Corporate / Bank / Foundation';
   if (s.includes('international')) return 'International (open to Thais)';
-  return str(v) as TdFunderType; // pass through — server-side check will surface error
+  return null; // unknown value — don't violate DB CHECK constraint
 }
 
 function normalizeLevel(v: unknown): TdLevel | null {
@@ -84,7 +84,7 @@ function normalizeLevel(v: unknown): TdLevel | null {
   if (s === "master's" || s === 'masters' || s === 'master') return "Master's";
   if (s === 'phd' || s === 'doctoral' || s === 'doctorate') return 'PhD';
   if (s === 'multiple' || s === 'all' || s === 'various') return 'Multiple';
-  return str(v) as TdLevel;
+  return null;
 }
 
 function normalizeStatus(v: unknown): TdStatus | null {
@@ -92,8 +92,7 @@ function normalizeStatus(v: unknown): TdStatus | null {
   if (s === 'open') return 'Open';
   if (s === 'recheck') return 'Recheck';
   if (s === 'closed') return 'Closed';
-  if (!s) return null;
-  return str(v) as TdStatus;
+  return null;
 }
 
 function normalizeVerificationStatus(v: unknown): string {
