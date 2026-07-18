@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
           field_of_study:      row.field_of_study ?? null,
           award_amount_thb:    row.award_amount_thb ?? null,
           region_eligibility:  row.region_eligibility ?? null,
-          targets_low_income:  row.targets_low_income ?? null,
+          targets_low_income:  row.targets_low_income ?? false,
           num_recipients:      row.num_recipients ?? null,
           min_gpa:             row.min_gpa ?? null,
           income_cap_thb:      row.income_cap_thb ?? null,
