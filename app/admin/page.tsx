@@ -24,6 +24,8 @@ import type { Scholarship, FunderType, AmountType } from '@/lib/types';
 import { parseImportFile, type ImportParseResult, type ParsedRow, type ConflictResolution } from '@/lib/admin/importEngine';
 import { executeImport, type ImportProgress } from '@/lib/admin/importActions';
 import { checkDeleteSafe } from '@/lib/admin/deleteProtection';
+import { parseTdImportFile } from '@/lib/tdScholarships/importEngine';
+import type { TdImportReport, TdImportRow, TdScholarship } from '@/lib/tdScholarships/types';
 
 // ── CHANGE THIS to match NEXT_PUBLIC_ADMIN_EMAIL in your .env.local ──────────
 // If NEXT_PUBLIC_ADMIN_EMAIL is set as an env var this is used as fallback.
@@ -48,7 +50,7 @@ function provinceName(id: string): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'list' | 'add' | 'analytics' | 'import';
+type Tab = 'list' | 'add' | 'analytics' | 'import' | 'td-list' | 'td-import';
 type ImportUIState = 'upload' | 'preview' | 'importing' | 'done';
 type SortField = 'created_at' | 'amount_thb' | 'name_th';
 type Range = '7' | '30' | '90' | '365';
@@ -214,6 +216,18 @@ export default function AdminPage() {
   const [priorKnowledgeCount, setPriorKnowledgeCount] = useState(0);
   const [recruitmentSources, setRecruitmentSources] = useState<{ source: string; count: number }[]>([]);
 
+  // ── TD Scholarships state ─────────────────────────────────────────────────
+  const [tdRows,           setTdRows]           = useState<TdScholarship[]>([]);
+  const [tdLoading,        setTdLoading]        = useState(false);
+  const [tdFilter,         setTdFilter]         = useState<'all' | 'displayed' | 'hidden'>('all');
+  const [tdSearch,         setTdSearch]         = useState('');
+  const [tdImportFile,     setTdImportFile]     = useState<File | null>(null);
+  const [tdParsing,        setTdParsing]        = useState(false);
+  const [tdReport,         setTdReport]         = useState<TdImportReport | null>(null);
+  const [tdImporting,      setTdImporting]      = useState(false);
+  const [tdImportResult,   setTdImportResult]   = useState<{ inserted: number; updated: number; skipped: number; errors: string[] } | null>(null);
+  const [tdImportError,    setTdImportError]    = useState('');
+
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
@@ -360,6 +374,26 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [authorized, tab, loadDashboardData]);
 
+  // ── Fetch td_scholarships (all rows, via service-role API route) ─────────
+  const fetchTdScholarships = async (filter: 'all' | 'displayed' | 'hidden' = tdFilter) => {
+    setTdLoading(true);
+    const param = filter === 'displayed' ? '?displayed=true' : filter === 'hidden' ? '?displayed=false' : '';
+    try {
+      const res = await fetch(`/api/admin/td-scholarships${param}`);
+      const json = await res.json();
+      setTdRows(json.scholarships ?? []);
+    } catch {
+      setTdRows([]);
+    } finally {
+      setTdLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authorized && tab === 'td-list') fetchTdScholarships();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authorized, tab]);
+
   // ── Toggle scholarship active ─────────────────────────────────────────────
   async function toggleActive(s: Scholarship) {
     if (s.is_active) {
@@ -459,6 +493,47 @@ export default function AdminPage() {
     });
   }
 
+  // ── TD Import handlers ────────────────────────────────────────────────────
+  async function handleTdParse() {
+    if (!tdImportFile) return;
+    setTdParsing(true);
+    setTdImportError('');
+    try {
+      const report = await parseTdImportFile(tdImportFile);
+      setTdReport(report);
+    } catch (e) {
+      setTdImportError(`Parse failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setTdParsing(false);
+    }
+  }
+
+  async function handleTdImport() {
+    if (!tdReport) return;
+    setTdImporting(true);
+    setTdImportResult(null);
+    try {
+      const res = await fetch('/api/admin/td-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: tdReport.rows }),
+      });
+      const json = await res.json();
+      setTdImportResult(json);
+    } catch (e) {
+      setTdImportResult({ inserted: 0, updated: 0, skipped: 0, errors: [String(e)] });
+    } finally {
+      setTdImporting(false);
+    }
+  }
+
+  function resetTdImport() {
+    setTdImportFile(null);
+    setTdReport(null);
+    setTdImportResult(null);
+    setTdImportError('');
+  }
+
   function resetImport() {
     setImportUIState('upload');
     setImportFile(null);
@@ -547,6 +622,8 @@ export default function AdminPage() {
             { key: 'add',       label: '➕ Add New' },
             { key: 'analytics', label: '📊 Analytics' },
             { key: 'import',    label: '📥 Import' },
+            { key: 'td-list',   label: '🗂️ TD List' },
+            { key: 'td-import', label: '📤 TD Import' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button
               key={key}
@@ -1299,6 +1376,217 @@ export default function AdminPage() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 5 TD LIST
+        ════════════════════════════════════════════════════════════════ */}
+        {tab === 'td-list' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                type="text"
+                placeholder="Search by name or funder..."
+                value={tdSearch}
+                onChange={e => setTdSearch(e.target.value)}
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white"
+              />
+              <select
+                value={tdFilter}
+                onChange={e => {
+                  const v = e.target.value as typeof tdFilter;
+                  setTdFilter(v);
+                  void fetchTdScholarships(v);
+                }}
+                className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none"
+              >
+                <option value="all">All rows</option>
+                <option value="displayed">Displayed only</option>
+                <option value="hidden">Hidden only</option>
+              </select>
+              <button onClick={() => fetchTdScholarships()}
+                className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] hover:border-[#2E6BE6] transition-colors">
+                ↻ Refresh
+              </button>
+            </div>
+            <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+              {tdRows.length} rows total (service-role — shows all including hidden)
+            </p>
+
+            {tdLoading ? (
+              <div className="flex justify-center py-16"><Spinner /></div>
+            ) : (
+              <div className="overflow-x-auto bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C]">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F7F9FC] dark:bg-[#232B3E]">
+                      {['ID', 'Name', 'Funder', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Reason'].map(h => (
+                        <th key={h} className="px-3 py-2 text-left font-medium text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tdRows
+                      .filter(r => {
+                        const q = tdSearch.toLowerCase();
+                        return !q || r.scholarship_name.toLowerCase().includes(q) || r.funder.toLowerCase().includes(q);
+                      })
+                      .map(r => (
+                        <tr key={r.scholarship_id} className="border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E]">
+                          <td className="px-3 py-2 text-[#ADADB8] font-mono">{r.scholarship_id}</td>
+                          <td className="px-3 py-2 max-w-[180px] truncate text-[#1D1D1F] dark:text-white" title={r.scholarship_name}>{r.scholarship_name}</td>
+                          <td className="px-3 py-2 max-w-[140px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.funder}>{r.funder}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded-full font-medium ${r.status === 'Open' ? 'bg-green-50 text-green-700' : r.status === 'Closed' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
+                              {r.status ?? '—'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 max-w-[120px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.verification_status ?? ''}>
+                            {(r.verification_status ?? '').toLowerCase() === 'verified'
+                              ? <span className="text-green-600">✓ verified</span>
+                              : <span className="text-[#ADADB8]">{(r.verification_status ?? '').slice(0, 20) || '—'}</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-[#6E6E73]">
+                            {r.deadline_date ?? (r.deadline_is_rolling ? 'rolling' : r.deadline_note ?? '—')}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {r.is_displayed
+                              ? <span className="text-green-600 font-bold">✓</span>
+                              : <span className="text-[#ADADB8]">✗</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {r.stale ? <span className="text-amber-500">⚠</span> : <span className="text-[#ADADB8]">—</span>}
+                          </td>
+                          <td className="px-3 py-2 max-w-[200px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.display_reason ?? ''}>
+                            {r.display_reason ?? '—'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 6 TD IMPORT
+        ════════════════════════════════════════════════════════════════ */}
+        {tab === 'td-import' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 space-y-5">
+              <SectionHead>📤 Import Master Scholarship Sheet (XLSX / CSV)</SectionHead>
+              <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1">
+                <p className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-1">
+                  Expected columns (20): Scholarship ID · Scholarship Name · Funder · Funder Type · Level · Field of Study · Award Amount (THB) · Region Eligibility · Targets Low-Income (Y/N) · No. of Recipients · Min GPA · Income Cap (THB/yr) · Language · Deadline · Status · Application Link · Source · Verification Status · Last Verified · Notes
+                </p>
+                <p>Rows upserted by <strong className="text-[#1D1D1F] dark:text-white">Scholarship ID</strong>. Display gate recomputed automatically on import.</p>
+                <p>Only <strong className="text-green-700 dark:text-green-400">verified + Open + not expired</strong> rows appear publicly.</p>
+              </div>
+
+              {!tdReport && !tdImportResult && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[#1D1D1F] dark:text-white mb-1.5">
+                      Choose file (.xlsx, .xls, or .csv)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={e => { setTdImportFile(e.target.files?.[0] ?? null); setTdImportError(''); }}
+                      className="block w-full text-sm text-[#6E6E73] dark:text-[#8E8E93] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[#EEF3FD] file:text-[#2E6BE6] hover:file:bg-[#2E6BE6] hover:file:text-white file:cursor-pointer file:transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={handleTdParse}
+                    disabled={!tdImportFile || tdParsing}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {tdParsing ? <Spinner size={4} /> : '🔍'} Parse & Preview
+                  </button>
+                  {tdImportError && (
+                    <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">⚠️ {tdImportError}</p>
+                  )}
+                </>
+              )}
+
+              {tdReport && !tdImportResult && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Total rows', value: tdReport.totalRows, accent: false },
+                      { label: 'Will upsert', value: tdReport.willInsert, accent: true },
+                      { label: 'Skipped', value: tdReport.willSkip, accent: false },
+                      { label: 'Dup IDs', value: tdReport.duplicateIds.length, accent: false },
+                    ].map(({ label, value, accent }) => (
+                      <div key={label} className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4">
+                        <div className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-1">{label}</div>
+                        <div className={`text-2xl font-bold ${accent ? 'text-[#2E6BE6]' : 'text-[#1D1D1F] dark:text-white'}`}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {tdReport.duplicateIds.length > 0 && (
+                    <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                      ⚠️ Duplicate IDs in file (first occurrence kept): {tdReport.duplicateIds.join(', ')}
+                    </p>
+                  )}
+
+                  {tdReport.willSkip > 0 && (
+                    <details className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl px-4 py-3">
+                      <summary className="text-xs font-semibold text-[#6E6E73] cursor-pointer">
+                        Skipped rows ({tdReport.willSkip}) — click to expand
+                      </summary>
+                      <ul className="mt-2 space-y-0.5">
+                        {tdReport.rows.filter((r: TdImportRow) => r.action === 'skip').map((r: TdImportRow) => (
+                          <li key={r.rowNum} className="text-xs text-[#6E6E73]">
+                            Row {r.rowNum}: {r.scholarship_name || r.scholarship_id || '(empty)'} — {r.skipReason}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  <div className="flex gap-3 flex-wrap">
+                    <button
+                      onClick={handleTdImport}
+                      disabled={tdImporting || tdReport.willInsert === 0}
+                      className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                    >
+                      {tdImporting ? <Spinner size={4} /> : '✅'} Import {tdReport.willInsert} rows to database
+                    </button>
+                    <button onClick={resetTdImport} className="px-4 py-3 rounded-xl border border-[#E5E5EA] text-sm text-[#6E6E73] hover:border-[#2E6BE6] transition-colors">
+                      ← Choose another file
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {tdImportResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <h3 className="font-semibold text-[#1D1D1F] dark:text-white">Import complete</h3>
+                      <p className="text-sm text-[#6E6E73]">
+                        {tdImportResult.inserted} inserted · {tdImportResult.updated} updated · {tdImportResult.skipped} skipped · {tdImportResult.errors.length} errors
+                      </p>
+                    </div>
+                  </div>
+                  {tdImportResult.errors.length > 0 && (
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 space-y-1">
+                      {tdImportResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-red-600">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={resetTdImport} className="text-sm text-[#2E6BE6] hover:underline">
+                    ← Import another file
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

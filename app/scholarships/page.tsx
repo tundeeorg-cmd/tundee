@@ -14,9 +14,11 @@ import type { FilterState, Scholarship } from '@/lib/types';
 import type { User } from '@supabase/supabase-js';
 import SaveButton from '@/components/SaveButton';
 import { logMatchingResultsViewed, logSearchPerformed, setUserResearchContext, assignAbArm } from '@/lib/research/events';
+import type { TdScholarship } from '@/lib/tdScholarships/types';
+import TdScholarshipCard from '@/components/TdScholarshipCard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Tab = 'matches' | 'browse';
+type Tab = 'matches' | 'browse' | 'td';
 type BrowseSortKey = 'deadline' | 'name';
 type MatchSortKey = 'match' | 'deadline' | 'name';
 type MinScore = 0 | 0.5 | 0.7 | 0.9;
@@ -609,6 +611,13 @@ export default function BrowsePage() {
   const [userProfile, setUserProfile]   = useState<StudentProfile | null>(null);
   const [searchQuery, setSearchQuery]   = useState('');
 
+  // ── TD Scholarships state ───────────────────────────────────────────────────
+  const [tdScholarships, setTdScholarships] = useState<TdScholarship[]>([]);
+  const [tdLoading, setTdLoading]           = useState(false);
+  const [tdSearch, setTdSearch]             = useState('');
+  const [tdLevelFilter, setTdLevelFilter]   = useState('');
+  const [tdFunderFilter, setTdFunderFilter] = useState('');
+
   // ── Data load ───────────────────────────────────────────────────────────────
   useEffect(() => {
     void (async () => {
@@ -682,6 +691,21 @@ export default function BrowsePage() {
         setMatchesLoading(false);
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Load td_scholarships (public — only is_displayed=true via RLS) ──────────
+  useEffect(() => {
+    setTdLoading(true);
+    void supabase
+      .from('td_scholarships')
+      .select('scholarship_id, scholarship_name, funder, funder_type, level, field_of_study, award_amount_thb, region_eligibility, targets_low_income, num_recipients, min_gpa, income_cap_thb, language, deadline_raw, status, application_link, deadline_date, deadline_is_rolling, deadline_note, stale, is_displayed')
+      .eq('is_displayed', true)
+      .order('scholarship_name')
+      .then(({ data }) => {
+        setTdScholarships((data ?? []) as TdScholarship[]);
+        setTdLoading(false);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -832,24 +856,24 @@ export default function BrowsePage() {
           </h1>
           <p className="text-[#6E6E73] dark:text-[#8E8E93]">{b.subtitle[lang]}</p>
 
-          {user && (
-            <div className="flex gap-1 mt-6 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
-              {(['matches', 'browse'] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
-                    activeTab === t
-                      ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
-                      : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
-                  }`}
-                  style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
-                >
-                  {t === 'matches' ? b.tabMatches[lang] : b.tabBrowse[lang]}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-1 mt-6 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
+            {(user ? ['matches', 'browse', 'td'] as Tab[] : ['browse', 'td'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
+                  activeTab === t
+                    ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
+                    : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
+                }`}
+                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
+              >
+                {t === 'matches' ? b.tabMatches[lang]
+                  : t === 'browse' ? b.tabBrowse[lang]
+                  : (lang === 'th' ? 'ทุนทั้งหมด' : 'All Scholarships')}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1116,6 +1140,85 @@ export default function BrowsePage() {
             </div>
           )
         )}
+
+        {/* ════════════════════════════════════════════════════════════════════
+            ALL SCHOLARSHIPS TAB (td_scholarships)
+        ════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'td' && (
+          <div>
+            {/* Filters row */}
+            <div className="flex flex-wrap gap-3 mb-6">
+              <div className="relative flex-1 min-w-[200px]">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={tdSearch}
+                  onChange={e => setTdSearch(e.target.value)}
+                  placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search scholarships or funder...'}
+                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
+                />
+              </div>
+              <select
+                value={tdLevelFilter}
+                onChange={e => setTdLevelFilter(e.target.value)}
+                className="px-3 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white focus:outline-none"
+              >
+                <option value="">{lang === 'th' ? 'ทุกระดับ' : 'All levels'}</option>
+                {['High school', 'Undergraduate', "Master's", 'PhD', 'Multiple'].map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+              <select
+                value={tdFunderFilter}
+                onChange={e => setTdFunderFilter(e.target.value)}
+                className="px-3 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white focus:outline-none"
+              >
+                <option value="">{lang === 'th' ? 'ทุกประเภทผู้ให้ทุน' : 'All funder types'}</option>
+                {['Thai University', 'Thai Government / Royal', 'Corporate / Bank / Foundation', 'International (open to Thais)'].map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            </div>
+
+            {tdLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-56 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-[12px] animate-pulse" />
+                ))}
+              </div>
+            ) : (() => {
+              const q = tdSearch.toLowerCase();
+              const visible = tdScholarships.filter(s =>
+                (!tdLevelFilter || s.level === tdLevelFilter) &&
+                (!tdFunderFilter || s.funder_type === tdFunderFilter) &&
+                (!q || s.scholarship_name.toLowerCase().includes(q) || s.funder.toLowerCase().includes(q))
+              );
+              return visible.length === 0 ? (
+                <div className="text-center py-24">
+                  <div className="text-4xl mb-4">🎓</div>
+                  <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2">
+                    {lang === 'th' ? 'ไม่พบทุน' : 'No scholarships found'}
+                  </h3>
+                  <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+                    {lang === 'th' ? 'ลองเปลี่ยนตัวกรองหรือนำเข้าข้อมูลในหน้า Admin' : 'Try adjusting your filters or import data via Admin'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-5">
+                    {visible.length} {lang === 'th' ? 'ทุน' : 'scholarships'}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {visible.map(s => <TdScholarshipCard key={s.scholarship_id} scholarship={s} />)}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
       </div>
     </div>
   );

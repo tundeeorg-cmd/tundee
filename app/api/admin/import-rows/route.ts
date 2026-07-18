@@ -36,62 +36,91 @@ function formatSupabaseError(err: unknown): string {
 }
 
 export async function POST(request: NextRequest) {
-  // ── Auth: verify admin session ──────────────────────────────────────────
-  const supabase = await createServerSupabaseClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  if (!session || !adminEmail || session.user.email !== adminEmail) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // ── Parse body ──────────────────────────────────────────────────────────
-  let body: { rows: IncomingRow[] };
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+    // ── Check env vars first — throws if missing, causing opaque 500 ───────
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  const { rows } = body;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ inserted: 0, updated: 0, errors: [] });
-  }
+    if (!supabaseUrl || !serviceKey) {
+      console.error('[import-rows] Missing env vars — hasUrl:', !!supabaseUrl, 'hasServiceKey:', !!serviceKey);
+      return NextResponse.json({
+        inserted: 0, updated: 0,
+        errors: ['Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set. Add it to Vercel → Settings → Environment Variables, then redeploy.'],
+      }, { status: 500 });
+    }
 
-  // ── Service-role client (bypasses RLS) ──────────────────────────────────
-  const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
+    // ── Auth: verify admin session ────────────────────────────────────────
+    let session = null;
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data } = await supabase.auth.getSession();
+      session = data.session;
+    } catch (authErr) {
+      console.error('[import-rows] Auth check failed:', authErr);
+    }
 
-  const results = { inserted: 0, updated: 0, errors: [] as string[] };
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    if (!session || !adminEmail || session.user.email !== adminEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  for (const row of rows) {
-    const { rowNum, existingId, payload } = row;
-    const label = `Row ${rowNum} (${payload.name_th ?? ''})`;
+    // ── Parse body ────────────────────────────────────────────────────────
+    let body: { rows: IncomingRow[] };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    if (existingId) {
-      const { error } = await adminClient
-        .from('scholarships')
-        .update(payload)
-        .eq('id', existingId);
-      if (error) {
-        results.errors.push(`${label}: ${formatSupabaseError(error)}`);
+    const { rows } = body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json({ inserted: 0, updated: 0, errors: [] });
+    }
+
+    // ── Service-role client (bypasses RLS) ────────────────────────────────
+    const adminClient = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const results = { inserted: 0, updated: 0, errors: [] as string[] };
+
+    for (const row of rows) {
+      const { rowNum, existingId, payload } = row;
+      const label = `Row ${rowNum} (${payload.name_th ?? ''})`;
+
+      if (existingId) {
+        const { error } = await adminClient
+          .from('scholarships')
+          .update(payload)
+          .eq('id', existingId);
+        if (error) {
+          console.error('[import-rows] Update failed:', label, error);
+          results.errors.push(`${label}: ${formatSupabaseError(error)}`);
+        } else {
+          results.updated++;
+        }
       } else {
-        results.updated++;
-      }
-    } else {
-      const { error } = await adminClient
-        .from('scholarships')
-        .insert(payload);
-      if (error) {
-        results.errors.push(`${label}: ${formatSupabaseError(error)}`);
-      } else {
-        results.inserted++;
+        const { error } = await adminClient
+          .from('scholarships')
+          .insert(payload);
+        if (error) {
+          console.error('[import-rows] Insert failed:', label, error);
+          results.errors.push(`${label}: ${formatSupabaseError(error)}`);
+        } else {
+          results.inserted++;
+        }
       }
     }
-  }
 
-  return NextResponse.json(results);
+    console.log('[import-rows] Done — inserted:', results.inserted, 'updated:', results.updated, 'errors:', results.errors.length);
+    return NextResponse.json(results);
+
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[import-rows] Unhandled error:', err);
+    return NextResponse.json({
+      inserted: 0, updated: 0,
+      errors: [`Server error: ${msg}`],
+    }, { status: 500 });
+  }
 }
