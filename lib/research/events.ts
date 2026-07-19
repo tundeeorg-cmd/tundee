@@ -83,8 +83,8 @@ export async function logEvent({
       income_bracket: income ?? null,
       occurred_at:    new Date().toISOString(),
     })
-    // 23505 = unique violation (duplicate), 400 = schema mismatch — neither should crash the UI
-    if (error && error.code !== '23505' && !error.message?.includes('column')) throw error
+    // 23505 = duplicate, 23503 = FK violation (stale JWT / user not in auth.users) — swallow silently
+    if (error && error.code !== '23505' && error.code !== '23503' && !error.message?.includes('column')) throw error
 
     // Mirror to GA (secondary signal — not research data of record)
     gtagEvent(eventType, {
