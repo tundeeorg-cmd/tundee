@@ -225,8 +225,17 @@ export default function AdminPage() {
   const [tdParsing,        setTdParsing]        = useState(false);
   const [tdReport,         setTdReport]         = useState<TdImportReport | null>(null);
   const [tdImporting,      setTdImporting]      = useState(false);
-  const [tdImportResult,   setTdImportResult]   = useState<{ inserted: number; updated: number; skipped: number; errors: string[] } | null>(null);
+  const [tdImportResult,   setTdImportResult]   = useState<{ inserted: number; updated: number; skipped: number; protected: number; errors: string[] } | null>(null);
   const [tdImportError,    setTdImportError]    = useState('');
+
+  // ── Verification workflow state ───────────────────────────────────────────
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set());
+  const [bulkConfirm,  setBulkConfirm]  = useState<{ action: string; status?: string; count: number } | null>(null);
+  const [bulkWorking,  setBulkWorking]  = useState(false);
+  const [toast,        setToast]        = useState('');
+  const [editRow,      setEditRow]      = useState<TdScholarship | null>(null);
+  const [editForm,     setEditForm]     = useState<{ deadline_raw: string; status: string; application_link: string; verification_status: string; notes: string } | null>(null);
+  const [editSaving,   setEditSaving]   = useState(false);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -519,13 +528,14 @@ export default function AdminPage() {
       });
       const json = await res.json();
       setTdImportResult({
-        inserted: json.inserted ?? 0,
-        updated:  json.updated  ?? 0,
-        skipped:  json.skipped  ?? 0,
-        errors:   Array.isArray(json.errors) ? json.errors : (json.error ? [String(json.error)] : ['Unknown server error']),
+        inserted:  json.inserted  ?? 0,
+        updated:   json.updated   ?? 0,
+        skipped:   json.skipped   ?? 0,
+        protected: json.protected ?? 0,
+        errors:    Array.isArray(json.errors) ? json.errors : (json.error ? [String(json.error)] : ['Unknown server error']),
       });
     } catch (e) {
-      setTdImportResult({ inserted: 0, updated: 0, skipped: 0, errors: [String(e)] });
+      setTdImportResult({ inserted: 0, updated: 0, skipped: 0, protected: 0, errors: [String(e)] });
     } finally {
       setTdImporting(false);
     }
@@ -536,6 +546,81 @@ export default function AdminPage() {
     setTdReport(null);
     setTdImportResult(null);
     setTdImportError('');
+  }
+
+  // ── Verification helpers ──────────────────────────────────────────────────
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 4000);
+  }
+
+  async function applyBulkAction() {
+    if (!bulkConfirm) return;
+    setBulkWorking(true);
+    const ids = Array.from(selectedIds);
+    try {
+      const res = await fetch('/api/admin/td-scholarships/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action: bulkConfirm.action, status: bulkConfirm.status }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Unknown error');
+      setBulkConfirm(null);
+      setSelectedIds(new Set());
+      await fetchTdScholarships();
+      const actionLabel = bulkConfirm.action === 'verify' ? 'verified'
+        : bulkConfirm.action === 'unverify' ? 'unverified'
+        : `set to ${bulkConfirm.status}`;
+      showToast(`${json.updated} rows ${actionLabel} — ${json.displayedNow} now displayed`);
+    } catch (e) {
+      showToast(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBulkWorking(false);
+    }
+  }
+
+  function openEdit(row: TdScholarship) {
+    setEditRow(row);
+    setEditForm({
+      deadline_raw:        row.deadline_raw ?? '',
+      status:              row.status ?? '',
+      application_link:    row.application_link ?? '',
+      verification_status: row.verification_status ?? '',
+      notes:               row.notes ?? '',
+    });
+  }
+
+  async function handleSaveEdit() {
+    if (!editRow || !editForm) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/admin/td-scholarships/${encodeURIComponent(editRow.scholarship_id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deadline_raw:        editForm.deadline_raw || null,
+          status:              editForm.status || null,
+          application_link:    editForm.application_link,
+          verification_status: editForm.verification_status || null,
+          notes:               editForm.notes || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Unknown error');
+      setTdRows(prev => prev.map(r => r.scholarship_id === editRow.scholarship_id ? json.scholarship : r));
+      setEditRow(null);
+      setEditForm(null);
+      showToast(`Saved ${editRow.scholarship_id}`);
+    } catch (e) {
+      showToast(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  function handleExportCsv() {
+    window.open('/api/admin/td-scholarships/export', '_blank');
   }
 
   function resetImport() {
@@ -563,6 +648,13 @@ export default function AdminPage() {
   const tdTotalCount    = tdRows.length;
   const tdDisplayedCount = tdRows.filter(r => r.is_displayed).length;
   const tdHiddenCount   = tdRows.filter(r => !r.is_displayed).length;
+
+  // Client-side filtered rows for TD list (used for selection + display)
+  const visibleTdRows = tdRows.filter(r => {
+    const q = tdSearch.toLowerCase();
+    return !q || r.scholarship_name.toLowerCase().includes(q) || r.funder.toLowerCase().includes(q);
+  });
+  const allVisibleSelected = visibleTdRows.length > 0 && visibleTdRows.every(r => selectedIds.has(r.scholarship_id));
 
   const trendFiltered = (() => {
     const days = parseInt(trendRange);
@@ -1384,16 +1476,17 @@ export default function AdminPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 5 TD LIST
+            TAB 5 TD LIST — with verification workflow
         ════════════════════════════════════════════════════════════════ */}
         {tab === 'td-list' && (
-          <div className="space-y-4">
+          <div className="space-y-4 pb-24">
+            {/* ── Toolbar ──────────────────────────────────────────────── */}
             <div className="flex flex-wrap gap-3 items-center">
               <input
                 type="text"
                 placeholder="Search by name or funder..."
                 value={tdSearch}
-                onChange={e => setTdSearch(e.target.value)}
+                onChange={e => { setTdSearch(e.target.value); setSelectedIds(new Set()); }}
                 className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white"
               />
               <select
@@ -1401,6 +1494,7 @@ export default function AdminPage() {
                 onChange={e => {
                   const v = e.target.value as typeof tdFilter;
                   setTdFilter(v);
+                  setSelectedIds(new Set());
                   void fetchTdScholarships(v);
                 }}
                 className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none"
@@ -1413,10 +1507,36 @@ export default function AdminPage() {
                 className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] hover:border-[#2E6BE6] transition-colors">
                 ↻ Refresh
               </button>
+              <button onClick={handleExportCsv}
+                className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm text-[#6E6E73] hover:border-[#2E6BE6] transition-colors flex items-center gap-1.5">
+                ⬇ Export CSV
+              </button>
             </div>
-            <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-              {tdRows.length} rows total (service-role — shows all including hidden)
-            </p>
+
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                {visibleTdRows.length} matching · {selectedIds.size} selected
+              </p>
+              {selectedIds.size > 0 && (
+                <button onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-[#6E6E73] hover:text-red-500 transition-colors">
+                  Clear selection
+                </button>
+              )}
+            </div>
+
+            {/* ── Select-all-matching banner ────────────────────────────── */}
+            {allVisibleSelected && visibleTdRows.length < tdRows.length && (
+              <div className="bg-[#EEF3FD] dark:bg-[#1A2E4A] text-[#2E6BE6] text-xs rounded-lg px-4 py-2 flex items-center gap-3">
+                <span>All {visibleTdRows.length} visible rows selected.</span>
+                <button
+                  className="font-semibold underline underline-offset-2"
+                  onClick={() => setSelectedIds(new Set(tdRows.map(r => r.scholarship_id)))}
+                >
+                  Select all {tdRows.length} rows in database
+                </button>
+              </div>
+            )}
 
             {tdLoading ? (
               <div className="flex justify-center py-16"><Spinner /></div>
@@ -1425,50 +1545,120 @@ export default function AdminPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F7F9FC] dark:bg-[#232B3E]">
-                      {['ID', 'Name', 'Funder', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Reason'].map(h => (
+                      <th className="px-3 py-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && !allVisibleSelected; }}
+                          onChange={() => {
+                            if (allVisibleSelected) {
+                              setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                visibleTdRows.forEach(r => next.delete(r.scholarship_id));
+                                return next;
+                              });
+                            } else {
+                              setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                visibleTdRows.forEach(r => next.add(r.scholarship_id));
+                                return next;
+                              });
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded cursor-pointer accent-[#2E6BE6]"
+                        />
+                      </th>
+                      {['ID', 'Name', 'Funder', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Actions'].map(h => (
                         <th key={h} className="px-3 py-2 text-left font-medium text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {tdRows
-                      .filter(r => {
-                        const q = tdSearch.toLowerCase();
-                        return !q || r.scholarship_name.toLowerCase().includes(q) || r.funder.toLowerCase().includes(q);
-                      })
-                      .map(r => (
-                        <tr key={r.scholarship_id} className="border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E]">
-                          <td className="px-3 py-2 text-[#ADADB8] font-mono">{r.scholarship_id}</td>
-                          <td className="px-3 py-2 max-w-[180px] truncate text-[#1D1D1F] dark:text-white" title={r.scholarship_name}>{r.scholarship_name}</td>
-                          <td className="px-3 py-2 max-w-[140px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.funder}>{r.funder}</td>
-                          <td className="px-3 py-2">
-                            <span className={`px-1.5 py-0.5 rounded-full font-medium ${r.status === 'Open' ? 'bg-green-50 text-green-700' : r.status === 'Closed' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
-                              {r.status ?? '—'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 max-w-[120px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.verification_status ?? ''}>
-                            {(r.verification_status ?? '').toLowerCase() === 'verified'
-                              ? <span className="text-green-600">✓ verified</span>
-                              : <span className="text-[#ADADB8]">{(r.verification_status ?? '').slice(0, 20) || '—'}</span>}
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-[#6E6E73]">
-                            {r.deadline_date ?? (r.deadline_is_rolling ? 'rolling' : r.deadline_note ?? '—')}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {r.is_displayed
-                              ? <span className="text-green-600 font-bold">✓</span>
-                              : <span className="text-[#ADADB8]">✗</span>}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {r.stale ? <span className="text-amber-500">⚠</span> : <span className="text-[#ADADB8]">—</span>}
-                          </td>
-                          <td className="px-3 py-2 max-w-[200px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.display_reason ?? ''}>
-                            {r.display_reason ?? '—'}
-                          </td>
-                        </tr>
-                      ))}
+                    {visibleTdRows.map(r => (
+                      <tr key={r.scholarship_id}
+                        className={`border-b border-[#F5F5F7] dark:border-[#3A3A3C] hover:bg-[#FAFAFA] dark:hover:bg-[#2C2C2E] ${selectedIds.has(r.scholarship_id) ? 'bg-[#EEF3FD] dark:bg-[#1A2E4A]' : ''}`}>
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(r.scholarship_id)}
+                            onChange={() => setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              next.has(r.scholarship_id) ? next.delete(r.scholarship_id) : next.add(r.scholarship_id);
+                              return next;
+                            })}
+                            className="w-3.5 h-3.5 rounded cursor-pointer accent-[#2E6BE6]"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-[#ADADB8] font-mono">{r.scholarship_id}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate text-[#1D1D1F] dark:text-white" title={r.scholarship_name}>{r.scholarship_name}</td>
+                        <td className="px-3 py-2 max-w-[140px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.funder}>{r.funder}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-1.5 py-0.5 rounded-full font-medium ${r.status === 'Open' ? 'bg-green-50 text-green-700' : r.status === 'Closed' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
+                            {r.status ?? '—'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 max-w-[120px] truncate" title={r.verification_status ?? ''}>
+                          {(r.verification_status ?? '').toLowerCase() === 'verified'
+                            ? <span className="text-green-600 font-medium">✓ verified{r.verified_by ? ` · ${r.verified_by.split('@')[0]}` : ''}</span>
+                            : <span className="text-[#ADADB8]">{(r.verification_status ?? '').slice(0, 20) || '—'}</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-[#6E6E73]">
+                          {r.deadline_date ?? (r.deadline_is_rolling ? 'rolling' : r.deadline_note ?? '—')}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {r.is_displayed
+                            ? <span className="text-green-600 font-bold">✓</span>
+                            : <span className="text-[#ADADB8]">✗</span>}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {r.stale ? <span className="text-amber-500">⚠</span> : <span className="text-[#ADADB8]">—</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => openEdit(r)}
+                            className="px-2 py-1 rounded text-[10px] font-medium border border-[#E5E5EA] dark:border-[#3A3A3C] text-[#6E6E73] hover:border-[#2E6BE6] hover:text-[#2E6BE6] transition-colors whitespace-nowrap"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* ── Bulk action bar ───────────────────────────────────────── */}
+            {selectedIds.size > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#1D1D1F] border-t border-[#E5E5EA] dark:border-[#3A3A3C] shadow-2xl px-4 py-3 flex flex-wrap items-center gap-3">
+                <span className="text-sm font-semibold text-[#1D1D1F] dark:text-white mr-2">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={() => setBulkConfirm({ action: 'verify', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors">
+                  ✓ Mark Verified
+                </button>
+                <button
+                  onClick={() => setBulkConfirm({ action: 'set_status', status: 'Open', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-xs font-semibold transition-colors">
+                  Set Status: Open
+                </button>
+                <button
+                  onClick={() => setBulkConfirm({ action: 'set_status', status: 'Closed', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg bg-[#6E6E73] hover:bg-[#4A4A4F] text-white text-xs font-semibold transition-colors">
+                  Set Status: Closed
+                </button>
+                <button
+                  onClick={() => setBulkConfirm({ action: 'unverify', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-xs font-semibold text-[#6E6E73] hover:border-red-400 hover:text-red-500 transition-colors">
+                  Unverify
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="ml-auto text-xs text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white transition-colors">
+                  ✕ Cancel
+                </button>
               </div>
             )}
           </div>
@@ -1574,7 +1764,9 @@ export default function AdminPage() {
                     <div>
                       <h3 className="font-semibold text-[#1D1D1F] dark:text-white">Import complete</h3>
                       <p className="text-sm text-[#6E6E73]">
-                        {tdImportResult.inserted} inserted · {tdImportResult.updated} updated · {tdImportResult.skipped} skipped · {tdImportResult.errors.length} errors
+                        {tdImportResult.inserted} inserted · {tdImportResult.updated} updated · {tdImportResult.skipped} skipped
+                        {tdImportResult.protected > 0 && <> · <span className="text-amber-600 font-medium">{tdImportResult.protected} verified rows kept</span></>}
+                        {' · '}{tdImportResult.errors.length} errors
                       </p>
                     </div>
                   </div>
@@ -1595,6 +1787,185 @@ export default function AdminPage() {
         )}
 
       </div>
+
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 bg-[#1D1D1F] dark:bg-white text-white dark:text-[#1D1D1F] text-sm font-medium px-5 py-3 rounded-xl shadow-2xl max-w-sm">
+          {toast}
+        </div>
+      )}
+
+      {/* ── Bulk confirm dialog ────────────────────────────────────────────── */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <h3 className="font-semibold text-[#1D1D1F] dark:text-white text-lg">
+              {bulkConfirm.action === 'verify' ? '✓ Mark as Verified'
+                : bulkConfirm.action === 'unverify' ? 'Unverify'
+                : `Set Status: ${bulkConfirm.status}`}
+            </h3>
+            <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+              Apply to <strong className="text-[#1D1D1F] dark:text-white">{bulkConfirm.count} scholarship{bulkConfirm.count !== 1 ? 's' : ''}</strong>?
+              {bulkConfirm.action === 'verify' && ' This sets verification_status = "verified" and last_verified = today. is_displayed is recomputed.'}
+              {bulkConfirm.action === 'unverify' && ' This resets verification_status to "Auto-extracted (confirm deadline + link)". Rows will be hidden until re-verified.'}
+              {bulkConfirm.action === 'set_status' && ` This changes status to "${bulkConfirm.status}". is_displayed is recomputed.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={applyBulkAction}
+                disabled={bulkWorking}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {bulkWorking ? <Spinner size={4} /> : null} Apply
+              </button>
+              <button
+                onClick={() => setBulkConfirm(null)}
+                disabled={bulkWorking}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#6E6E73] hover:border-[#2E6BE6] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Inline edit drawer ─────────────────────────────────────────────── */}
+      {editRow && editForm && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => { setEditRow(null); setEditForm(null); }} />
+          <div className="w-full max-w-md bg-white dark:bg-[#1D1D1F] border-l border-[#E5E5EA] dark:border-[#3A3A3C] flex flex-col shadow-2xl overflow-y-auto">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-[#E5E5EA] dark:border-[#3A3A3C] flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs text-[#ADADB8] font-mono mb-0.5">{editRow.scholarship_id}</div>
+                <h3 className="font-semibold text-[#1D1D1F] dark:text-white text-sm leading-snug">
+                  {editRow.scholarship_name}
+                </h3>
+                <p className="text-xs text-[#6E6E73] mt-0.5">{editRow.funder}</p>
+              </div>
+              <button onClick={() => { setEditRow(null); setEditForm(null); }}
+                className="text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white text-xl leading-none shrink-0 mt-0.5">
+                ✕
+              </button>
+            </div>
+
+            {/* Quick links */}
+            <div className="px-6 py-3 border-b border-[#F5F5F7] dark:border-[#3A3A3C] flex gap-3 flex-wrap">
+              {editRow.source && (
+                <a href={editRow.source} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-[#2E6BE6] hover:underline flex items-center gap-1">
+                  🔗 Source ↗
+                </a>
+              )}
+              {(editForm.application_link || editRow.application_link) && (
+                <a href={editForm.application_link || editRow.application_link} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-[#2E6BE6] hover:underline flex items-center gap-1">
+                  📝 Application link ↗
+                </a>
+              )}
+            </div>
+
+            {/* Current display gate status */}
+            <div className={`mx-6 mt-4 px-3 py-2 rounded-lg text-xs ${editRow.is_displayed ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>
+              Currently: {editRow.is_displayed ? '✓ Displayed' : '✗ Hidden'} — {editRow.display_reason ?? '—'}
+            </div>
+
+            {/* Form fields */}
+            <div className="px-6 py-4 space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">
+                  Verification Status
+                </label>
+                <input
+                  type="text"
+                  value={editForm.verification_status}
+                  onChange={e => setEditForm(f => f ? { ...f, verification_status: e.target.value } : f)}
+                  placeholder='e.g. "verified" or "Auto-extracted (confirm deadline + link)"'
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
+                />
+                <div className="flex gap-2 mt-1.5">
+                  <button onClick={() => setEditForm(f => f ? { ...f, verification_status: 'verified' } : f)}
+                    className="text-[10px] px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                    → verified
+                  </button>
+                  <button onClick={() => setEditForm(f => f ? { ...f, verification_status: 'Auto-extracted (confirm deadline + link)' } : f)}
+                    className="text-[10px] px-2 py-1 rounded bg-[#F7F9FC] text-[#6E6E73] hover:bg-[#E5E5EA] transition-colors">
+                    → Auto-extracted
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={e => setEditForm(f => f ? { ...f, status: e.target.value } : f)}
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none"
+                >
+                  <option value="">— select —</option>
+                  <option value="Open">Open</option>
+                  <option value="Recheck">Recheck</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">
+                  Deadline (raw text — re-parsed automatically)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.deadline_raw}
+                  onChange={e => setEditForm(f => f ? { ...f, deadline_raw: e.target.value } : f)}
+                  placeholder='e.g. "2026-03-31" or "rolling"'
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
+                />
+                <p className="text-[10px] text-[#ADADB8] mt-1">
+                  Current parsed: {editRow.deadline_date ?? (editRow.deadline_is_rolling ? 'rolling' : editRow.deadline_note ?? '—')}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Application Link</label>
+                <input
+                  type="url"
+                  value={editForm.application_link}
+                  onChange={e => setEditForm(f => f ? { ...f, application_link: e.target.value } : f)}
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Notes</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => f ? { ...f, notes: e.target.value } : f)}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] resize-y"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-[#E5E5EA] dark:border-[#3A3A3C] flex gap-3">
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {editSaving ? <Spinner size={4} /> : null} Save
+              </button>
+              <button
+                onClick={() => { setEditRow(null); setEditForm(null); }}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#6E6E73] hover:border-[#2E6BE6] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete protection modal ─────────────────────────────────────────── */}
       {deleteCheckId && (

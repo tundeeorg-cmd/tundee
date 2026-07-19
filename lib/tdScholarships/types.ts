@@ -33,6 +33,7 @@ export interface TdScholarship {
   source: string | null;
   verification_status: string | null;
   last_verified: string | null;
+  verified_by: string | null;
   notes: string | null;
   // Derived
   deadline_date: string | null;

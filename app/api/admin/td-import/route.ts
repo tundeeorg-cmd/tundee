@@ -75,28 +75,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ inserted: 0, updated: 0, skipped, errors: [] });
     }
 
-    // One query to find which IDs already exist (to count inserts vs updates)
+    // Fetch existing rows: IDs (for insert vs update counts) + verified rows (for protection)
     const ids = toUpsert.map(r => r.scholarship_id);
     const { data: existingRows } = await adminClient
       .from('td_scholarships')
-      .select('scholarship_id')
+      .select('scholarship_id, verification_status, last_verified, verified_by, deadline_raw, deadline_date, deadline_is_rolling, deadline_note, status, application_link')
       .in('scholarship_id', ids);
 
     const existingIds = new Set(
       (existingRows ?? []).map((r: { scholarship_id: string }) => r.scholarship_id),
     );
 
+    // Build a lookup of verified DB rows (keyed by scholarship_id)
+    type ExistingRow = {
+      scholarship_id: string;
+      verification_status: string | null;
+      last_verified: string | null;
+      verified_by: string | null;
+      deadline_raw: string | null;
+      deadline_date: string | null;
+      deadline_is_rolling: boolean;
+      deadline_note: string | null;
+      status: string | null;
+      application_link: string;
+    };
+    const verifiedDbRows = new Map<string, ExistingRow>();
+    for (const r of (existingRows ?? []) as ExistingRow[]) {
+      if ((r.verification_status ?? '').toLowerCase() === 'verified') {
+        verifiedDbRows.set(r.scholarship_id, r);
+      }
+    }
+
     // Build all payloads (per-row errors go to errors[], not a 500)
     const payloads: Record<string, unknown>[] = [];
+    let protectedCount = 0;
     for (const row of toUpsert) {
       try {
-        const dp = parseDeadline(row.deadline_raw ?? null);
+        // Protection: if the DB row is verified and the incoming row is not, keep DB's fields
+        const dbRow = verifiedDbRows.get(row.scholarship_id);
+        const incomingIsVerified = (row.verification_status ?? '').toLowerCase() === 'verified';
+        const isProtected = !!dbRow && !incomingIsVerified;
+        if (isProtected) protectedCount++;
+
+        const effectiveDeadlineRaw = isProtected ? (dbRow!.deadline_raw ?? row.deadline_raw) : row.deadline_raw;
+        const dp = isProtected
+          ? { deadline_date: dbRow!.deadline_date, deadline_is_rolling: dbRow!.deadline_is_rolling, deadline_note: dbRow!.deadline_note ?? '' }
+          : parseDeadline(row.deadline_raw ?? null);
+
+        const effectiveVerificationStatus = isProtected ? 'verified' : (row.verification_status ?? null);
+        const effectiveLastVerified       = isProtected ? dbRow!.last_verified : (row.last_verified ?? null);
+        const effectiveVerifiedBy         = isProtected ? dbRow!.verified_by : null;
+        const effectiveStatus             = isProtected ? (dbRow!.status ?? row.status) : row.status;
+        const effectiveAppLink            = isProtected ? (dbRow!.application_link || row.application_link || '') : (row.application_link ?? '');
+
         const gate = isDisplayable(
           {
-            verification_status: row.verification_status,
-            status:              row.status,
+            verification_status: effectiveVerificationStatus,
+            status:              effectiveStatus,
             deadline_date:       dp.deadline_date,
-            last_verified:       row.last_verified,
+            last_verified:       effectiveLastVerified,
           },
           todayBkk,
         );
@@ -115,12 +152,13 @@ export async function POST(request: NextRequest) {
           min_gpa:             row.min_gpa ?? null,
           income_cap_thb:      row.income_cap_thb ?? null,
           language:            row.language ?? null,
-          deadline_raw:        row.deadline_raw ?? null,
-          status:              row.status ?? null,
-          application_link:    row.application_link ?? '',
+          deadline_raw:        effectiveDeadlineRaw ?? null,
+          status:              effectiveStatus ?? null,
+          application_link:    effectiveAppLink,
           source:              row.source ?? null,
-          verification_status: row.verification_status ?? null,
-          last_verified:       row.last_verified ?? null,
+          verification_status: effectiveVerificationStatus,
+          last_verified:       effectiveLastVerified,
+          verified_by:         effectiveVerifiedBy,
           notes:               row.notes ?? null,
           deadline_date:       dp.deadline_date,
           deadline_is_rolling: dp.deadline_is_rolling,
@@ -144,7 +182,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('[td-import] bulk upsert error:', error);
         errors.push(`Bulk upsert error: ${fmtErr(error)}`);
-        return NextResponse.json({ inserted: 0, updated: 0, skipped, errors }, { status: 500 });
+        return NextResponse.json({ inserted: 0, updated: 0, skipped, protected: 0, errors }, { status: 500 });
       }
     }
 
@@ -159,8 +197,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('[td-import] inserted:', inserted, 'updated:', updated, 'skipped:', skipped, 'errors:', errors.length);
-    return NextResponse.json({ inserted, updated, skipped, errors });
+    console.log('[td-import] inserted:', inserted, 'updated:', updated, 'skipped:', skipped, 'protected:', protectedCount, 'errors:', errors.length);
+    return NextResponse.json({ inserted, updated, skipped, protected: protectedCount, errors });
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
