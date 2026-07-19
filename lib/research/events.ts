@@ -16,7 +16,6 @@ interface LogEventParams {
   eventType: EventType
   scholarshipId?: string
   metadata?: Record<string, unknown>
-  provinceId?: string
   /** Stamp A/B arm so every event is labelled for treatment-effect analysis */
   abArm?: string | null
   /** Stamp income bracket (1-7) so events can be grouped without joining profiles */
@@ -63,7 +62,6 @@ export async function logEvent({
   eventType,
   scholarshipId,
   metadata,
-  provinceId,
   abArm,
   incomeBracket,
 }: LogEventParams): Promise<void> {
@@ -76,17 +74,17 @@ export async function logEvent({
     const arm    = abArm      !== undefined ? abArm      : _abArm
     const income = incomeBracket !== undefined ? incomeBracket : _incomeBracket
 
-    await supabase.from('user_events').insert({
-      user_id:              user.id,
-      event_type:           eventType,
-      scholarship_id:       scholarshipId ?? null,
-      event_metadata:       metadata ?? null,
-      province_id_at_event: provinceId ?? null,
-      ab_arm:               arm ?? null,
-      income_bracket:       income ?? null,
-      session_id:           getSessionId(),
-      occurred_at:          new Date().toISOString(),
+    const { error } = await supabase.from('user_events').insert({
+      user_id:        user.id,
+      event_type:     eventType,
+      scholarship_id: scholarshipId ?? null,
+      event_metadata: metadata ?? null,
+      ab_arm:         arm ?? null,
+      income_bracket: income ?? null,
+      occurred_at:    new Date().toISOString(),
     })
+    // 23505 = unique violation (duplicate), 400 = schema mismatch — neither should crash the UI
+    if (error && error.code !== '23505' && !error.message?.includes('column')) throw error
 
     // Mirror to GA (secondary signal — not research data of record)
     gtagEvent(eventType, {
