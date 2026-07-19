@@ -605,25 +605,17 @@ export default function TdScholarshipDetailPage() {
 
         {/* ── 6. FOOTER ─────────────────────────────────────────────────── */}
         <div className="px-1 space-y-2 pb-2">
-          {(s.last_verified || s.source_url) && (
+          {s.source_url && (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              {s.last_verified && (
-                <p className="text-xs text-[#8A96A8] dark:text-[#6E7A8A]">
-                  {lang === 'th' ? 'อัปเดตล่าสุด ' : 'Last verified '}
-                  {formatUserDate(s.last_verified, lang as 'th' | 'en')}
-                </p>
-              )}
-              {s.source_url && (
-                <a
-                  href={s.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-[#1B3A6B] dark:text-[#4A7FD4] hover:underline"
-                >
-                  {lang === 'th' ? 'ดูประกาศทางการ' : 'View official announcement'}
-                  <IcoExternal />
-                </a>
-              )}
+              <a
+                href={s.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-[#1B3A6B] dark:text-[#4A7FD4] hover:underline"
+              >
+                {lang === 'th' ? 'ดูประกาศทางการ' : 'View official announcement'}
+                <IcoExternal />
+              </a>
             </div>
           )}
           <p className="text-xs text-center text-[#ADADB8] dark:text-[#4A5568]">
