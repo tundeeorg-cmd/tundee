@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
+import { logFunnelEvent } from '@/lib/research/funnel';
 
 const FUNDER_TYPE_BADGE: Record<string, string> = {
   'Thai University':               'มหาวิทยาลัยไทย',
@@ -55,6 +56,9 @@ export default function TdScholarshipDetailPage() {
         setNotFound(true);
       } else {
         setScholarship(data as TdScholarship);
+        // Log view_detail event
+        const { data: { user } } = await supabase.auth.getUser();
+        logFunnelEvent({ eventType: 'view_detail', scholarshipId: id, userId: user?.id ?? null });
       }
       setLoading(false);
     })();

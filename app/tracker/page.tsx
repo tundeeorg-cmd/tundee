@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
+import { logFunnelEvent } from '@/lib/research/funnel';
+import { getSessionId } from '@/lib/research/session';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,11 +148,12 @@ interface TrackedCardProps {
   onReminderToggle: (id: string, val: boolean) => void;
   onUntrack: (id: string) => void;
   onApplyClick: (scholarshipId: string, link: string) => void;
+  onReportOutcome: (scholarshipId: string, name: string) => void;
 }
 
 function TrackedCard({
   row, lang,
-  onStatusChange, onNotesChange, onReminderToggle, onUntrack, onApplyClick,
+  onStatusChange, onNotesChange, onReminderToggle, onUntrack, onApplyClick, onReportOutcome,
 }: TrackedCardProps) {
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteDraft, setNoteDraft]       = useState(row.notes ?? '');
@@ -256,6 +259,14 @@ function TrackedCard({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </a>
+        {['applying', 'applied'].includes(row.status) && (
+          <button
+            onClick={() => onReportOutcome(row.scholarship_id, s.scholarship_name)}
+            className="px-3 py-2 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[8px] text-xs text-[#6E6E73] hover:text-[#1B3A6B] hover:border-[#1B3A6B] transition-colors"
+          >
+            {lang === 'th' ? 'รายงานผล' : 'Report'}
+          </button>
+        )}
         <button
           onClick={() => onUntrack(row.id)}
           className="px-3 py-2 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[8px] text-xs text-[#6E6E73] hover:text-red-500 hover:border-red-300 transition-colors"
@@ -280,6 +291,11 @@ export default function TrackerPage() {
   const [profile,  setProfile]  = useState<Profile | null>(null);
   const [toast,    setToast]    = useState<string | null>(null);
   const [lineMsg,  setLineMsg]  = useState<string | null>(null);
+  const [selfReport, setSelfReport] = useState<{ scholarshipId: string; name: string } | null>(null);
+  const [srOutcome,  setSrOutcome]  = useState('');
+  const [srDate,     setSrDate]     = useState('');
+  const [srNotes,    setSrNotes]    = useState('');
+  const [srSaving,   setSrSaving]   = useState(false);
 
   const fontFamily = lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
 
@@ -339,8 +355,20 @@ export default function TrackerPage() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   async function handleStatusChange(id: string, status: TrackStatus) {
+    const row = rows.find(r => r.id === id);
+    const prev = row?.status;
     setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     await fetch(`/api/tracker/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+    // Log status_change event
+    const { data: { user } } = await createClient().auth.getUser();
+    if (user && row) {
+      logFunnelEvent({
+        eventType: 'status_change',
+        scholarshipId: row.scholarship_id,
+        userId: user.id,
+        context: { from: prev, to: status },
+      });
+    }
   }
 
   async function handleNotesChange(id: string, notes: string) {
@@ -361,6 +389,31 @@ export default function TrackerPage() {
 
   async function handleApplyClick(scholarshipId: string, link: string) {
     fetch('/api/apply-click', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scholarship_id: scholarshipId }) });
+  }
+
+  async function handleSelfReport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selfReport || !srOutcome) return;
+    setSrSaving(true);
+    const res = await fetch('/api/self-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scholarship_id: selfReport.scholarshipId,
+        outcome:        srOutcome,
+        outcome_date:   srDate || null,
+        notes:          srNotes || null,
+        session_id:     getSessionId(),
+      }),
+    });
+    setSrSaving(false);
+    if (res.ok) {
+      setSelfReport(null); setSrOutcome(''); setSrDate(''); setSrNotes('');
+      // Refresh rows to reflect updated status
+      const { data: { user } } = await createClient().auth.getUser();
+      if (user) await fetchAll(user.id);
+      setToast(lang === 'th' ? 'บันทึกผลลัพธ์แล้ว' : 'Outcome recorded');
+    }
   }
 
   async function handleUnlink() {
@@ -495,12 +548,69 @@ export default function TrackerPage() {
                   onReminderToggle={handleReminderToggle}
                   onUntrack={handleUntrack}
                   onApplyClick={handleApplyClick}
+                  onReportOutcome={(sid, name) => { setSelfReport({ scholarshipId: sid, name }); setSrOutcome(''); setSrDate(''); setSrNotes(''); }}
                 />
               ))}
             </div>
           </div>
         ))}
       </div>
+
+      {/* ── Self-report outcome modal ──────────────────────────────────────── */}
+      {selfReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setSelfReport(null)}>
+          <form
+            onSubmit={handleSelfReport}
+            onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[16px] p-6 max-w-sm w-full shadow-xl"
+          >
+            <h3 className="text-base font-semibold text-[#1D1D1F] dark:text-white mb-1">
+              {lang === 'th' ? 'รายงานผลการสมัคร' : 'Report outcome'}
+            </h3>
+            <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-4 line-clamp-2">{selfReport.name}</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-[#1D1D1F] dark:text-white block mb-1">
+                  {lang === 'th' ? 'ผลลัพธ์' : 'Outcome'} *
+                </label>
+                <select required value={srOutcome} onChange={e => setSrOutcome(e.target.value)}
+                  className="w-full rounded-lg border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] text-sm text-[#1D1D1F] dark:text-white px-3 py-2">
+                  <option value="">{lang === 'th' ? '-- เลือก --' : '-- Select --'}</option>
+                  <option value="applied">{lang === 'th' ? 'ส่งใบสมัครแล้ว' : 'Applied'}</option>
+                  <option value="awarded">{lang === 'th' ? 'ได้รับทุน' : 'Awarded'}</option>
+                  <option value="rejected">{lang === 'th' ? 'ไม่ผ่านการคัดเลือก' : 'Not selected'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[#1D1D1F] dark:text-white block mb-1">
+                  {lang === 'th' ? 'วันที่ (ไม่บังคับ)' : 'Date (optional)'}
+                </label>
+                <input type="date" value={srDate} onChange={e => setSrDate(e.target.value)}
+                  className="w-full rounded-lg border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] text-sm text-[#1D1D1F] dark:text-white px-3 py-2" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[#1D1D1F] dark:text-white block mb-1">
+                  {lang === 'th' ? 'บันทึก (ไม่บังคับ)' : 'Notes (optional)'}
+                </label>
+                <textarea value={srNotes} onChange={e => setSrNotes(e.target.value)} rows={2}
+                  className="w-full rounded-lg border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] text-sm text-[#1D1D1F] dark:text-white px-3 py-2 resize-none" />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setSelfReport(null)}
+                className="flex-1 py-2 text-sm text-[#6E6E73] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg">
+                {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button type="submit" disabled={srSaving || !srOutcome}
+                className="flex-1 py-2 text-sm font-semibold text-white bg-[#1B3A6B] hover:bg-[#2E5FA3] rounded-lg disabled:opacity-50 transition-colors">
+                {srSaving ? '...' : (lang === 'th' ? 'บันทึก' : 'Save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

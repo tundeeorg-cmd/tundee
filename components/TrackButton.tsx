@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { logFunnelEvent } from '@/lib/research/funnel';
 
 interface Props {
   scholarshipId: string;
@@ -54,14 +55,20 @@ export default function TrackButton({ scholarshipId, size = 'md' }: Props) {
         .delete()
         .eq('id', trackId)
         .eq('user_id', user.id);
-      if (!error) { setTracked(false); setTrackId(null); }
+      if (!error) {
+        setTracked(false); setTrackId(null);
+        logFunnelEvent({ eventType: 'track_remove', scholarshipId, userId: user.id });
+      }
     } else {
       const { data, error } = await supabase
         .from('tracked_scholarship')
         .upsert({ user_id: user.id, scholarship_id: scholarshipId }, { onConflict: 'user_id,scholarship_id' })
         .select('id')
         .single();
-      if (!error && data) { setTracked(true); setTrackId(data.id); }
+      if (!error && data) {
+        setTracked(true); setTrackId(data.id);
+        logFunnelEvent({ eventType: 'track_add', scholarshipId, userId: user.id });
+      }
     }
     setWorking(false);
   }

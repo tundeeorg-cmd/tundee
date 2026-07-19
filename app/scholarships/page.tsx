@@ -14,6 +14,8 @@ import type { FilterState, Scholarship } from '@/lib/types';
 import type { User } from '@supabase/supabase-js';
 import SaveButton from '@/components/SaveButton';
 import { logMatchingResultsViewed, logSearchPerformed, setUserResearchContext, assignAbArm } from '@/lib/research/events';
+import { logFunnelEvent, logImpressions } from '@/lib/research/funnel';
+import { getOrAssignVariant, RANKING_EXPERIMENT } from '@/lib/research/experiment';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
 
@@ -443,6 +445,35 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
   );
 }
 
+// ── BrowseGrid: renders browse-tab cards and logs impressions once per card ───
+function BrowseGrid({
+  scholarships, userId, variant, loggedImpressions,
+}: {
+  scholarships: TdScholarship[];
+  userId: string | null;
+  variant: string | null;
+  loggedImpressions: React.RefObject<Set<string>>;
+}) {
+  useEffect(() => {
+    const fresh = scholarships.filter(s => !loggedImpressions.current?.has(s.scholarship_id));
+    if (!fresh.length) return;
+    fresh.forEach(s => loggedImpressions.current?.add(s.scholarship_id));
+    logImpressions(
+      fresh.map((s, i) => ({ scholarshipId: s.scholarship_id, rank: i + 1 })),
+      userId,
+      variant,
+      'browse',
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scholarships]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {scholarships.map(s => <TdScholarshipCard key={s.scholarship_id} scholarship={s} />)}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function BrowsePage() {
   const { lang } = useLang();
@@ -451,6 +482,9 @@ export default function BrowsePage() {
 
   const [user, setUser]                 = useState<User | null>(null);
   const [activeTab, setActiveTab]       = useState<Tab>('browse');
+  const [experimentVariant, setExperimentVariant] = useState<string | null>(null);
+  // Track which scholarship_ids have already had an impression logged this session
+  const loggedImpressions = useRef<Set<string>>(new Set());
   const [matchSortBy, setMatchSortBy]   = useState<MatchSortKey>('match');
   const [matchMinScore, setMatchMinScore] = useState<MinScore>(0);
   const [matchesLoading, setMatchesLoading] = useState(false);
@@ -502,6 +536,8 @@ export default function BrowsePage() {
           }
           const incomeBracket = profile.income_bracket ?? 4;
           setUserResearchContext(arm, incomeBracket);
+          // Sticky experiment assignment for causal inference
+          getOrAssignVariant(authUser.id, RANKING_EXPERIMENT).then(v => setExperimentVariant(v));
           setUserProfile({
             province_id:        profile.province_id      ?? '',
             income_bracket:     incomeBracket,
@@ -608,13 +644,38 @@ export default function BrowsePage() {
     return sorted.map((s, i) => ({ ...s, displayRank: i + 1 }));
   }, [allMatches, matchSortBy, matchMinScore]);
 
-  // Research: log matching results viewed (fire-and-forget, no DB writes to legacy tables)
+  // Research: log matching results viewed (legacy user_events — kept for continuity)
   useEffect(() => {
     if (allMatches.length > 0) {
       logMatchingResultsViewed(allMatches.length, allMatches[0]?.scholarship_id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allMatches]);
+
+  // Research: log view_list when tab changes
+  useEffect(() => {
+    logFunnelEvent({
+      eventType: 'view_list',
+      userId: user?.id ?? null,
+      context: { tab: activeTab, variant: experimentVariant },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Research: log one impression per visible match card (rank + variant = exposure signal)
+  useEffect(() => {
+    if (!visibleMatches.length || activeTab !== 'matches') return;
+    const fresh = visibleMatches.filter(s => !loggedImpressions.current.has(s.scholarship_id));
+    if (!fresh.length) return;
+    fresh.forEach(s => loggedImpressions.current.add(s.scholarship_id));
+    logImpressions(
+      fresh.map(s => ({ scholarshipId: s.scholarship_id, rank: s.displayRank })),
+      user?.id ?? null,
+      experimentVariant,
+      'matches',
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMatches]);
 
   // ════════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -786,7 +847,13 @@ export default function BrowsePage() {
                 <input
                   type="text"
                   value={tdSearch}
-                  onChange={e => setTdSearch(e.target.value)}
+                  onChange={e => {
+                    setTdSearch(e.target.value);
+                    if (e.target.value.length >= 2) {
+                      logFunnelEvent({ eventType: 'search', userId: user?.id ?? null, context: { query: e.target.value, tab: 'browse', variant: experimentVariant } });
+                      logSearchPerformed(e.target.value, tdScholarships.length);
+                    }
+                  }}
                   placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search scholarships or funder...'}
                   className="w-full pl-10 pr-4 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
                 />
@@ -841,9 +908,12 @@ export default function BrowsePage() {
                   <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-5">
                     {visible.length} {lang === 'th' ? 'ทุน' : 'scholarships'}
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {visible.map(s => <TdScholarshipCard key={s.scholarship_id} scholarship={s} />)}
-                  </div>
+                  <BrowseGrid
+                    scholarships={visible}
+                    userId={user?.id ?? null}
+                    variant={experimentVariant}
+                    loggedImpressions={loggedImpressions}
+                  />
                 </>
               );
             })()}
