@@ -2,6 +2,7 @@
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import { useLang } from '@/lib/LanguageContext';
+import TrackButton from './TrackButton';
 
 const FUNDER_TYPE_BADGE: Record<string, { label: string; color: string }> = {
   'Thai University':                   { label: 'มหาวิทยาลัย', color: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
@@ -119,6 +120,7 @@ export default function TdScholarshipCard({ scholarship: s }: { scholarship: TdS
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </a>
+        <TrackButton scholarshipId={s.scholarship_id} size="sm" />
         <a
           href={`/scholarships/td/${s.scholarship_id}`}
           className="px-3 py-2 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[8px] text-sm text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-colors"

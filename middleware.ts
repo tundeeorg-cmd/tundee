@@ -36,6 +36,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth', request.url))
   }
 
+  // Protect /tracker — redirect to /auth if not logged in
+  if (!session && request.nextUrl.pathname.startsWith('/tracker')) {
+    return NextResponse.redirect(new URL('/auth?from=tracker', request.url))
+  }
+
   return response
 }
 
