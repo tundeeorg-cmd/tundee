@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { formatUserDate } from '@/lib/formatDate';
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
 
@@ -257,13 +258,7 @@ export default function ApplicationChecklist({
   // ── Format date ───────────────────────────────────────────────────────────
 
   function formatDate(iso: string): string {
-    const d = new Date(iso);
-    if (lang === 'th') {
-      const m = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
-                 'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-      return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear() + 543}`;
-    }
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatUserDate(iso, lang);
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────

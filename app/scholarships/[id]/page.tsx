@@ -12,6 +12,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
 import { logScholarshipViewed, logScholarshipApplied } from '@/lib/research/events';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
+import { formatUserDate } from '@/lib/formatDate';
 import type { Scholarship } from '@/lib/types';
 
 // Match data stored by the browse page when navigating from My Matches tab
@@ -265,9 +266,7 @@ export default function ScholarshipDetailPage() {
 
   function formatDeadline(): string {
     if (!s.deadline_date) return d.noDeadline[lang];
-    return new Date(s.deadline_date).toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric',
-    });
+    return formatUserDate(s.deadline_date, lang as 'th' | 'en');
   }
 
   const isExpired = s.deadline_date !== null && new Date(s.deadline_date) < new Date();

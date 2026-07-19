@@ -1,6 +1,8 @@
 // ── Shared utilities imported by pages, cards, and tracker ─────────────
 // Keep this file free of React imports so it works in both client + server.
 
+import { formatUserDate } from '@/lib/formatDate';
+
 export type DeadlineColor = 'red' | 'orange' | 'yellow' | 'green' | 'gray';
 
 export function getDeadlineInfo(
@@ -17,14 +19,8 @@ export function getDeadlineInfo(
   if (days <= 30) return { text: lang === 'th' ? `อีก ${days} วัน` : `${days} days left`, color: 'orange' };
   if (days <= 60) return { text: lang === 'th' ? `อีก ${days} วัน` : `${days} days left`, color: 'yellow' };
 
-  // > 60 days: show the actual date
-  const d = new Date(dateStr);
-  const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
-                    'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  const text = lang === 'th'
-    ? `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543}`
-    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  return { text, color: 'green' };
+  // > 60 days: show the actual date in D-MON-YYYY / D-ม.ค.-YYYY(BE) format
+  return { text: formatUserDate(dateStr, lang), color: 'green' };
 }
 
 // Deadline color → Tailwind classes

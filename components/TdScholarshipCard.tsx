@@ -143,7 +143,17 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
   } else if (s.deadline_is_rolling) {
     deadlineText = lo === 'th' ? 'เปิดรับตลอด' : 'Rolling / see details';
   } else if (s.deadline_note) {
-    deadlineText = s.deadline_note;
+    // If deadline_note is a concrete D-Mon-YYYY date stored as text, format it.
+    const NOTE_DATE_RE = /^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{4})$/;
+    const EN_MON: Record<string,string> = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+    const noteMatch = s.deadline_note.match(NOTE_DATE_RE);
+    if (noteMatch) {
+      const iso = `${noteMatch[3]}-${EN_MON[noteMatch[2]]}-${noteMatch[1].padStart(2,'0')}`;
+      days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+      deadlineText = formatUserDate(iso, lo);
+    } else {
+      deadlineText = s.deadline_note;
+    }
   } else {
     deadlineText = lo === 'th' ? 'ดูเว็บไซต์' : 'See website';
   }
