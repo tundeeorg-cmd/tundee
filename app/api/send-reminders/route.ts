@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { formatUserDate } from '@/lib/formatDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
             <span style="background:${s.days_left <= 3 ? '#FEE2E2' : '#FEF3C7'};color:${s.days_left <= 3 ? '#DC2626' : '#D97706'};padding:3px 10px;border-radius:999px;font-size:13px;font-weight:600;">
               ${s.days_left} วัน
             </span>
-            <div style="color:#6E6E73;font-size:12px;margin-top:4px;">${s.deadline_date}</div>
+            <div style="color:#6E6E73;font-size:12px;margin-top:4px;">${formatUserDate(s.deadline_date, 'th')}</div>
           </td>
         </tr>
       `).join('');

@@ -8,6 +8,7 @@ import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import TrackButton from '@/components/TrackButton';
+import { formatUserDate } from '@/lib/formatDate';
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 
@@ -95,12 +96,6 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86_400_000);
 }
 
-function fmtDate(dateStr: string, lang: string): string {
-  return new Date(dateStr).toLocaleDateString(
-    lang === 'th' ? 'th-TH' : 'en-US',
-    { day: 'numeric', month: 'long', year: 'numeric' },
-  );
-}
 
 function amountSuffix(awardType: string | null | undefined, lang: string): string {
   if (awardType === 'annual')  return lang === 'th' ? '/ปี'    : '/yr';
@@ -242,7 +237,7 @@ export default function TdScholarshipDetailPage() {
 
   if (s.deadline_date) {
     daysLeft = daysUntil(s.deadline_date);
-    const fmt = fmtDate(s.deadline_date, lang);
+    const fmt = formatUserDate(s.deadline_date, lang as 'th' | 'en');
     if (daysLeft < 0)       { urgency = 'past';   deadlineText = lang === 'th' ? `ปิดรับแล้ว (${fmt})` : `Closed (${fmt})`; }
     else if (daysLeft === 0) { urgency = 'red';    deadlineText = lang === 'th' ? 'หมดเขตวันนี้' : 'Closes today'; }
     else if (daysLeft <= 7)  { urgency = 'red';    deadlineText = fmt; }
@@ -615,7 +610,7 @@ export default function TdScholarshipDetailPage() {
               {s.last_verified && (
                 <p className="text-xs text-[#8A96A8] dark:text-[#6E7A8A]">
                   {lang === 'th' ? 'อัปเดตล่าสุด ' : 'Last verified '}
-                  {fmtDate(s.last_verified, lang)}
+                  {formatUserDate(s.last_verified, lang as 'th' | 'en')}
                 </p>
               )}
               {s.source_url && (

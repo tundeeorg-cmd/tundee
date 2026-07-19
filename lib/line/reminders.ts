@@ -3,6 +3,8 @@
  * need a live DB or LINE access token.
  */
 
+import { formatUserDate } from '@/lib/formatDate';
+
 export const DEFAULT_OFFSETS = [14, 1] as const;
 
 /** Parse the REMINDER_OFFSETS env var, falling back to DEFAULT_OFFSETS. */
@@ -27,16 +29,17 @@ export function buildReminderText(
   days: number,
   lang: 'th' | 'en' = 'th',
 ): string {
+  const fmtDeadline = formatUserDate(deadlineDate, lang);
   if (lang === 'th') {
     const urgency = days === 1
       ? '🔔 ทุนดี: พรุ่งนี้ปิดรับสมัคร!'
       : `🔔 ทุนดี: เหลืออีก ${days} วันก่อนปิดรับสมัคร!`;
-    return `${urgency}\n${scholarshipName}\nปิดรับ: ${deadlineDate}\nสมัครที่นี่: ${applicationLink}`;
+    return `${urgency}\n${scholarshipName}\nปิดรับ: ${fmtDeadline}\nสมัครที่นี่: ${applicationLink}`;
   }
   const urgency = days === 1
     ? '🔔 TunDee: Closes tomorrow!'
     : `🔔 TunDee: ${days} days left to apply!`;
-  return `${urgency}\n${scholarshipName}\nDeadline: ${deadlineDate}\nApply here: ${applicationLink}`;
+  return `${urgency}\n${scholarshipName}\nDeadline: ${fmtDeadline}\nApply here: ${applicationLink}`;
 }
 
 /** Determine whether a tracked row should get a reminder for this offset today. */

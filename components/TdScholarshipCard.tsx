@@ -3,6 +3,7 @@
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { useLang } from '@/lib/LanguageContext';
 import TrackButton from './TrackButton';
+import { formatUserDate } from '@/lib/formatDate';
 
 // ── Badge maps ────────────────────────────────────────────────────────────────
 
@@ -54,9 +55,7 @@ function formatDeadline(s: TdScholarship, lang: string): { text: string; urgent:
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const days = Math.ceil((d.getTime() - today.getTime()) / 86_400_000);
-    const dateStr = d.toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
+    const dateStr = formatUserDate(s.deadline_date, lang as 'th' | 'en');
     const urgent = days >= 0 && days <= 30;
     if (days === 0) return { text: lang === 'th' ? 'หมดเขตวันนี้' : 'Closes today', urgent: true };
     if (days < 0)  return { text: lang === 'th' ? 'หมดเขตแล้ว' : 'Expired', urgent: false };
