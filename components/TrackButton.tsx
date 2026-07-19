@@ -4,20 +4,23 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { useLang } from '@/lib/LanguageContext';
 
 interface Props {
   scholarshipId: string;
   size?: 'sm' | 'md';
+  className?: string;
 }
 
-export default function TrackButton({ scholarshipId, size = 'md' }: Props) {
+export default function TrackButton({ scholarshipId, size = 'md', className = '' }: Props) {
   const supabase = createClient();
   const router   = useRouter();
+  const { lang } = useLang();
 
-  const [tracked,  setTracked]  = useState(false);
-  const [loading,  setLoading]  = useState(true);
-  const [working,  setWorking]  = useState(false);
-  const [trackId,  setTrackId]  = useState<string | null>(null);
+  const [tracked, setTracked] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [trackId, setTrackId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +51,6 @@ export default function TrackButton({ scholarshipId, size = 'md' }: Props) {
       setWorking(false);
       return;
     }
-
     if (tracked && trackId) {
       const { error } = await supabase
         .from('tracked_scholarship')
@@ -75,9 +77,19 @@ export default function TrackButton({ scholarshipId, size = 'md' }: Props) {
 
   const small = size === 'sm';
 
+  const ariaLabel = tracked
+    ? (lang === 'th' ? 'ยกเลิกการบันทึก' : 'Remove from tracker')
+    : (lang === 'th' ? 'บันทึกในรายการ' : 'Add to tracker');
+
+  const label = tracked
+    ? (lang === 'th' ? '✓ บันทึกแล้ว' : '✓ Tracked')
+    : (lang === 'th' ? '🔖 บันทึก' : '🔖 Track');
+
   if (loading) {
     return (
-      <div className={`rounded-lg bg-[#F5F5F7] dark:bg-[#1A2E4A] animate-pulse ${small ? 'w-16 h-7' : 'w-24 h-9'}`} />
+      <div className={`rounded-lg bg-[#F5F5F7] dark:bg-[#1A2E4A] animate-pulse ${
+        small ? 'w-16 h-7' : 'h-9 flex-1'
+      } ${className}`} />
     );
   }
 
@@ -85,24 +97,22 @@ export default function TrackButton({ scholarshipId, size = 'md' }: Props) {
     <button
       onClick={toggle}
       disabled={working}
-      title={tracked ? 'Untrack scholarship' : 'Track scholarship'}
-      className={`flex items-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-        small ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm'
+      aria-label={ariaLabel}
+      className={`flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
+        small ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm flex-1'
       } ${
         tracked
           ? 'bg-[#2E6BE6] text-white hover:bg-[#1E57CC]'
           : 'bg-[#F5F5F7] dark:bg-[#1A2E4A] text-[#1D1D1F] dark:text-white hover:bg-[#E5E5EA] dark:hover:bg-[#243552]'
-      }`}
+      } ${className}`}
+      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
     >
       {working ? (
         <svg className={`animate-spin ${small ? 'w-3 h-3' : 'w-4 h-4'}`} fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
         </svg>
-      ) : (
-        <span>{tracked ? '✓' : '🔖'}</span>
-      )}
-      {tracked ? 'Tracking' : 'Track'}
+      ) : label}
     </button>
   );
 }
