@@ -18,6 +18,8 @@ import { logFunnelEvent, logImpressions } from '@/lib/research/funnel';
 import { getOrAssignVariant, RANKING_EXPERIMENT } from '@/lib/research/experiment';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
+import { recommend }     from '@/lib/recommender';
+import type { RecommenderProfile, FairnessMode } from '@/lib/recommender';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 // 'browse' tab now shows td_scholarships. Old 'td' tab retired into 'browse'.
@@ -43,6 +45,8 @@ type ScoredTdScholarship = TdScholarship & {
   boosted: boolean;
   reasons: string[];
   reasons_en: string[];
+  explanation: string;
+  explanation_en: string;
 };
 
 const EMPTY_FILTERS: FilterState = {
@@ -54,173 +58,9 @@ const EMPTY_FILTERS: FilterState = {
   gradeLevel: '',
 };
 
-// ── Scoring constants ─────────────────────────────────────────────────────────
-
-// Northeast Thai provinces (Isan) Thai names matching what profiles table stores
-const NORTHEAST = new Set([
-  'นครราชสีมา', 'บุรีรัมย์', 'สุรินทร์', 'ศรีสะเกษ', 'อุบลราชธานี',
-  'ยโสธร', 'ชัยภูมิ', 'อำนาจเจริญ', 'หนองบัวลำภู', 'ขอนแก่น',
-  'อุดรธานี', 'เลย', 'หนองคาย', 'มหาสารคาม', 'ร้อยเอ็ด',
-  'กาฬสินธุ์', 'สกลนคร', 'นครพนม', 'มุกดาหาร', 'บึงกาฬ',
-]);
-
-// Upper bound of each income bracket in THB/month
-const INCOME_CEILING: Record<number, number> = {
-  1: 5_000,
-  2: 10_000,
-  3: 15_000,
-  4: 20_000,
-  5: 30_000,
-  6: 50_000,
-  7: 999_999,
-};
-
 // ── Score colour helper ───────────────────────────────────────────────────────
 function getScoreColor(_score: number) {
   return { bar: '#1B3A6B', text: '#1B3A6B', label: { th: '', en: '' } };
-}
-
-// ── Inline scoring engine ─────────────────────────────────────────────────────
-// Returns null when the scholarship hard-disqualifies the student.
-// Scores are intentionally differentiated so broad/open scholarships rank lower.
-function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredTdScholarship | null {
-  const MAX = 10.0;
-  let score = 0;
-  const reasons: string[] = [];
-  const reasons_en: string[] = [];
-
-  // ── Hard disqualifiers ─────────────────────────────────────────────────────
-  const minGpa = (s.min_gpa as number | null) ?? 0;
-  if (minGpa > 0 && p.gpa < minGpa) return null;
-
-  const inc = INCOME_CEILING[p.income_bracket] ?? 999_999;
-  const maxIncome = (s.max_income_thb as number | null) ?? null;
-  if (maxIncome !== null && inc > maxIncome) return null;
-
-  // ── GPA (0–3 pts) ──────────────────────────────────────────────────────────
-  if (minGpa === 0) {
-    score += 1.5;
-    reasons.push('ไม่มีเกณฑ์เกรดขั้นต่ำ เปิดรับทุกคน');
-    reasons_en.push('No minimum GPA open to all');
-  } else {
-    const margin = p.gpa - minGpa;
-    score += 2.0 + Math.min(margin * 1.5, 1.0);
-    reasons.push(`เกรด ${p.gpa.toFixed(2)} ผ่านเกณฑ์ขั้นต่ำ ${minGpa}`);
-    reasons_en.push(`GPA ${p.gpa.toFixed(2)} meets the ${minGpa} minimum`);
-    if (margin >= 0.5) {
-      reasons.push(`เกรดสูงกว่าเกณฑ์ ${margin.toFixed(2)} โอกาสสูง`);
-      reasons_en.push(`GPA exceeds minimum by ${margin.toFixed(2)} strong chance`);
-    }
-  }
-
-  // ── Income (0–2 pts) ───────────────────────────────────────────────────────
-  if (maxIncome === null) {
-    score += 0.5;
-    reasons.push('ไม่จำกัดรายได้ครัวเรือน');
-    reasons_en.push('No income restriction');
-  } else {
-    const ratio = inc / maxIncome;
-    if (ratio <= 0.5) {
-      score += 2.0;
-      reasons.push('รายได้ครัวเรือนต่ำกว่าเกณฑ์มาก โอกาสสูง');
-      reasons_en.push('Income well below limit strong match');
-    } else {
-      score += 1.5;
-      reasons.push('รายได้ครัวเรือนผ่านเกณฑ์');
-      reasons_en.push('Household income qualifies');
-    }
-  }
-
-  // ── Welfare card (0–1 pt) ─────────────────────────────────────────────────
-  if (p.welfare_card && s.welfare_card_priority) {
-    score += 1.0;
-    reasons.push('ผู้ถือบัตรสวัสดิการได้รับสิทธิพิเศษ');
-    reasons_en.push('Welfare card holders receive priority');
-  }
-
-  // ── Field of study (0–2 pts) ──────────────────────────────────────────────
-  const sFields = (s.field_of_study as string[] | null) ?? [];
-  const pFields = p.fields_of_interest ?? ['any'];
-  if (!sFields.length || sFields.includes('any')) {
-    score += 0.5;
-    reasons.push('เปิดรับทุกสาขาวิชา');
-    reasons_en.push('Open to all fields of study');
-  } else if (pFields.includes('any') || pFields.some((f) => sFields.includes(f))) {
-    score += 2.0;
-    const matched = pFields.filter((f) => sFields.includes(f));
-    if (matched.length > 0) {
-      reasons.push(`ตรงกับสาขา: ${matched.join(', ')}`);
-      reasons_en.push(`Matches your field: ${matched.join(', ')}`);
-    } else {
-      reasons.push('สาขาวิชาตรงกับที่คุณสนใจ');
-      reasons_en.push('Field of study matches your interests');
-    }
-  } else {
-    return null; // field mismatch → disqualify
-  }
-
-  // ── Province (0–2 pts) ────────────────────────────────────────────────────
-  const sProvs = (s.province_restriction as string[] | null) ?? [];
-  if (!sProvs.length || sProvs.includes('national')) {
-    score += 0.5;
-    reasons.push('เปิดรับนักเรียนจากทุกจังหวัด');
-    reasons_en.push('Open to all provinces');
-  } else if (p.province_id && sProvs.includes(p.province_id)) {
-    score += 2.0;
-    reasons.push('ทุนนี้มีสำหรับจังหวัดของคุณโดยเฉพาะ');
-    reasons_en.push('This scholarship is specifically for your province');
-  } else {
-    return null; // province mismatch → disqualify
-  }
-
-  // ── Grade level (0–1 pt) ──────────────────────────────────────────────────
-  const sGrades = (s.grade_levels as string[] | null) ?? [];
-  if (!sGrades.length || sGrades.includes('any')) {
-    score += 0.3;
-  } else if (p.grade_level && sGrades.includes(p.grade_level)) {
-    score += 1.0;
-    reasons.push('ตรงกับระดับชั้นของคุณ');
-    reasons_en.push('Matches your grade level');
-  }
-
-  // ── Enrolled university requirement ───────────────────────────────────────
-  const univReq = (s.enrolled_university_required as string | null | undefined) ?? null;
-  if (univReq && univReq.trim() !== '') {
-    // We don't know the user's university — show the requirement without disqualifying
-    score -= 0.5;
-    reasons.push(`ต้องเป็นนักศึกษาของ ${univReq}`);
-    reasons_en.push(`Must be enrolled at ${univReq}`);
-  }
-
-  // ── Amount bonus (0–0.5 pts) ──────────────────────────────────────────────
-  const amount = (s.amount_thb as number | null) ?? 0;
-  if (amount > 0) {
-    score += Math.min(amount / 200_000, 0.5);
-  }
-
-  const raw = Math.min(score / MAX, 1.0);
-
-  // ── Equalized odds correction (Hardt, Price, Srebro NeurIPS 2016) ────────
-  const isRural = NORTHEAST.has(p.province_id ?? '');
-  const isLow   = (p.income_bracket ?? 7) <= 3;
-  const bias    = (s.historical_bias_score as number | null) ?? 0.5;
-
-  let fairness = raw;
-  let boosted  = false;
-  if (isRural && isLow && bias > 0.6) {
-    const correction = Math.min(1.0 + (bias - 0.5) * 0.6, 2.0);
-    fairness = Math.min(raw * correction, 1.0);
-    boosted  = fairness > raw + 0.005;
-  }
-
-  return {
-    ...(s as unknown as TdScholarship),
-    rawScore:      Math.round(raw      * 1000) / 1000,
-    fairnessScore: Math.round(fairness * 1000) / 1000,
-    boosted,
-    reasons,
-    reasons_en,
-  };
 }
 
 // ── Browse tab helpers ────────────────────────────────────────────────────────
@@ -502,11 +342,25 @@ export default function BrowsePage() {
     // Load all publicly-visible scholarships from the TD table
     void supabase
       .from('td_scholarships')
-      .select('scholarship_id, scholarship_name, funder, funder_type, level, field_of_study, award_amount_thb, region_eligibility, targets_low_income, num_recipients, min_gpa, income_cap_thb, language, deadline_raw, status, application_link, deadline_date, deadline_is_rolling, deadline_note, stale, is_displayed')
+      .select([
+        'scholarship_id',
+        'scholarship_name_en', 'scholarship_name_th',
+        'funder_en', 'funder_th',
+        'scholarship_name', 'funder',
+        'funder_type', 'level', 'field_of_study',
+        'award_value_tier', 'award_amount_thb_numeric', 'award_type',
+        'renewable', 'bond_obligation',
+        'region_eligibility', 'targets_low_income', 'welfare_card_priority',
+        'income_cap_thb', 'num_recipients', 'min_gpa', 'english_requirement',
+        'deadline_raw', 'deadline_date', 'deadline_is_rolling', 'deadline_note',
+        'status', 'application_url', 'application_link',
+        'is_displayed', 'stale',
+        'source_language', 'translation_review',
+      ].join(', '))
       .eq('is_displayed', true)
-      .order('scholarship_name')
+      .order('scholarship_name_en')
       .then(({ data }) => {
-        setTdScholarships((data ?? []) as TdScholarship[]);
+        setTdScholarships((data ?? []) as unknown as TdScholarship[]);
         setTdLoading(false);
       });
 
@@ -557,73 +411,48 @@ export default function BrowsePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Adapter: map TdScholarship fields to what scoreOne() expects ────────────
-  function tdToScorable(td: TdScholarship): Record<string, unknown> {
-    // grade_levels array from the TD level text field
-    const levelToGrades: Record<string, string[]> = {
-      'High school':  ['M4', 'M5', 'M6'],
-      'Undergraduate': ['uni'],
-      "Master's":     ['graduate'],
-      'PhD':          ['graduate'],
-      'Multiple':     [],
-    };
-    const grade_levels = td.level ? (levelToGrades[td.level] ?? []) : [];
-
-    // province_restriction from region_eligibility text
-    const reg = (td.region_eligibility ?? '').toLowerCase();
-    const province_restriction =
-      !reg || reg.includes('national') || reg.includes('ทั่วประเทศ') || reg.includes('all')
-        ? ['national']
-        : [td.region_eligibility ?? ''];
-
-    // field_of_study: split comma-delimited text into array
-    const field_of_study = td.field_of_study
-      ? td.field_of_study.split(',').map((f) => f.trim()).filter(Boolean)
-      : [];
-
-    // income_cap_thb in the TD table is annual THB; scorer uses monthly
-    const max_income_thb = td.income_cap_thb ? Math.round(td.income_cap_thb / 12) : null;
-
-    return {
-      id:                   td.scholarship_id,
-      min_gpa:              td.min_gpa ?? null,
-      max_income_thb,
-      welfare_card_priority: td.targets_low_income ?? false,
-      field_of_study,
-      province_restriction,
-      grade_levels,
-      historical_bias_score: 0.5,
-      amount_thb:           null,
-      deadline_date:        td.deadline_date ?? null,
-    };
-  }
-
-  // ── Compute matches from TD data ────────────────────────────────────────────
+  // ── Compute matches using the Layer 3 hybrid recommender ───────────────────
   const allMatches = useMemo((): ScoredTdScholarship[] => {
     if (!userProfile || tdScholarships.length === 0) return [];
-    const results: ScoredTdScholarship[] = [];
-    for (const td of tdScholarships) {
-      const scored = scoreOne(tdToScorable(td), userProfile);
-      if (scored) {
-        results.push({
-          ...td,
-          rawScore:      scored.rawScore,
-          fairnessScore: scored.fairnessScore,
-          boosted:       scored.boosted,
-          reasons:       scored.reasons,
-          reasons_en:    scored.reasons_en,
-        });
-      }
-    }
-    const isControl = userProfile.ab_arm === 'control';
-    results.sort((a, b) => {
-      const scoreA = isControl ? a.rawScore : a.fairnessScore;
-      const scoreB = isControl ? b.rawScore : b.fairnessScore;
-      return scoreB - scoreA;
-    });
-    return results;
+
+    // Map StudentProfile (page-local) → RecommenderProfile
+    const recProfile: RecommenderProfile = {
+      user_id:               user?.id ?? '',
+      province_id:           userProfile.province_id,
+      income_bracket:        userProfile.income_bracket,
+      gpa:                   userProfile.gpa,
+      grade_level:           userProfile.grade_level,
+      fields_of_interest:    userProfile.fields_of_interest,
+      welfare_card:          userProfile.welfare_card,
+      // student_profile enriched attributes not yet in page state — fall back to null
+      region:                null,
+      area_type:             null,
+      household_income_band: null,
+      intended_level:        null,
+      intended_field:        null,
+    };
+
+    // treatment → fairness_mode = 'on', control (or no variant) → 'off'
+    const fairnessMode: FairnessMode = experimentVariant === 'treatment' ? 'on' : 'off';
+
+    const result = recommend(
+      tdScholarships,
+      recProfile,
+      { fairness_mode: fairnessMode, variant: experimentVariant ?? 'control', limit: 50 },
+    );
+
+    return result.items.map(item => ({
+      ...item.scholarship,
+      rawScore:      Math.round(item.raw_score      * 1000) / 1000,
+      fairnessScore: Math.round(item.fairness_score * 1000) / 1000,
+      boosted:       item.fairness_boosted,
+      reasons:       item.reasons,
+      reasons_en:    item.reasons_en,
+      explanation:   item.explanation,
+      explanation_en: item.explanation_en,
+    }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile, tdScholarships]);
+  }, [userProfile, tdScholarships, experimentVariant]);
 
   // ── Apply match filter + sort ───────────────────────────────────────────────
   const visibleMatches = useMemo((): (ScoredTdScholarship & { displayRank: number })[] => {
@@ -668,11 +497,18 @@ export default function BrowsePage() {
     const fresh = visibleMatches.filter(s => !loggedImpressions.current.has(s.scholarship_id));
     if (!fresh.length) return;
     fresh.forEach(s => loggedImpressions.current.add(s.scholarship_id));
+    const fairnessMode = experimentVariant === 'treatment' ? 'on' : 'off';
     logImpressions(
-      fresh.map(s => ({ scholarshipId: s.scholarship_id, rank: s.displayRank })),
+      fresh.map(s => ({
+        scholarshipId:  s.scholarship_id,
+        rank:           s.displayRank,
+        rawScore:       s.rawScore,
+        fairnessScore:  s.fairnessScore,
+      })),
       user?.id ?? null,
       experimentVariant,
       'matches',
+      fairnessMode,
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleMatches]);
@@ -888,11 +724,18 @@ export default function BrowsePage() {
               </div>
             ) : (() => {
               const q = tdSearch.toLowerCase();
-              const visible = tdScholarships.filter(s =>
-                (!tdLevelFilter || s.level === tdLevelFilter) &&
-                (!tdFunderFilter || s.funder_type === tdFunderFilter) &&
-                (!q || s.scholarship_name.toLowerCase().includes(q) || s.funder.toLowerCase().includes(q))
-              );
+              const visible = tdScholarships.filter(s => {
+                if (tdLevelFilter && s.level !== tdLevelFilter) return false;
+                if (tdFunderFilter && s.funder_type !== tdFunderFilter) return false;
+                if (q) {
+                  const nameEn = (s.scholarship_name_en ?? s.scholarship_name ?? '').toLowerCase();
+                  const nameTh = (s.scholarship_name_th ?? s.scholarship_name ?? '').toLowerCase();
+                  const funderEn = (s.funder_en ?? s.funder ?? '').toLowerCase();
+                  const funderTh = (s.funder_th ?? s.funder ?? '').toLowerCase();
+                  if (!nameEn.includes(q) && !nameTh.includes(q) && !funderEn.includes(q) && !funderTh.includes(q)) return false;
+                }
+                return true;
+              });
               return visible.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="text-4xl mb-4">🎓</div>

@@ -234,7 +234,7 @@ export default function AdminPage() {
   const [bulkWorking,  setBulkWorking]  = useState(false);
   const [toast,        setToast]        = useState('');
   const [editRow,      setEditRow]      = useState<TdScholarship | null>(null);
-  const [editForm,     setEditForm]     = useState<{ deadline_raw: string; status: string; application_link: string; verification_status: string; notes: string } | null>(null);
+  const [editForm,     setEditForm]     = useState<{ deadline_raw: string; status: string; application_url: string; verification_status: string; notes: string } | null>(null);
   const [editSaving,   setEditSaving]   = useState(false);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -585,7 +585,7 @@ export default function AdminPage() {
     setEditForm({
       deadline_raw:        row.deadline_raw ?? '',
       status:              row.status ?? '',
-      application_link:    row.application_link ?? '',
+      application_url:     row.application_url ?? row.application_link ?? '',
       verification_status: row.verification_status ?? '',
       notes:               row.notes ?? '',
     });
@@ -601,7 +601,8 @@ export default function AdminPage() {
         body: JSON.stringify({
           deadline_raw:        editForm.deadline_raw || null,
           status:              editForm.status || null,
-          application_link:    editForm.application_link,
+          application_url:     editForm.application_url || null,
+          application_link:    editForm.application_url || null,
           verification_status: editForm.verification_status || null,
           notes:               editForm.notes || null,
         }),
@@ -652,7 +653,12 @@ export default function AdminPage() {
   // Client-side filtered rows for TD list (used for selection + display)
   const visibleTdRows = tdRows.filter(r => {
     const q = tdSearch.toLowerCase();
-    return !q || r.scholarship_name.toLowerCase().includes(q) || r.funder.toLowerCase().includes(q);
+    if (!q) return true;
+    const nameEn = ((r as TdScholarship).scholarship_name_en ?? r.scholarship_name ?? '').toLowerCase();
+    const nameTh = ((r as TdScholarship).scholarship_name_th ?? r.scholarship_name ?? '').toLowerCase();
+    const funderEn = ((r as TdScholarship).funder_en ?? r.funder ?? '').toLowerCase();
+    const funderTh = ((r as TdScholarship).funder_th ?? r.funder ?? '').toLowerCase();
+    return nameEn.includes(q) || nameTh.includes(q) || funderEn.includes(q) || funderTh.includes(q) || r.scholarship_id.toLowerCase().includes(q);
   });
   const allVisibleSelected = visibleTdRows.length > 0 && visibleTdRows.every(r => selectedIds.has(r.scholarship_id));
 
@@ -1568,7 +1574,7 @@ export default function AdminPage() {
                           className="w-3.5 h-3.5 rounded cursor-pointer accent-[#2E6BE6]"
                         />
                       </th>
-                      {['ID', 'Name', 'Funder', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Actions'].map(h => (
+                      {['ID', 'Name (EN/TH)', 'Funder', 'Tier', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Actions'].map(h => (
                         <th key={h} className="px-3 py-2 text-left font-medium text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -1590,8 +1596,20 @@ export default function AdminPage() {
                           />
                         </td>
                         <td className="px-3 py-2 text-[#ADADB8] font-mono">{r.scholarship_id}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate text-[#1D1D1F] dark:text-white" title={r.scholarship_name}>{r.scholarship_name}</td>
-                        <td className="px-3 py-2 max-w-[140px] truncate text-[#6E6E73] dark:text-[#8E8E93]" title={r.funder}>{r.funder}</td>
+                        <td className="px-3 py-2 max-w-[180px] text-[#1D1D1F] dark:text-white"
+                            title={`EN: ${(r as TdScholarship).scholarship_name_en ?? ''}\nTH: ${(r as TdScholarship).scholarship_name_th ?? ''}`}>
+                          <div className="truncate">{(r as TdScholarship).scholarship_name_en || r.scholarship_name}</div>
+                          {(r as TdScholarship).scholarship_name_th && (
+                            <div className="truncate text-[10px] text-[#ADADB8]">{(r as TdScholarship).scholarship_name_th}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 max-w-[120px] truncate text-[#6E6E73] dark:text-[#8E8E93]"
+                            title={(r as TdScholarship).funder_en ?? r.funder}>
+                          {(r as TdScholarship).funder_en || r.funder}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-[10px] text-[#6E6E73]">
+                          {(r as TdScholarship).award_value_tier ?? '—'}
+                        </td>
                         <td className="px-3 py-2">
                           <span className={`px-1.5 py-0.5 rounded-full font-medium ${r.status === 'Open' ? 'bg-green-50 text-green-700' : r.status === 'Closed' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
                             {r.status ?? '—'}
@@ -1673,7 +1691,7 @@ export default function AdminPage() {
               <SectionHead>📤 Import Master Scholarship Sheet (XLSX / CSV)</SectionHead>
               <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1">
                 <p className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-1">
-                  Expected columns (20): Scholarship ID · Scholarship Name · Funder · Funder Type · Level · Field of Study · Award Amount (THB) · Region Eligibility · Targets Low-Income (Y/N) · No. of Recipients · Min GPA · Income Cap (THB/yr) · Language · Deadline · Status · Application Link · Source · Verification Status · Last Verified · Notes
+                  Expected columns (28): Scholarship ID · Scholarship Name (EN) · Scholarship Name (TH) · Funder (EN) · Funder (TH) · Funder Type · Level · Field of Study · Award Value Tier · Award Amount (THB) Numeric · Award Type · Renewable (Y/N) · Bond/Obligation (Y/N) · Region Eligibility · Targets Low-Income (Y/N) · Welfare Card Priority (Y/N) · Income Cap (THB/yr) · No. of Recipients · Min GPA · English Requirement · Source Language · Deadline · Status · Application Link · Source · Verification Status · Last Verified · Notes
                 </p>
                 <p>Rows upserted by <strong className="text-[#1D1D1F] dark:text-white">Scholarship ID</strong>. Display gate recomputed automatically on import.</p>
                 <p>Only <strong className="text-green-700 dark:text-green-400">verified + Open + not expired</strong> rows appear publicly.</p>
@@ -1840,9 +1858,14 @@ export default function AdminPage() {
               <div>
                 <div className="text-xs text-[#ADADB8] font-mono mb-0.5">{editRow.scholarship_id}</div>
                 <h3 className="font-semibold text-[#1D1D1F] dark:text-white text-sm leading-snug">
-                  {editRow.scholarship_name}
+                  {editRow.scholarship_name_en ?? editRow.scholarship_name}
                 </h3>
-                <p className="text-xs text-[#6E6E73] mt-0.5">{editRow.funder}</p>
+                {editRow.scholarship_name_th && (
+                  <p className="text-xs text-[#6E6E73] mt-0.5">{editRow.scholarship_name_th}</p>
+                )}
+                <p className="text-xs text-[#ADADB8] mt-0.5">
+                  {editRow.funder_en ?? editRow.funder}{editRow.funder_th ? ` · ${editRow.funder_th}` : ''}
+                </p>
               </div>
               <button onClick={() => { setEditRow(null); setEditForm(null); }}
                 className="text-[#6E6E73] hover:text-[#1D1D1F] dark:hover:text-white text-xl leading-none shrink-0 mt-0.5">
@@ -1852,16 +1875,16 @@ export default function AdminPage() {
 
             {/* Quick links */}
             <div className="px-6 py-3 border-b border-[#F5F5F7] dark:border-[#3A3A3C] flex gap-3 flex-wrap">
-              {editRow.source && (
-                <a href={editRow.source} target="_blank" rel="noopener noreferrer"
+              {(editRow.source_url ?? editRow.source) && (
+                <a href={(editRow.source_url ?? editRow.source)!} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-[#2E6BE6] hover:underline flex items-center gap-1">
                   🔗 Source ↗
                 </a>
               )}
-              {(editForm.application_link || editRow.application_link) && (
-                <a href={editForm.application_link || editRow.application_link} target="_blank" rel="noopener noreferrer"
+              {(editForm.application_url || editRow.application_url || editRow.application_link) && (
+                <a href={(editForm.application_url || editRow.application_url || editRow.application_link)!} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-[#2E6BE6] hover:underline flex items-center gap-1">
-                  📝 Application link ↗
+                  📝 Apply ↗
                 </a>
               )}
             </div>
@@ -1927,11 +1950,11 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Application Link</label>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Application URL</label>
                 <input
                   type="url"
-                  value={editForm.application_link}
-                  onChange={e => setEditForm(f => f ? { ...f, application_link: e.target.value } : f)}
+                  value={editForm.application_url}
+                  onChange={e => setEditForm(f => f ? { ...f, application_url: e.target.value } : f)}
                   className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
                 />
               </div>

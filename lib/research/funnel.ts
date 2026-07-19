@@ -41,21 +41,32 @@ export function logFunnelEvent(payload: FunnelEventPayload): void {
   void writeFunnelEvent(payload);
 }
 
-/** Write a batch of impression events efficiently (single DB round-trip). */
+/** Write a batch of impression events efficiently (single DB round-trip).
+ *  fairness_mode and raw_score/fairness_score are included when provided
+ *  so the research export can reconstruct the exposure ranking per arm.
+ */
 export function logImpressions(
-  scholarships: Array<{ scholarshipId: string; rank: number }>,
+  scholarships: Array<{ scholarshipId: string; rank: number; rawScore?: number; fairnessScore?: number }>,
   userId: string | null,
   variant: string | null,
   tab: string,
+  fairnessMode?: string,
 ): void {
   if (!scholarships.length) return;
   void writeFunnelBatch(
-    scholarships.map(({ scholarshipId, rank }) => ({
+    scholarships.map(({ scholarshipId, rank, rawScore, fairnessScore }) => ({
       session_id:     getSessionId(),
       user_id:        userId,
       scholarship_id: scholarshipId,
       event_type:     'impression' as FunnelEventType,
-      context:        { rank, variant, tab },
+      context:        {
+        rank,
+        variant,
+        tab,
+        ...(fairnessMode !== undefined ? { fairness_mode: fairnessMode } : {}),
+        ...(rawScore      !== undefined ? { raw_score:     rawScore }     : {}),
+        ...(fairnessScore !== undefined ? { fairness_score: fairnessScore } : {}),
+      },
       occurred_at:    new Date().toISOString(),
     })),
   );
