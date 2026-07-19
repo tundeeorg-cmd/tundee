@@ -13,8 +13,9 @@ export function useScholarshipCount(fallback = 90): number {
   useEffect(() => {
     const supabase = createClient();
     supabase
-      .from('scholarships')
-      .select('id', { count: 'exact', head: true })
+      .from('td_scholarships')
+      .select('scholarship_id', { count: 'exact', head: true })
+      .eq('is_displayed', true)
       .then(({ count: c, error }) => {
         if (!error && c !== null && c > 0) setCount(c);
       });

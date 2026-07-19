@@ -18,7 +18,8 @@ import type { TdScholarship } from '@/lib/tdScholarships/types';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Tab = 'matches' | 'browse' | 'td';
+// 'browse' tab now shows td_scholarships. Old 'td' tab retired into 'browse'.
+type Tab = 'matches' | 'browse';
 type BrowseSortKey = 'deadline' | 'name';
 type MatchSortKey = 'match' | 'deadline' | 'name';
 type MinScore = 0 | 0.5 | 0.7 | 0.9;
@@ -34,7 +35,7 @@ interface StudentProfile {
   ab_arm: 'treatment' | 'control' | null;
 }
 
-type ScoredScholarship = Scholarship & {
+type ScoredTdScholarship = TdScholarship & {
   rawScore: number;
   fairnessScore: number;
   boosted: boolean;
@@ -80,7 +81,7 @@ function getScoreColor(_score: number) {
 // ── Inline scoring engine ─────────────────────────────────────────────────────
 // Returns null when the scholarship hard-disqualifies the student.
 // Scores are intentionally differentiated so broad/open scholarships rank lower.
-function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholarship | null {
+function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredTdScholarship | null {
   const MAX = 10.0;
   let score = 0;
   const reasons: string[] = [];
@@ -211,7 +212,7 @@ function scoreOne(s: Record<string, unknown>, p: StudentProfile): ScoredScholars
   }
 
   return {
-    ...(s as unknown as Scholarship),
+    ...(s as unknown as TdScholarship),
     rawScore:      Math.round(raw      * 1000) / 1000,
     fairnessScore: Math.round(fairness * 1000) / 1000,
     boosted,
@@ -353,155 +354,6 @@ function ScoreTooltip({ lang }: { lang: string }) {
   );
 }
 
-// ── Match score bar ───────────────────────────────────────────────────────────
-function MatchScoreBar({ scholarship, lang }: { scholarship: ScoredScholarship; lang: string }) {
-  const pct   = Math.round(scholarship.fairnessScore * 100);
-  const color = getScoreColor(scholarship.fairnessScore);
-
-  return (
-    <div className="mt-2 pt-3 border-t border-[#F5F5F7] dark:border-[#1A2E4A]">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center">
-          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-            {lang === 'th' ? 'ความเหมาะสม' : 'Match score'}
-          </span>
-          <ScoreTooltip lang={lang} />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-[#1B3A6B] dark:text-[#4A7FD4]">{pct}%</span>
-        </div>
-      </div>
-      <div className="h-1.5 bg-[#E8ECF2] dark:bg-[#1A2E4A] rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500 bg-[#1B3A6B] dark:bg-[#4A7FD4]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      {scholarship.boosted && (
-        <p className="mt-1.5 text-[10px] text-[#6E7A8A] dark:text-[#7A8FA8]">
-          {lang === 'th' ? 'ปรับความเป็นธรรมแล้ว' : 'Fairness-adjusted'}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ── Match card ────────────────────────────────────────────────────────────────
-function MatchCard({
-  scholarship: s,
-  rank,
-  lang,
-}: {
-  scholarship: ScoredScholarship;
-  rank: number;
-  lang: string;
-}) {
-  const name   = lang === 'th' ? s.name_th : (s.name_en ?? s.name_th);
-  const funder = lang === 'th' ? s.funder_name_th : (s.funder_name_en ?? s.funder_name_th);
-  const reasons = lang === 'th' ? s.reasons : s.reasons_en;
-  const color  = getScoreColor(s.fairnessScore);
-
-  const { label: deadlineLabel, labelEn: deadlineLabelEn, color: deadlineColorKey } = getDeadlineInfo(s.deadline_date);
-
-  function storeMatchData() {
-    try {
-      sessionStorage.setItem(`tundee_match_${s.id}`, JSON.stringify({
-        raw_score: s.rawScore,
-        fairness_score: s.fairnessScore,
-        correction_applied: 0,
-        fairness_boosted: s.boosted,
-        reasons: s.reasons,
-        reasons_en: s.reasons_en,
-      }));
-    } catch { /* sessionStorage unavailable */ }
-  }
-
-  return (
-    <article className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 flex flex-col gap-3 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow duration-200">
-
-      {/* Header row: rank + name + amount + save */}
-      <div className="flex items-start gap-2">
-        {/* Rank circle */}
-        <span className="w-6 h-6 rounded-full bg-[#8A96A8] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-          {rank}
-        </span>
-
-        {/* Name + funder */}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-white leading-snug line-clamp-2"
-              style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
-            {name}
-          </h3>
-          {funder && (
-            <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] truncate mt-0.5">{funder}</p>
-          )}
-        </div>
-
-        {/* Amount + score badge + save */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {s.amount_thb ? (
-            <span className="text-sm font-bold text-[#1B3A6B] dark:text-[#4A7FD4]" style={{ fontFamily: 'var(--font-lato), Lato, sans-serif' }}>
-              ฿{s.amount_thb.toLocaleString('th-TH')}
-            </span>
-          ) : (
-            <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-              {lang === 'th' ? 'ติดต่อโดยตรง' : 'Contact funder'}
-            </span>
-          )}
-          <span className="text-[10px] font-bold text-[#1B3A6B] dark:text-[#4A7FD4]">
-            {Math.round(s.fairnessScore * 100)}%
-          </span>
-          <SaveButton scholarshipId={s.id} size="sm" />
-        </div>
-      </div>
-
-      {/* Reasons */}
-      {reasons.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-wider">
-            {lang === 'th' ? 'ทำไมถึงตรงกับคุณ' : 'Why this matched you'}
-          </p>
-          <ul className="space-y-0.5">
-            {reasons.slice(0, 3).map((r, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-                <span className="text-[#1B3A6B] mt-0.5 shrink-0">✓</span>
-                <span style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>{r}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Score bar */}
-      <MatchScoreBar scholarship={s} lang={lang} />
-
-      {/* Footer: deadline + detail link */}
-      <div className="flex items-center justify-between pt-1">
-        {s.deadline_date ? (
-          <span className={`text-xs font-medium ${
-            deadlineColorKey === 'red' ? 'text-red-600 dark:text-red-400' :
-            deadlineColorKey === 'orange' ? 'text-orange-600 dark:text-orange-400' :
-            'text-[#6E7A8A] dark:text-[#7A8FA8]'
-          }`}>
-            {lang === 'th' ? deadlineLabel : deadlineLabelEn}
-          </span>
-        ) : (
-          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-            {lang === 'th' ? 'ตรวจสอบเว็บไซต์' : 'Check website'}
-          </span>
-        )}
-        <Link
-          href={`/scholarships/${s.id}`}
-          onClick={storeMatchData}
-          className="text-xs text-[#1B3A6B] font-semibold hover:underline"
-        >
-          {lang === 'th' ? 'ดูรายละเอียด →' : 'View details →'}
-        </Link>
-      </div>
-    </article>
-  );
-}
-
 // ── Match controls (sort + score filter) ─────────────────────────────────────
 interface MatchControlsProps {
   total: number;
@@ -598,52 +450,33 @@ export default function BrowsePage() {
   const supabase = createClient();
 
   const [user, setUser]                 = useState<User | null>(null);
-  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [fetchError, setFetchError]     = useState<string | null>(null);
-  const [filters, setFilters]           = useState<FilterState>(EMPTY_FILTERS);
-  const [filtersOpen, setFiltersOpen]   = useState(false);
   const [activeTab, setActiveTab]       = useState<Tab>('browse');
-  const [browseSortKey, setBrowseSortKey] = useState<BrowseSortKey>('deadline');
   const [matchSortBy, setMatchSortBy]   = useState<MatchSortKey>('match');
   const [matchMinScore, setMatchMinScore] = useState<MinScore>(0);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [userProfile, setUserProfile]   = useState<StudentProfile | null>(null);
-  const [searchQuery, setSearchQuery]   = useState('');
 
-  // ── TD Scholarships state ───────────────────────────────────────────────────
+  // ── TD Scholarships state (single source of truth for all public scholarship data) ──
   const [tdScholarships, setTdScholarships] = useState<TdScholarship[]>([]);
-  const [tdLoading, setTdLoading]           = useState(false);
+  const [tdLoading, setTdLoading]           = useState(true);
   const [tdSearch, setTdSearch]             = useState('');
   const [tdLevelFilter, setTdLevelFilter]   = useState('');
   const [tdFunderFilter, setTdFunderFilter] = useState('');
 
-  // ── Data load ───────────────────────────────────────────────────────────────
+  // ── Data load (td_scholarships is the single source of truth) ──────────────
   useEffect(() => {
-    void (async () => {
-      try {
-        const { data, error: fetchErr } = await supabase
-          .from('scholarships')
-          .select('*')
-          .order('amount_thb', { ascending: false, nullsFirst: false });
-        if (fetchErr) {
-          console.error('[TunDee] scholarships fetch error:', fetchErr.message);
-          setFetchError('exception');
-        } else {
-          const active = (data || []).filter(
-            (s) => (s as { is_active?: boolean | null }).is_active !== false
-          ) as Scholarship[];
-          setScholarships(active);
-          if (active.length === 0) setFetchError('no_data');
-        }
-      } catch (err) {
-        console.error('[TunDee] scholarships unexpected error:', err);
-        setFetchError('exception');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    // Load all publicly-visible scholarships from the TD table
+    void supabase
+      .from('td_scholarships')
+      .select('scholarship_id, scholarship_name, funder, funder_type, level, field_of_study, award_amount_thb, region_eligibility, targets_low_income, num_recipients, min_gpa, income_cap_thb, language, deadline_raw, status, application_link, deadline_date, deadline_is_rolling, deadline_note, stale, is_displayed')
+      .eq('is_displayed', true)
+      .order('scholarship_name')
+      .then(({ data }) => {
+        setTdScholarships((data ?? []) as TdScholarship[]);
+        setTdLoading(false);
+      });
 
+    // Load session + user profile for the matches tab
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
       const authUser = data.session.user;
@@ -659,22 +492,16 @@ export default function BrowsePage() {
           .maybeSingle();
 
         if (profile) {
-          // ── A/B arm: assign if null (new user), write back to DB ─────────
           let arm = (profile.ab_arm ?? null) as 'treatment' | 'control' | null;
           if (!arm) {
             arm = assignAbArm(authUser.id);
-            // Write assignment (fire-and-forget — don't block UI)
             void supabase
               .from('profiles')
               .update({ ab_arm: arm, ab_assigned_at: new Date().toISOString() })
               .eq('id', authUser.id);
           }
-
           const incomeBracket = profile.income_bracket ?? 4;
-
-          // Expose ab_arm + income_bracket to all subsequent event logs
           setUserResearchContext(arm, incomeBracket);
-
           setUserProfile({
             province_id:        profile.province_id      ?? '',
             income_bracket:     incomeBracket,
@@ -694,150 +521,100 @@ export default function BrowsePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load td_scholarships (public — only is_displayed=true via RLS) ──────────
-  useEffect(() => {
-    setTdLoading(true);
-    void supabase
-      .from('td_scholarships')
-      .select('scholarship_id, scholarship_name, funder, funder_type, level, field_of_study, award_amount_thb, region_eligibility, targets_low_income, num_recipients, min_gpa, income_cap_thb, language, deadline_raw, status, application_link, deadline_date, deadline_is_rolling, deadline_note, stale, is_displayed')
-      .eq('is_displayed', true)
-      .order('scholarship_name')
-      .then(({ data }) => {
-        setTdScholarships((data ?? []) as TdScholarship[]);
-        setTdLoading(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // ── Adapter: map TdScholarship fields to what scoreOne() expects ────────────
+  function tdToScorable(td: TdScholarship): Record<string, unknown> {
+    // grade_levels array from the TD level text field
+    const levelToGrades: Record<string, string[]> = {
+      'High school':  ['M4', 'M5', 'M6'],
+      'Undergraduate': ['uni'],
+      "Master's":     ['graduate'],
+      'PhD':          ['graduate'],
+      'Multiple':     [],
+    };
+    const grade_levels = td.level ? (levelToGrades[td.level] ?? []) : [];
 
-  // ── Compute matches inline ──────────────────────────────────────────────────
-  const allMatches = useMemo((): ScoredScholarship[] => {
-    if (!userProfile || scholarships.length === 0) return [];
-    const results: ScoredScholarship[] = [];
-    for (const s of scholarships) {
-      if (s.is_active === false) continue;
-      const scored = scoreOne(s as unknown as Record<string, unknown>, userProfile);
-      if (scored) results.push(scored);
+    // province_restriction from region_eligibility text
+    const reg = (td.region_eligibility ?? '').toLowerCase();
+    const province_restriction =
+      !reg || reg.includes('national') || reg.includes('ทั่วประเทศ') || reg.includes('all')
+        ? ['national']
+        : [td.region_eligibility ?? ''];
+
+    // field_of_study: split comma-delimited text into array
+    const field_of_study = td.field_of_study
+      ? td.field_of_study.split(',').map((f) => f.trim()).filter(Boolean)
+      : [];
+
+    // income_cap_thb in the TD table is annual THB; scorer uses monthly
+    const max_income_thb = td.income_cap_thb ? Math.round(td.income_cap_thb / 12) : null;
+
+    return {
+      id:                   td.scholarship_id,
+      min_gpa:              td.min_gpa ?? null,
+      max_income_thb,
+      welfare_card_priority: td.targets_low_income ?? false,
+      field_of_study,
+      province_restriction,
+      grade_levels,
+      historical_bias_score: 0.5,
+      amount_thb:           null,
+      deadline_date:        td.deadline_date ?? null,
+    };
+  }
+
+  // ── Compute matches from TD data ────────────────────────────────────────────
+  const allMatches = useMemo((): ScoredTdScholarship[] => {
+    if (!userProfile || tdScholarships.length === 0) return [];
+    const results: ScoredTdScholarship[] = [];
+    for (const td of tdScholarships) {
+      const scored = scoreOne(tdToScorable(td), userProfile);
+      if (scored) {
+        results.push({
+          ...td,
+          rawScore:      scored.rawScore,
+          fairnessScore: scored.fairnessScore,
+          boosted:       scored.boosted,
+          reasons:       scored.reasons,
+          reasons_en:    scored.reasons_en,
+        });
+      }
     }
-    // ── A/B BRANCH ───────────────────────────────────────────────────────────
-    // treatment (default): rank by fairness-adjusted score (equalized odds)
-    // control:             rank by raw eligibility score (no fairness correction)
-    // This is the core treatment variable for the DiD / ITT analysis.
     const isControl = userProfile.ab_arm === 'control';
     results.sort((a, b) => {
-      const scoreA = isControl ? a.rawScore      : a.fairnessScore;
-      const scoreB = isControl ? b.rawScore      : b.fairnessScore;
-      return scoreB - scoreA || (b.amount_thb ?? 0) - (a.amount_thb ?? 0);
+      const scoreA = isControl ? a.rawScore : a.fairnessScore;
+      const scoreB = isControl ? b.rawScore : b.fairnessScore;
+      return scoreB - scoreA;
     });
     return results;
-  }, [userProfile, scholarships]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile, tdScholarships]);
 
   // ── Apply match filter + sort ───────────────────────────────────────────────
-  const visibleMatches = useMemo((): (ScoredScholarship & { displayRank: number })[] => {
-    const filtered = allMatches.filter((s) => s.fairnessScore >= matchMinScore);
-
-    const sorted = [...filtered].sort((a, b) => {
+  const visibleMatches = useMemo((): (ScoredTdScholarship & { displayRank: number })[] => {
+    const f = allMatches.filter((s) => s.fairnessScore >= matchMinScore);
+    const sorted = [...f].sort((a, b) => {
       switch (matchSortBy) {
-        case 'match':
-          return b.fairnessScore - a.fairnessScore || (b.amount_thb ?? 0) - (a.amount_thb ?? 0);
+        case 'match':    return b.fairnessScore - a.fairnessScore;
         case 'deadline': {
           if (!a.deadline_date && !b.deadline_date) return 0;
           if (!a.deadline_date) return 1;
           if (!b.deadline_date) return -1;
           return new Date(a.deadline_date).getTime() - new Date(b.deadline_date).getTime();
         }
-        case 'name':
-          return (a.name_th ?? '').localeCompare(b.name_th ?? '', 'th');
-        default:
-          return 0;
+        case 'name': return (a.scholarship_name ?? '').localeCompare(b.scholarship_name ?? '', 'th');
+        default:     return 0;
       }
     });
-
     return sorted.map((s, i) => ({ ...s, displayRank: i + 1 }));
   }, [allMatches, matchSortBy, matchMinScore]);
 
-  // ── Log recommendations + research tracking ─────────────────────────────────
+  // Research: log matching results viewed (fire-and-forget, no DB writes to legacy tables)
   useEffect(() => {
-    if (allMatches.length === 0) return;
-    void (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
-
-        const top10 = allMatches.slice(0, 10);
-
-        // ── Fetch arm from loaded profile (already in state, but we need it here) ──
-        const { data: profileForArm } = await supabase
-          .from('profiles')
-          .select('ab_arm, income_bracket')
-          .eq('id', session.user.id)
-          .maybeSingle();
-        const arm           = profileForArm?.ab_arm           ?? null;
-        const incomeBracket = profileForArm?.income_bracket   ?? null;
-
-        // Upsert recommendations with full research metadata (IV treatment variable)
-        const rows = allMatches.map((s, i) => ({
-          user_id:                    session.user.id,
-          scholarship_id:             s.id,
-          score_raw:                  s.rawScore,
-          score_fairness_adjusted:    s.fairnessScore,
-          rank:                       i + 1,
-          reasons_json:               { reasons: s.reasons, reasons_en: s.reasons_en, boosted: s.boosted },
-          fairness_correction_applied: s.boosted ?? false,
-          correction_multiplier:      s.boosted ? s.fairnessScore / s.rawScore : null,
-          algorithm_version:          'v1',
-          ab_arm:                     arm,
-          generated_at:               new Date().toISOString(),
-        }));
-        await supabase.from('recommendations').upsert(rows, { onConflict: 'user_id,scholarship_id' });
-
-        // Mark applications as "was_recommended" for top 10 — key PSM variable
-        // Also stamp ab_arm + income_bracket for click-through analysis
-        for (const s of top10) {
-          const rank = allMatches.findIndex((m) => m.id === s.id) + 1;
-          await supabase.from('applications').upsert(
-            {
-              user_id:             session.user.id,
-              scholarship_id:      s.id,
-              was_recommended:     true,
-              recommendation_rank: rank,
-              ab_arm:              arm,
-              income_bracket:      incomeBracket,
-            },
-            { onConflict: 'user_id,scholarship_id' }
-          );
-        }
-
-        // Research: log matching results viewed (fire-and-forget)
-        logMatchingResultsViewed(allMatches.length, allMatches[0]?.id);
-      } catch { /* silently ignore */ }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allMatches]);
-
-  // ── Browse tab derived data ─────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    let base = applyFilters(scholarships, filters);
-    base = searchFilter(base, searchQuery, lang);
-    if (browseSortKey === 'deadline') return sortByDeadline(base);
-    return sortByName(base, lang);
-  }, [scholarships, filters, browseSortKey, searchQuery, lang]);
-
-  // ── Research: log search queries ────────────────────────────────────────────
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      logSearchPerformed(searchQuery, filtered.length);
+    if (allMatches.length > 0) {
+      logMatchingResultsViewed(allMatches.length, allMatches[0]?.scholarship_id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filtered.length]);
-
-  const isDataEmpty = !loading && scholarships.length === 0;
-
-  const urgentScholarships = useMemo(() => {
-    return scholarships.filter((s) => {
-      const info = getDeadlineInfo(s.deadline_date);
-      return info.days !== null && info.days >= 0 && info.days <= 7;
-    });
-  }, [scholarships]);
+  }, [allMatches]);
 
   // ════════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -857,7 +634,7 @@ export default function BrowsePage() {
           <p className="text-[#6E6E73] dark:text-[#8E8E93]">{b.subtitle[lang]}</p>
 
           <div className="flex gap-1 mt-6 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
-            {(user ? ['matches', 'browse', 'td'] as Tab[] : ['browse', 'td'] as Tab[]).map((t) => (
+            {(user ? ['matches', 'browse'] as Tab[] : ['browse'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
@@ -868,9 +645,7 @@ export default function BrowsePage() {
                 }`}
                 style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
               >
-                {t === 'matches' ? b.tabMatches[lang]
-                  : t === 'browse' ? b.tabBrowse[lang]
-                  : (lang === 'th' ? 'ทุนทั้งหมด' : 'All Scholarships')}
+                {t === 'matches' ? b.tabMatches[lang] : (lang === 'th' ? 'ทุนทั้งหมด' : 'All Scholarships')}
               </button>
             ))}
           </div>
@@ -880,7 +655,7 @@ export default function BrowsePage() {
       <div className="max-w-[1200px] mx-auto px-6 py-10">
 
         {/* ── Login banner ─────────────────────────────────────────────────── */}
-        {!user && !loading && scholarships.length > 0 && (
+        {!user && !tdLoading && tdScholarships.length > 0 && (
           <div className="mb-8 flex items-center justify-between gap-4 bg-[#EFF4FF] dark:bg-[#162552] border border-[#2E6BE6]/30 rounded-[12px] px-6 py-4">
             <p className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7]"
                style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
@@ -889,23 +664,6 @@ export default function BrowsePage() {
             <a href="/auth?from=signup" className="text-sm font-semibold text-[#1B3A6B] hover:underline shrink-0">
               {b.loginBannerCta[lang]}
             </a>
-          </div>
-        )}
-
-        {/* ── Urgent deadline banner ───────────────────────────────────────── */}
-        {!loading && urgentScholarships.length > 0 && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-5 py-4 flex items-start gap-3">
-            <span className="text-xl shrink-0">⚡</span>
-            <div>
-              <p className="text-sm font-semibold text-red-700 dark:text-red-400">
-                {lang === 'th'
-                  ? `${urgentScholarships.length} ทุนกำลังจะหมดเขตใน 7 วัน`
-                  : `${urgentScholarships.length} scholarship${urgentScholarships.length > 1 ? 's' : ''} closing within 7 days`}
-              </p>
-              <p className="text-xs text-red-600 dark:text-red-500 mt-0.5 line-clamp-1">
-                {urgentScholarships.map((s) => lang === 'th' ? s.name_th : (s.name_en ?? s.name_th)).join(' · ')}
-              </p>
-            </div>
           </div>
         )}
 
@@ -1002,10 +760,10 @@ export default function BrowsePage() {
                     </button>
                   </div>
                 ) : (
-                  /* Match grid */
+                  /* Match grid — TdScholarshipCard used for all scholarship rendering */
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {visibleMatches.map((s) => (
-                      <MatchCard key={s.id} scholarship={s} rank={s.displayRank} lang={lang} />
+                      <TdScholarshipCard key={s.scholarship_id} scholarship={s} />
                     ))}
                   </div>
                 )}
@@ -1015,136 +773,9 @@ export default function BrowsePage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════════
-            BROWSE ALL TAB
+            BROWSE TAB — td_scholarships (single source of truth)
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'browse' && (
-          isDataEmpty ? (
-            <EmptyState lang={lang} />
-          ) : (
-            <div className="flex gap-8">
-              {/* Sidebar desktop */}
-              <aside className="hidden md:block w-72 shrink-0">
-                <div className="sticky top-24">
-                  <ScholarshipFilters filters={filters} onChange={setFilters} resultCount={filtered.length} />
-                </div>
-              </aside>
-
-              <div className="flex-1 min-w-0">
-                {/* Mobile filter toggle */}
-                <button
-                  className="md:hidden flex items-center gap-2 text-sm font-medium text-[#1D1D1F] dark:text-white border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg px-4 py-2 mb-6 w-full justify-center"
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                  </svg>
-                  {b.filters[lang]} {filtered.length > 0 && `(${filtered.length})`}
-                </button>
-
-                {filtersOpen && (
-                  <div className="md:hidden mb-6">
-                    <ScholarshipFilters filters={filters} onChange={setFilters} resultCount={filtered.length} />
-                  </div>
-                )}
-
-                {/* Search */}
-                <div className="mb-5 relative">
-                  <div className="relative">
-                    <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder={lang === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search by scholarship or funder name...'}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[10px] bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
-                      style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#ADADB8] hover:text-[#6E6E73] transition-colors"
-                        aria-label="Clear search"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  {searchQuery && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs text-[#6E6E73]">{lang === 'th' ? 'ค้นหา:' : 'Searching:'}</span>
-                      <span className="inline-flex items-center gap-1 text-xs bg-[#EFF4FF] border border-[#2E6BE6]/30 text-[#1B3A6B] px-2.5 py-0.5 rounded-full font-medium">
-                        {searchQuery}
-                        <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-[#1E57CC]">×</button>
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Results header + sort */}
-                <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-                  <span className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
-                    {loading
-                      ? (lang === 'th' ? 'กำลังโหลด...' : 'Loading...')
-                      : `${filtered.length} ${b.results[lang]}`}
-                  </span>
-                  {!loading && (
-                    <div className="flex items-center gap-2 text-xs text-[#6E6E73]">
-                      <span className="hidden sm:inline">{b.sortLabel[lang]}:</span>
-                      <div className="flex gap-1 bg-[#F5F7FA] dark:bg-[#232B3E] rounded-lg p-0.5">
-                        {(['deadline', 'name'] as BrowseSortKey[]).map((key) => (
-                          <button
-                            key={key}
-                            onClick={() => setBrowseSortKey(key)}
-                            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                              browseSortKey === key
-                                ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
-                                : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
-                            }`}
-                          >
-                            {key === 'deadline' ? b.sortDeadline[lang] : (lang === 'th' ? 'ก–ฮ' : 'A–Z')}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {loading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-52 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-[12px] animate-pulse" />
-                    ))}
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="text-center py-24">
-                    <div className="text-4xl mb-4">🔍</div>
-                    <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-2">{b.noResults[lang]}</h3>
-                    <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm mb-6">{b.noResultsSub[lang]}</p>
-                    <button
-                      onClick={() => { setFilters(EMPTY_FILTERS); setSearchQuery(''); }}
-                      className="text-sm text-[#1B3A6B] font-medium hover:underline"
-                    >
-                      {b.clearFilters[lang]}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {filtered.map((s) => <ScholarshipCard key={s.id} scholarship={s} />)}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        )}
-
-        {/* ════════════════════════════════════════════════════════════════════
-            ALL SCHOLARSHIPS TAB (td_scholarships)
-        ════════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'td' && (
           <div>
             {/* Filters row */}
             <div className="flex flex-wrap gap-3 mb-6">

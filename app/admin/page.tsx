@@ -173,7 +173,7 @@ export default function AdminPage() {
 
   const [loading,    setLoading]    = useState(true);
   const [authorized, setAuthorized] = useState(false);
-  const [tab,        setTab]        = useState<Tab>('list');
+  const [tab,        setTab]        = useState<Tab>('td-list');
 
   // ── List tab ──────────────────────────────────────────────────────────────
   const [scholarships,  setScholarships]  = useState<Scholarship[]>([]);
@@ -254,9 +254,8 @@ export default function AdminPage() {
     setListLoading(false);
   }, [supabase, sortField]);
 
-  useEffect(() => {
-    if (authorized) fetchScholarships();
-  }, [authorized, fetchScholarships]);
+  // Old scholarships table fetch removed — td_scholarships is now the source of truth.
+  // Uncomment to re-enable: useEffect(() => { if (authorized) fetchScholarships(); }, [authorized, fetchScholarships]);
 
   // ── Load analytics data ───────────────────────────────────────────────────
   const loadDashboardData = useCallback(async () => {
@@ -559,8 +558,11 @@ export default function AdminPage() {
     }
     return true;
   });
-  const activeCount   = scholarships.filter(s =>  s.is_active).length;
-  const inactiveCount = scholarships.filter(s => !s.is_active).length;
+
+  // Summary cards now reflect the TD table (the live source of truth)
+  const tdTotalCount    = tdRows.length;
+  const tdDisplayedCount = tdRows.filter(r => r.is_displayed).length;
+  const tdHiddenCount   = tdRows.filter(r => !r.is_displayed).length;
 
   const trendFiltered = (() => {
     const days = parseInt(trendRange);
@@ -604,12 +606,12 @@ export default function AdminPage() {
             Manage TunDee scholarship data and view platform analytics
           </p>
 
-          {/* Scholarship counts */}
+          {/* Scholarship counts — TD table is the source of truth */}
           <div className="flex gap-3 flex-wrap">
             {[
-              { label: 'Total', value: scholarships.length, color: 'bg-white dark:bg-[#1D1D1F] text-[#1D1D1F] dark:text-white' },
-              { label: 'Active', value: activeCount, color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' },
-              { label: 'Inactive', value: inactiveCount, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' },
+              { label: 'Total',     value: tdTotalCount,     color: 'bg-white dark:bg-[#1D1D1F] text-[#1D1D1F] dark:text-white' },
+              { label: 'Displayed', value: tdDisplayedCount, color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' },
+              { label: 'Hidden',    value: tdHiddenCount,    color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' },
             ].map(stat => (
               <div key={stat.label}
                 className={`px-4 py-2 rounded-xl border border-[#E5E5EA] dark:border-[#3A3A3C] ${stat.color}`}>
@@ -621,14 +623,11 @@ export default function AdminPage() {
         </div>
 
         {/* ── Tabs ───────────────────────────────────────────────────────── */}
+        {/* Old tabs (list / add / analytics / import) are retired — data moved to td_scholarships */}
         <div className="flex rounded-xl bg-white dark:bg-[#1D1D1F] border border-[#E5E5EA] dark:border-[#3A3A3C] p-1 w-fit mb-6 overflow-x-auto">
           {([
-            { key: 'list',      label: '📋 Scholarships' },
-            { key: 'add',       label: '➕ Add New' },
-            { key: 'analytics', label: '📊 Analytics' },
-            { key: 'import',    label: '📥 Import' },
-            { key: 'td-list',   label: '🗂️ TD List' },
-            { key: 'td-import', label: '📤 TD Import' },
+            { key: 'td-list',   label: '🗂️ Scholarships' },
+            { key: 'td-import', label: '📤 Import' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button
               key={key}
