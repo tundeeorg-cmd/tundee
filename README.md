@@ -351,7 +351,10 @@ canonical columns mapped from the admin spreadsheet:
 `display_reason`, `stale`, `created_at`, `updated_at`.
 
 **Deprecated columns** (nullable, back-filled for backward compat, not imported):
-`scholarship_name`, `funder`, `application_link`, `source`, `award_amount_thb` (free text), `language`, `application_open_date`.
+`scholarship_name`, `funder`, `application_link`, `source`, `award_amount_thb` (free text), `language`.
+
+**Deleted columns** (dropped by migration v4, no longer in DB):
+`application_open_date`.
 
 ---
 

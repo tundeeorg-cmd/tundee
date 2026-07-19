@@ -2,9 +2,12 @@
 -- Migration: 20260719_v4_drop_not_null_legacy.sql
 -- Drop NOT NULL from deprecated columns so the 28-field importer can upsert
 -- rows without populating legacy single-language fields.
+-- Also drops the application_open_date column entirely (not part of the 28-col
+-- canonical schema and not used anywhere in the app).
 --
 -- Pre-requisite: 20260719_v3_award_tier.sql
--- Safe to re-run: DROP NOT NULL on an already-nullable column is a no-op.
+-- Safe to re-run: DROP NOT NULL on an already-nullable column is a no-op;
+--   DROP COLUMN IF EXISTS is a no-op if the column doesn't exist.
 --
 -- Root cause: the original add_td_scholarships.sql created:
 --   scholarship_name  TEXT NOT NULL
@@ -30,6 +33,10 @@ ALTER TABLE public.td_scholarships
 ALTER TABLE public.td_scholarships
   ALTER COLUMN application_link  DROP NOT NULL;
 
+-- application_open_date is not in the 28-column canonical schema and is unused.
+ALTER TABLE public.td_scholarships
+  DROP COLUMN IF EXISTS application_open_date;
+
 COMMIT;
 
 -- =============================================================================
@@ -38,4 +45,6 @@ COMMIT;
 --     scholarship_name   TEXT (was NOT NULL)
 --     funder             TEXT (was NOT NULL)
 --     application_link   TEXT (was NOT NULL)
+--   Columns dropped from public.td_scholarships:
+--     application_open_date  (not in 28-col schema, unused)
 -- =============================================================================
