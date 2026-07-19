@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     fields_of_interest:    (profileRow?.fields_of_interest as string[] | null) ?? [],
     welfare_card:          Boolean(profileRow?.welfare_card),
     region:                studentProfile?.region ?? null,
-    area_type:             (studentProfile?.area_type as 'urban' | 'rural' | null) ?? null,
+    area_type:             (studentProfile?.area_type as 'urban' | 'peri_urban' | 'rural' | null) ?? null,
     household_income_band: studentProfile?.household_income_band ?? null,
     intended_level:        studentProfile?.intended_level ?? null,
     intended_field:        studentProfile?.intended_field ?? null,

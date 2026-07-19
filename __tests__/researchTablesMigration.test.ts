@@ -55,6 +55,7 @@ function makeProfile(overrides: Partial<StudentProfileRow> = {}): StudentProfile
     disability_status:     null,
     intended_level:        'bachelor',
     intended_field:        'engineering',
+    preferred_scholarship_types: null,
     language_pref:         'th',
     consent_research:      true,
     consent_at:            '2026-07-19T00:00:00Z',

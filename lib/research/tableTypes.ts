@@ -62,6 +62,8 @@ export interface StudentProfileRow {
   intended_level:        IntendedLevel | null;
   intended_field:        string | null;
   language_pref:         LanguagePref | null;
+  /** Mirrors TdAwardValueTier values; optional, aids matching. */
+  preferred_scholarship_types: string[] | null;
 
   // Consent (PDPA)
   consent_research:      boolean;

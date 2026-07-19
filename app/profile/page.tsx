@@ -718,6 +718,32 @@ export default function ProfilePage() {
           </Card>
         </div>
 
+        {/* ── SECTION 3.5: Research & matching profile ──────────────── */}
+        <div>
+          <SectionLabel>{lang === 'th' ? 'โปรไฟล์งานวิจัยและการจับคู่' : 'Research & Matching Profile'}</SectionLabel>
+          <Card>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl" aria-hidden>📊</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+                  {lang === 'th' ? 'เพิ่มข้อมูลเพื่อจับคู่ทุนที่แม่นยำขึ้น' : 'Add more detail for better scholarship matching'}
+                </p>
+                <p className="text-xs text-[#AEAEB2] mt-1 leading-relaxed">
+                  {lang === 'th'
+                    ? 'กรอกข้อมูลจังหวัด ฐานะครอบครัว และการศึกษาแบบละเอียด (ไม่บังคับ) เพื่อช่วยจับคู่ทุนที่เหมาะกับคุณ และเข้าร่วมงานวิจัยความเท่าเทียมทางการศึกษาของทุนดีได้ตามความสมัครใจ'
+                    : 'Add detailed province, family, and education info (optional) to improve scholarship matching, and optionally join TunDee’s educational-equity research.'}
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/profile/student"
+              className="inline-block text-sm font-semibold text-[#1B3A6B] hover:text-[#2E5FA3] transition-colors"
+            >
+              {lang === 'th' ? 'เปิดโปรไฟล์นักเรียน →' : 'Open student profile →'}
+            </Link>
+          </Card>
+        </div>
+
         {/* ── SECTION 4: Settings ───────────────────────────────────── */}
         <div>
           <SectionLabel>{lang === 'th' ? 'การตั้งค่า' : 'Settings'}</SectionLabel>

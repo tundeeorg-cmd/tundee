@@ -36,7 +36,7 @@ export interface RecommenderProfile {
 
   // From student_profile table (enriched; may be null if not filled)
   region: string | null;       // Bangkok|Central|North|Northeast|South|East|West
-  area_type: 'urban' | 'rural' | null;
+  area_type: 'urban' | 'peri_urban' | 'rural' | null;
   household_income_band: string | null;   // band_1..band_7
   intended_level: string | null;
   intended_field: string | null;

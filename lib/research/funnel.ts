@@ -18,7 +18,8 @@ export type FunnelEventType =
   | 'track_add'
   | 'track_remove'
   | 'status_change'
-  | 'self_report_outcome';
+  | 'self_report_outcome'
+  | 'profile_updated';
 
 export interface FunnelEventPayload {
   eventType: FunnelEventType;
