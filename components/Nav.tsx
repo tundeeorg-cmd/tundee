@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 import { getInitials } from '@/lib/profile';
 import { useUserProfile } from '@/contexts/UserContext';
 import { getDeadlineInfo } from '@/lib/deadline';
+import { onTrackedCountChanged } from '@/lib/tracker/countBus';
 import type { User } from '@supabase/supabase-js';
 
 function Avatar({ user, avatarUrl, displayName, size = 32 }: {
@@ -86,31 +87,39 @@ export default function Nav() {
     supabase.auth.getSession().then(({ data }) => {
       const u = data.session?.user ?? null;
       setUser(u);
-      if (u) checkUrgentDeadlines(u.id);
+      if (u) checkTracked(u.id);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) checkUrgentDeadlines(u.id);
-      else setUrgent(false);
+      if (u) checkTracked(u.id);
+      else { setUrgent(false); setAppCount(0); }
     });
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function checkUrgentDeadlines(userId: string) {
+  // Re-fetch whenever a scholarship is tracked/untracked anywhere in the app
+  // (TrackButton, tracker page) so the badge stays in sync with no reload.
+  useEffect(() => {
+    if (!user) return;
+    return onTrackedCountChanged(() => checkTracked(user.id));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  async function checkTracked(userId: string) {
     try {
       const supabase = createClient();
       const { data, count } = await supabase
-        .from('applications')
-        .select('scholarship_id, scholarships(deadline_date)', { count: 'exact' })
-        .eq('user_id', userId)
-        .in('status', ['started', 'in_progress']);
+        .from('tracked_scholarship')
+        .select('status, scholarship:td_scholarships(deadline_date)', { count: 'exact' })
+        .eq('user_id', userId);
       if (count !== null) setAppCount(count);
       if (!data) return;
-      const hasUrgent = data.some((app) => {
+      const hasUrgent = data.some((row) => {
+        if (row.status === 'awarded' || row.status === 'rejected') return false;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = (app.scholarships as unknown) as { deadline_date: string | null } | null;
+        const s = (row.scholarship as unknown) as { deadline_date: string | null } | null;
         if (!s?.deadline_date) return false;
         return (getDeadlineInfo(s.deadline_date).days ?? 999) <= 7;
       });

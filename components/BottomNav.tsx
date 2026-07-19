@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { getDeadlineInfo } from '@/lib/deadline';
+import { onTrackedCountChanged } from '@/lib/tracker/countBus';
 
 const HomeIcon = ({ active }: { active: boolean }) => (
   <svg className={`w-6 h-6 ${active ? 'text-[#1B3A6B]' : 'text-[#ADADB8]'}`} fill={active ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -36,36 +37,47 @@ export default function BottomNav() {
   const { lang } = useLang();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasUrgent, setHasUrgent] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  async function checkUrgent(uid: string) {
+    try {
+      const supabase = createClient();
+      const { data: tracked } = await supabase
+        .from('tracked_scholarship')
+        .select('status, scholarship:td_scholarships(deadline_date)')
+        .eq('user_id', uid);
+
+      if (tracked) {
+        const urgent = tracked.some((row) => {
+          if (row.status === 'awarded' || row.status === 'rejected') return false;
+          const s = (row.scholarship as unknown) as { deadline_date: string | null } | null;
+          if (!s?.deadline_date) return false;
+          const info = getDeadlineInfo(s.deadline_date);
+          return info.color === 'red' || info.color === 'orange';
+        });
+        setHasUrgent(urgent);
+      }
+    } catch {
+      // silent
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient();
-
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!data.session?.user) return;
       setIsLoggedIn(true);
-
-      // Check for urgent deadlines in tracked scholarships
-      try {
-        const { data: apps } = await supabase
-          .from('applications')
-          .select('scholarships(deadline_date)')
-          .eq('user_id', data.session.user.id)
-          .in('status', ['started', 'in_progress']);
-
-        if (apps) {
-          const urgent = apps.some((app) => {
-            const s = (app.scholarships as unknown) as { deadline_date: string | null } | null;
-            if (!s?.deadline_date) return false;
-            const info = getDeadlineInfo(s.deadline_date);
-            return info.color === 'red' || info.color === 'orange';
-          });
-          setHasUrgent(urgent);
-        }
-      } catch {
-        // silent
-      }
+      setUserId(data.session.user.id);
+      checkUrgent(data.session.user.id);
     });
   }, []);
+
+  // Re-check whenever a scholarship is tracked/untracked anywhere in the app.
+  useEffect(() => {
+    if (!userId) return;
+    return onTrackedCountChanged(() => checkUrgent(userId));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const navItems = [
     {

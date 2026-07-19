@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { useLang } from '@/lib/LanguageContext';
+import { notifyTrackedCountChanged } from '@/lib/tracker/countBus';
 
 interface Props {
   scholarshipId: string;
@@ -60,6 +61,7 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
       if (!error) {
         setTracked(false); setTrackId(null);
         logFunnelEvent({ eventType: 'track_remove', scholarshipId, userId: user.id });
+        notifyTrackedCountChanged();
       }
     } else {
       const { data, error } = await supabase
@@ -70,6 +72,7 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
       if (!error && data) {
         setTracked(true); setTrackId(data.id);
         logFunnelEvent({ eventType: 'track_add', scholarshipId, userId: user.id });
+        notifyTrackedCountChanged();
       }
     }
     setWorking(false);
