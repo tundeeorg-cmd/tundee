@@ -7,11 +7,16 @@ import { formatUserDate } from '@/lib/formatDate';
 
 export const DEFAULT_OFFSETS = [14, 1] as const;
 
+/** Parse a comma-separated list of positive integers from an env var, falling back to `defaults`. */
+export function parseIntList(env: string | undefined, defaults: readonly number[]): number[] {
+  if (!env) return [...defaults];
+  const parsed = env.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+  return parsed.length ? parsed : [...defaults];
+}
+
 /** Parse the REMINDER_OFFSETS env var, falling back to DEFAULT_OFFSETS. */
 export function parseOffsets(env?: string): number[] {
-  if (!env) return [...DEFAULT_OFFSETS];
-  const parsed = env.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
-  return parsed.length ? parsed : [...DEFAULT_OFFSETS];
+  return parseIntList(env, DEFAULT_OFFSETS);
 }
 
 /** Return the ISO date string that is `days` days after `baseDate` (YYYY-MM-DD). */

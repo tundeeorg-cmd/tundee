@@ -163,6 +163,7 @@ scripts/20260719_full_research_migration.sql
 scripts/20260719_v2_canonical_finalize.sql
 scripts/20260719_v3_award_tier.sql
 scripts/20260719_v4_drop_not_null_legacy.sql
+scripts/20260720_v8_outcome_followup.sql
 ```
 
 Every migration is **idempotent** — safe to re-run on a database that already has earlier scripts applied. All `ALTER TABLE` statements use `IF NOT EXISTS`; all `CREATE TABLE` statements use `IF NOT EXISTS`.
@@ -173,6 +174,7 @@ Every migration is **idempotent** — safe to re-run on a database that already 
 | `20260719_v2_canonical_finalize.sql` | Canonical URL columns (`application_url`, `source_url`), `reminder_opt_in`, canonical 5-value status CHECK |
 | `20260719_v3_award_tier.sql` | `award_value_tier TEXT CHECK (... 6 codes)` on `td_scholarships` |
 | `20260719_v4_drop_not_null_legacy.sql` | Drops NOT NULL from deprecated columns `scholarship_name`, `funder`, `application_link` so the 28-field importer can upsert without populating them |
+| `20260720_v8_outcome_followup.sql` | `outcome_followup_log` table (LINE outcome self-report ledger); widens `event.outcome` CHECK to add `'waiting'` |
 
 ### Run locally
 
@@ -297,6 +299,17 @@ One row per reminder sent. The UNIQUE constraint on
 `(user_id, scholarship_id, offset_days, deadline_date)` makes the reminder
 cron safe to re-run without re-sending. Supported offsets: 14 days and 1 day
 before `deadline_date`.
+
+### `outcome_followup_log` — Idempotent LINE outcome self-report ledger
+
+One row per outcome-followup attempt sent (`attempt_no` 1–3, one per
+`OUTCOME_OFFSETS` entry, default 30/60/90 days *after* `deadline_date`). The
+UNIQUE constraint on `(user_id, scholarship_id, attempt_no)` makes the
+`/api/cron/line-outcomes` job safe to re-run without re-sending. The
+student's answer is written to `event` (`event_type='self_report_outcome'`,
+`outcome` in `awarded`/`rejected`/`waiting`, `outcome_source='self_report'`),
+and `tracked_scholarship.status` is updated to `awarded`/`rejected` unless
+the answer is `waiting`.
 
 ### `td_scholarships` — Canonical 28-field scholarship schema
 
