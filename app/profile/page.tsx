@@ -9,6 +9,7 @@ import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
 import { uploadAvatar, getInitials } from '@/lib/profile';
 import Toast from '@/components/Toast';
+import StudentProfileForm from '@/components/StudentProfileForm';
 import type { User } from '@supabase/supabase-js';
 
 // ── Province list ─────────────────────────────────────────────────────────
@@ -137,13 +138,13 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 // ── Save button ────────────────────────────────────────────────────────────
-function SaveButton({ saving, lang, onClick }: { saving: boolean; lang: string; onClick: () => void }) {
+function SaveButton({ saving, lang, onClick, fullWidth }: { saving: boolean; lang: string; onClick: () => void; fullWidth?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={saving}
-      className="flex items-center justify-center gap-2 bg-[#1B3A6B] hover:bg-[#2E5FA3] active:scale-[0.98] text-white font-semibold px-6 py-3 rounded-xl transition-all disabled:opacity-50 text-sm w-full sm:w-auto"
+      className={`flex items-center justify-center gap-2 bg-[#1B3A6B] hover:bg-[#2E5FA3] active:scale-[0.98] text-white font-semibold px-6 py-3 rounded-xl transition-all disabled:opacity-50 text-sm ${fullWidth ? 'w-full' : 'w-full sm:w-auto'}`}
     >
       {saving && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -560,10 +561,11 @@ export default function ProfilePage() {
 
             {/* GPA */}
             <div>
-              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+              <label htmlFor="profile-gpa" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
                 {lang === 'th' ? 'เกรดเฉลี่ย (GPAX)' : 'GPA (GPAX)'}
               </label>
               <input
+                id="profile-gpa"
                 type="number"
                 min="0"
                 max="4"
@@ -577,26 +579,35 @@ export default function ProfilePage() {
                     : 'border-[#E5E5EA] dark:border-[#1A2E4A]'
                 }`}
               />
-              {gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4) && (
+              {gpa && (parseFloat(gpa) < 0 || parseFloat(gpa) > 4) ? (
                 <p className="text-xs text-red-500 mt-1">
                   {lang === 'th' ? 'กรุณากรอก 0.00 – 4.00' : 'Must be between 0.00 and 4.00'}
+                </p>
+              ) : (
+                <p className="text-xs text-[#AEAEB2] mt-1">
+                  {lang === 'th' ? 'ทุนหลายประเภทกำหนดเกรดขั้นต่ำ' : 'Many scholarships require a minimum GPA'}
                 </p>
               )}
             </div>
 
             {/* Province */}
             <div>
-              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+              <label htmlFor="profile-province" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
                 {lang === 'th' ? 'จังหวัด' : 'Province'}
               </label>
+              <p className="text-xs text-[#AEAEB2] mb-2">
+                {lang === 'th' ? 'ใช้จับคู่ทุนเฉพาะจังหวัดหรือภูมิภาคของคุณ' : 'Used to match province- or region-specific scholarships'}
+              </p>
               <input
                 type="text"
                 value={provinceSearch}
                 onChange={e => setProvinceSearch(e.target.value)}
                 placeholder={lang === 'th' ? 'ค้นหาจังหวัด...' : 'Search province...'}
+                aria-label={lang === 'th' ? 'ค้นหาจังหวัด' : 'Search province'}
                 className="w-full px-[14px] py-2.5 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] transition-colors placeholder:text-[#AEAEB2] mb-2"
               />
               <select
+                id="profile-province"
                 value={province}
                 onChange={e => { setProvince(e.target.value); setProvinceSearch(''); }}
                 className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors"
@@ -612,10 +623,14 @@ export default function ProfilePage() {
 
             {/* Income bracket */}
             <div>
-              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
+              <label htmlFor="profile-income" className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
                 {lang === 'th' ? 'รายได้ครัวเรือน / เดือน' : 'Monthly Household Income'}
               </label>
+              <p className="text-xs text-[#AEAEB2] mb-1.5">
+                {lang === 'th' ? 'บางทุนกำหนดเกณฑ์รายได้ครัวเรือนขั้นสูงสุด' : 'Some scholarships set a maximum household-income threshold'}
+              </p>
               <select
+                id="profile-income"
                 value={incomeBracket}
                 onChange={e => setIncomeBracket(Number(e.target.value))}
                 className="w-full px-[14px] py-3 rounded-[10px] border border-[#E5E5EA] dark:border-[#1A2E4A] bg-white dark:bg-[#232B3E] text-[15px] text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:border-[#1B3A6B] focus:ring-1 focus:ring-[#1B3A6B] transition-colors"
@@ -636,9 +651,12 @@ export default function ProfilePage() {
 
             {/* Fields of interest */}
             <div>
-              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">
+              <label className="block text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">
                 {lang === 'th' ? 'สาขาที่สนใจ' : 'Fields of Interest'}
               </label>
+              <p className="text-xs text-[#AEAEB2] mb-2">
+                {lang === 'th' ? 'เลือกได้มากกว่า 1 สาขา' : 'Select any that apply'}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {FIELDS.map(f => {
                   const active = selectedFields.includes(f.id);
@@ -712,35 +730,30 @@ export default function ProfilePage() {
               <Toggle checked={welfareCard} onChange={setWelfareCard} />
             </div>
 
-            <div className="flex justify-end pt-1">
-              <SaveButton saving={savingProfile} lang={lang} onClick={handleSaveProfile} />
+            <div className="pt-2">
+              <SaveButton saving={savingProfile} lang={lang} onClick={handleSaveProfile} fullWidth />
             </div>
           </Card>
         </div>
 
-        {/* ── SECTION 3.5: Research & matching profile ──────────────── */}
+        {/* ── SECTION 3.5: Research & matching profile (expanded by default, no click needed) ── */}
         <div>
-          <SectionLabel>{lang === 'th' ? 'โปรไฟล์งานวิจัยและการจับคู่' : 'Research & Matching Profile'}</SectionLabel>
-          <Card>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl" aria-hidden>📊</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
-                  {lang === 'th' ? 'เพิ่มข้อมูลเพื่อจับคู่ทุนที่แม่นยำขึ้น' : 'Add more detail for better scholarship matching'}
-                </p>
-                <p className="text-xs text-[#AEAEB2] mt-1 leading-relaxed">
-                  {lang === 'th'
-                    ? 'กรอกข้อมูลจังหวัด ฐานะครอบครัว และการศึกษาแบบละเอียด (ไม่บังคับ) เพื่อช่วยจับคู่ทุนที่เหมาะกับคุณ และเข้าร่วมงานวิจัยความเท่าเทียมทางการศึกษาของทุนดีได้ตามความสมัครใจ'
-                    : 'Add detailed province, family, and education info (optional) to improve scholarship matching, and optionally join TunDee’s educational-equity research.'}
-                </p>
-              </div>
-            </div>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <SectionLabel>{lang === 'th' ? 'โปรไฟล์งานวิจัยและการจับคู่' : 'Research & Matching Profile'}</SectionLabel>
             <Link
               href="/profile/student"
-              className="inline-block text-sm font-semibold text-[#1B3A6B] hover:text-[#2E5FA3] transition-colors"
+              className="text-xs font-medium text-[#1B3A6B] hover:text-[#2E5FA3] transition-colors whitespace-nowrap shrink-0"
             >
-              {lang === 'th' ? 'เปิดโปรไฟล์นักเรียน →' : 'Open student profile →'}
+              {lang === 'th' ? 'เปิดเต็มหน้า ↗' : 'Open full page ↗'}
             </Link>
+          </div>
+          <p className="text-xs text-[#AEAEB2] mb-3 leading-relaxed">
+            {lang === 'th'
+              ? 'กรอกข้อมูลจังหวัด ฐานะครอบครัว และการศึกษาแบบละเอียด (ไม่บังคับ) เพื่อช่วยจับคู่ทุนที่เหมาะกับคุณ และเข้าร่วมงานวิจัยความเท่าเทียมทางการศึกษาของทุนดีได้ตามความสมัครใจ'
+              : 'Add detailed province, family, and education info (optional) to improve scholarship matching, and optionally join TunDee’s educational-equity research.'}
+          </p>
+          <Card>
+            <StudentProfileForm />
           </Card>
         </div>
 
