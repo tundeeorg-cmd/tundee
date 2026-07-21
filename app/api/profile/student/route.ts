@@ -24,7 +24,10 @@ export async function GET() {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[GET /api/profile/student] Postgres error:', error.code, error.message);
+    return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+  }
   return NextResponse.json({ profile: data });
 }
 
@@ -75,11 +78,14 @@ export async function POST(request: NextRequest) {
 
   // Only stamp consent_at/consent_version when the consent decision actually
   // changes — this is the study's audit trail, not a "last edited" timestamp.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('student_profile')
     .select('consent_research')
     .eq('user_id', user.id)
     .maybeSingle();
+  if (existingError) {
+    console.error('[POST /api/profile/student] pre-check Postgres error:', existingError.code, existingError.message);
+  }
   const consentChanged = !existing || existing.consent_research !== consentResearch;
 
   const preferredTypes = Array.isArray(body.preferred_scholarship_types)
@@ -133,6 +139,9 @@ export async function POST(request: NextRequest) {
       .single());
   }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[POST /api/profile/student] Postgres error:', error.code, error.message);
+    return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+  }
   return NextResponse.json({ profile: data });
 }
