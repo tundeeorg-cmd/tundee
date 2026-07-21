@@ -91,43 +91,42 @@ export default function HomePage() {
             <h2
               className="text-2xl md:text-3xl text-[#0F1C33] dark:text-[#EEF2FF] mb-6"
               style={{
-                fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif',
+                fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
                 fontWeight: 700,
               }}
             >
-              The opportunities are already out there. TunDee makes sure you know about them.
+              {th
+                ? 'โอกาสเหล่านี้มีอยู่แล้ว ทุนดีจะทำให้คุณไม่พลาดมันอีกต่อไป'
+                : 'The opportunities are already out there. TunDee makes sure you know about them.'}
             </h2>
 
             <div
               className="space-y-4 text-[#4A5568] dark:text-[#8892A4] mb-6"
               style={{
-                fontFamily: 'Inter, system-ui, sans-serif',
+                fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'Inter, system-ui, sans-serif',
                 fontSize: '0.9375rem',
-                lineHeight: 1.7,
+                lineHeight: th ? 1.85 : 1.7,
               }}
             >
-              <p>
-                Every year, scholarships worth millions of baht go unclaimed — not because students aren't qualified, but because they never knew the opportunity existed. The students who miss out most are the ones who need it most: those in rural provinces, from low-income families, or the first in their family to reach for higher education.
-              </p>
-              <p>
-                TunDee was built to close that gap. We believe no student should lose their future simply because no one told them the door was open. Our job is to make sure every student — no matter their province, their income, or their connections — can see the opportunities that are already there waiting for them, and take their shot.
-              </p>
-            </div>
-
-            <div
-              className="space-y-3 text-[#8A96A8] dark:text-[#7A8FA8] pt-4 border-t border-[#E8ECF2] dark:border-[#1A2E4A]"
-              style={{
-                fontFamily: 'Sarabun, system-ui, sans-serif',
-                fontSize: '0.875rem',
-                lineHeight: 1.85,
-              }}
-            >
-              <p>
-                ทุกปี มีทุนการศึกษามูลค่ามหาศาลที่ไม่มีใครมารับ ไม่ใช่เพราะนักเรียนไม่มีคุณสมบัติ แต่เพราะพวกเขาไม่เคยรู้ว่าโอกาสนั้นมีอยู่จริง
-              </p>
-              <p>
-                TunDee เกิดขึ้นเพื่อให้นักเรียนทุกคน — ไม่ว่าจะอยู่จังหวัดไหน มีรายได้เท่าไหร่ หรือเป็นคนแรกในครอบครัวที่ได้เรียนต่อ — ได้เห็นโอกาสที่รอพวกเขาอยู่ และคว้ามันไว้
-              </p>
+              {th ? (
+                <>
+                  <p>
+                    ทุกปี มีทุนการศึกษามูลค่ามหาศาลที่ไม่มีใครมารับ ไม่ใช่เพราะนักเรียนไม่มีคุณสมบัติ แต่เพราะพวกเขาไม่เคยรู้ว่าโอกาสนั้นมีอยู่จริง
+                  </p>
+                  <p>
+                    TunDee เกิดขึ้นเพื่อให้นักเรียนทุกคน — ไม่ว่าจะอยู่จังหวัดไหน มีรายได้เท่าไหร่ หรือเป็นคนแรกในครอบครัวที่ได้เรียนต่อ — ได้เห็นโอกาสที่รอพวกเขาอยู่ และคว้ามันไว้
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Every year, scholarships worth millions of baht go unclaimed — not because students aren't qualified, but because they never knew the opportunity existed. The students who miss out most are the ones who need it most: those in rural provinces, from low-income families, or the first in their family to reach for higher education.
+                  </p>
+                  <p>
+                    TunDee was built to close that gap. We believe no student should lose their future simply because no one told them the door was open. Our job is to make sure every student — no matter their province, their income, or their connections — can see the opportunities that are already there waiting for them, and take their shot.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
