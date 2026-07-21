@@ -78,6 +78,61 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Our Mission */}
+      <section className="section-pad bg-[#F5F7FA] dark:bg-[#07111F]">
+        <div className="max-w-[1200px] mx-auto px-6">
+          <div className="max-w-[720px]">
+            <p
+              className="text-[11px] font-semibold tracking-[3px] uppercase text-[#1B3A6B] mb-2"
+              style={{ fontFamily: 'Inter, Sarabun, system-ui, sans-serif' }}
+            >
+              OUR MISSION / พันธกิจของเรา
+            </p>
+            <h2
+              className="text-2xl md:text-3xl text-[#0F1C33] dark:text-[#EEF2FF] mb-6"
+              style={{
+                fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif',
+                fontWeight: 700,
+              }}
+            >
+              The opportunities are already out there. TunDee makes sure you know about them.
+            </h2>
+
+            <div
+              className="space-y-4 text-[#4A5568] dark:text-[#8892A4] mb-6"
+              style={{
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: '0.9375rem',
+                lineHeight: 1.7,
+              }}
+            >
+              <p>
+                Every year, scholarships worth millions of baht go unclaimed — not because students aren't qualified, but because they never knew the opportunity existed. The students who miss out most are the ones who need it most: those in rural provinces, from low-income families, or the first in their family to reach for higher education.
+              </p>
+              <p>
+                TunDee was built to close that gap. We believe no student should lose their future simply because no one told them the door was open. Our job is to make sure every student — no matter their province, their income, or their connections — can see the opportunities that are already there waiting for them, and take their shot.
+              </p>
+            </div>
+
+            <div
+              className="space-y-3 text-[#8A96A8] dark:text-[#7A8FA8] pt-4 border-t border-[#E8ECF2] dark:border-[#1A2E4A]"
+              style={{
+                fontFamily: 'Sarabun, system-ui, sans-serif',
+                fontSize: '0.875rem',
+                lineHeight: 1.85,
+              }}
+            >
+              <p>
+                ทุกปี มีทุนการศึกษามูลค่ามหาศาลที่ไม่มีใครมารับ ไม่ใช่เพราะนักเรียนไม่มีคุณสมบัติ แต่เพราะพวกเขาไม่เคยรู้ว่าโอกาสนั้นมีอยู่จริง
+              </p>
+              <p>
+                TunDee เกิดขึ้นเพื่อให้นักเรียนทุกคน — ไม่ว่าจะอยู่จังหวัดไหน มีรายได้เท่าไหร่ หรือเป็นคนแรกในครอบครัวที่ได้เรียนต่อ — ได้เห็นโอกาสที่รอพวกเขาอยู่ และคว้ามันไว้
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Featured Scholarships */}
       <section className="section-pad bg-[#F5F7FA] dark:bg-[#07111F]">
         <div className="max-w-[1200px] mx-auto px-6">
@@ -110,19 +165,7 @@ export default function HomePage() {
                 <div key={i} className="h-52 bg-[#DDE4EF] dark:bg-[#232B3E] rounded-[12px] animate-pulse" />
               ))}
             </div>
-          ) : scholarships.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4" />
-              <h3 className="text-lg font-semibold text-[#0F1C33] dark:text-[#EEF2FF] mb-2"
-                style={{ fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
-                {translations.browse.emptyHeading[lang]}
-              </h3>
-              <p className="text-sm text-[#4A5568] max-w-sm leading-relaxed"
-                style={{ fontFamily: th ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}>
-                {translations.browse.emptyBody[lang]}
-              </p>
-            </div>
-          ) : (
+          ) : scholarships.length === 0 ? null : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {scholarships.map((s) => (
                 <ScholarshipCard key={s.id} scholarship={s} />

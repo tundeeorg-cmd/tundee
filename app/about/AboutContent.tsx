@@ -256,26 +256,26 @@ export default function AboutContent() {
           <div className="divide-y divide-[#E8ECF2] dark:divide-[#1A2E4A]">
             {[
               {
-                headingTh: '✅ เฉพาะทุนที่ผ่านการตรวจสอบโดยมนุษย์',
-                headingEn: '✅ Only human-verified scholarships',
+                headingTh: 'เฉพาะทุนที่ผ่านการตรวจสอบโดยมนุษย์',
+                headingEn: 'Human-verified scholarships',
                 descTh: 'ทุกทุนในทุนดีผ่านการตรวจสอบโดยทีมงานมนุษย์ก่อนนำขึ้นระบบ เราไม่ใช้ AI สร้างข้อมูลทุน ไม่แสดงทุนที่หมดอายุ และไม่นำทุนที่ยังไม่ผ่านการยืนยันขึ้นแสดง นี่คือสิ่งที่ทำให้ทุนดีแตกต่างจากเว็บรวมทุนทั่วไป',
-                descEn: 'Every scholarship on TunDee is verified by a human before it goes live. We do not use AI to generate scholarship data, do not show expired listings, and do not surface unconfirmed information. This is what sets TunDee apart from general scholarship aggregators.',
+                descEn: 'Every scholarship on TunDee is verified by a human before it goes live. We do not show expired listings, and do not surface unconfirmed information. This is what sets TunDee apart from general scholarship aggregators.',
               },
               {
-                headingTh: '⚖️ ระบบจับคู่ที่เป็นธรรมสำหรับนักเรียนต่างจังหวัด',
-                headingEn: '⚖️ Fair matching for rural and low-income students',
+                headingTh: 'ระบบจับคู่ที่เป็นธรรมสำหรับนักเรียนต่างจังหวัด',
+                headingEn: 'Fair matching for rural and low-income students',
                 descTh: 'ระบบจับคู่ของเราออกแบบมาเพื่อให้นักเรียนในชนบทและกลุ่มรายได้น้อยมองเห็นทุนที่เหมาะกับตัวเองได้ง่ายขึ้น ไม่ใช่แค่ทุนยอดนิยม เราวัดและแก้ไข bias ในอัลกอริทึมอย่างต่อเนื่อง',
                 descEn: 'Our matching system is specifically designed to give rural and lower-income students clear visibility into scholarships that match their profile — not just the most popular ones. We actively measure and correct algorithmic bias.',
               },
               {
-                headingTh: '🆓 ฟรีตลอด ไม่รับเงินโฆษณาจากผู้ให้ทุน',
-                headingEn: '🆓 Free always — no advertising from funders',
+                headingTh: 'ฟรีตลอด ไม่รับเงินโฆษณาจากผู้ให้ทุน',
+                headingEn: 'Free always — no advertising from anyone',
                 descTh: 'TunDee ฟรีสำหรับนักเรียนทุกคน ทุกเวลา เราไม่รับเงินโฆษณาจากผู้ให้ทุน เพื่อให้ผลการค้นหาเป็นกลางอย่างแท้จริง',
-                descEn: 'TunDee is free for every student, always. We accept no advertising revenue from funders, so search results stay genuinely unbiased.',
+                descEn: 'TunDee is free for every student, always. We accept no advertising revenue from funders or anyone, so search results stay genuinely unbiased.',
               },
               {
-                headingTh: '📍 ครอบคลุมทุกจังหวัด รวมทุนท้องถิ่น',
-                headingEn: '📍 All 77 provinces, including local scholarships',
+                headingTh: 'ครอบคลุมทุกจังหวัด รวมทุนท้องถิ่น',
+                headingEn: 'All 77 provinces, including local scholarships',
                 descTh: 'รวมทั้งทุนระดับชาติและทุนเฉพาะจังหวัด ทุนท้องถิ่นที่ไม่ค่อยปรากฏในผลการค้นหาทั่วไปก็มีอยู่ที่นี่',
                 descEn: 'Covers both national scholarships and province-specific grants. Local scholarships that rarely appear in general search results are here too.',
               },
