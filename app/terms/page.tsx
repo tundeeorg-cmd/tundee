@@ -7,8 +7,8 @@
  * Version: 1.0  |  Last updated: 2026-07-12
  */
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useLang } from '@/lib/LanguageContext';
 
 const LAST_UPDATED = '12 กรกฎาคม 2569 / 12 July 2026';
 
@@ -17,6 +17,7 @@ const CONTENT = {
     title:  'ข้อกำหนดการใช้งาน',
     draft:  '⚠️ ฉบับร่าง — อยู่ระหว่างการตรวจสอบโดยผู้เชี่ยวชาญด้านกฎหมาย ยังไม่ใช่ฉบับสมบูรณ์',
     updated: `อัปเดตล่าสุด: ${LAST_UPDATED}`,
+    footerNote: '© 2569 ทุนดี · สร้างขึ้นเพื่อนักเรียนไทยทุกคน · ข้อมูลทุนการศึกษาอัปเดตล่าสุด: มิถุนายน 2569',
     sections: [
       {
         heading: '1. เกี่ยวกับทุนดี',
@@ -57,52 +58,53 @@ const CONTENT = {
     ],
   },
   en: {
-    title:  'Terms of Use',
-    draft:  '⚠️ DRAFT — Pending review by a qualified legal professional. Not final.',
-    updated: `Last updated: ${LAST_UPDATED}`,
+    title:  'Terms of Service',
+    draft:  'Draft — under legal review, not final',
+    updated: 'Last updated: 12 July 2026',
+    footerNote: '© 2026 TunDee · Made for every Thai student · Scholarship data last updated: June 2026',
     sections: [
       {
         heading: '1. About TunDee',
-        body: 'TunDee (tundee.org) is a free, student-led project that helps Thai students discover scholarships matching their profile. We are not a company, foundation, or government agency.',
+        body: 'TunDee is a free, student-run project that helps Thai students find scholarships matched to their qualifications. TunDee is not a company, a foundation, or a government agency.',
       },
       {
-        heading: '2. Always Free',
-        body: 'TunDee is free to use now and always will be. We do not charge any fee for searching, viewing, or using scholarship information.',
+        heading: '2. Free Forever',
+        body: 'TunDee is completely free — now and in the future. There is no charge to register, to search, or to access any scholarship information.',
       },
       {
         heading: '3. Scholarship Information',
-        body: 'TunDee curates and manually verifies scholarship listings. However:\n\n• Eligibility, amounts, and deadlines may be changed by funders at any time.\n• We do not guarantee that information is always complete, accurate, or up to date.\n• We do not guarantee that all existing scholarships are listed.\n• TunDee has no involvement in funders\' selection or award decisions.\n\nAlways verify details directly with the funder before applying.',
+        body: 'Our team compiles and verifies scholarship information, but conditions, amounts, and deadlines can change at any time. We do not guarantee that the information is accurate, complete, or that every scholarship is listed, and TunDee plays no part in any scholarship\'s selection or approval decisions.',
       },
       {
-        heading: '4. Applications',
-        body: 'Applications are submitted on the funder\'s own website, not on TunDee. TunDee has no authority to accept or reject applications, is not responsible for application outcomes, and is not liable for funder actions or policies.',
+        heading: '4. Applying for Scholarships',
+        body: 'Applications are submitted on the scholarship provider\'s own website, not on TunDee. TunDee has no authority over, and no involvement in, any acceptance or rejection decision.',
       },
       {
         heading: '5. Acceptable Use',
-        body: 'You agree to use TunDee only for lawful purposes. Do not use the platform to disrupt service, scrape data without permission, or impersonate others.',
+        body: 'You agree not to use TunDee for any unlawful purpose, to disrupt or interfere with its operation, to extract its data without authorization, or to impersonate any person or organization.',
       },
       {
-        heading: '6. "As Is" Service',
-        body: 'TunDee is provided "as is" without warranties of any kind, either express or implied. To the extent permitted by law, we are not liable for any damages arising from use of or inability to use the service.',
+        heading: '6. Service Provided "As Is"',
+        body: 'TunDee is provided "as is," without warranties of any kind, whether express or implied. To the fullest extent permitted by law, we are not liable for any damages arising from your use of, or inability to use, the service.',
       },
       {
         heading: '7. Intellectual Property',
-        body: 'TunDee\'s content, code, and design belong to the operator. Scholarship data is sourced from public-domain funder websites and official announcements.',
+        body: 'The content, code, and design of TunDee belong to its operator. Scholarship data is drawn from public sources and the websites of the scholarship providers.',
       },
       {
-        heading: '8. Changes to Terms',
-        body: 'We may update these terms periodically. Continued use after changes constitutes acceptance of the updated terms.',
+        heading: '8. Changes to These Terms',
+        body: 'We may update these terms from time to time. Continuing to use TunDee after changes are posted means you accept the updated terms.',
       },
       {
-        heading: '9. Contact',
-        body: 'For questions or to report an issue: hello@tundee.org',
+        heading: '9. Contact Us',
+        body: 'Questions about these terms? Email hello@tundee.org.',
       },
     ],
   },
 };
 
 export default function TermsPage() {
-  const [lang, setLang] = useState<'th' | 'en'>('th');
+  const { lang, setLang } = useLang();
   const c = CONTENT[lang];
 
   return (
@@ -158,6 +160,10 @@ export default function TermsPage() {
           <Link href="/privacy" className="hover:text-[#2E6BE6] transition-colors">{lang === 'th' ? 'นโยบายความเป็นส่วนตัว' : 'Privacy Policy'}</Link>
           <a href="mailto:hello@tundee.org" className="hover:text-[#2E6BE6] transition-colors">hello@tundee.org</a>
         </div>
+        <p className="mt-3 text-xs text-[#AEAEB2] dark:text-[#636366]"
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'inherit' }}>
+          {c.footerNote}
+        </p>
       </div>
     </main>
   );
