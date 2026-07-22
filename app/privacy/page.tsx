@@ -5,7 +5,6 @@
  * ⚠️  DRAFT — pending review by a qualified person before launch.
  *
  * PDPA-aware draft for TunDee (tundee.org), a student-led project.
- * Fill in [RESPONSIBLE_PERSON_NAME] before publishing.
  * Remove the "Draft" banner once reviewed.
  *
  * Policy version: 1.0  |  Last updated: 2026-07-12
@@ -18,6 +17,10 @@ const POLICY_VERSION = '1.0';
 const LAST_UPDATED   = '12 กรกฎาคม 2569 / 12 July 2026';
 const CONTACT_EMAIL  = 'hello@tundee.org';
 
+// Data-controller / "responsible person" name shown in §1 and §10 — switches
+// with the page's TH/EN toggle, same as every other string in SECTIONS below.
+const RESPONSIBLE_PERSON_NAME = { th: 'ทุนดี', en: 'tundee' };
+
 // ─── bilingual content ──────────────────────────────────────────────────────
 
 const SECTIONS = {
@@ -29,7 +32,7 @@ const SECTIONS = {
     sections: [
       {
         heading: '1. ผู้รับผิดชอบข้อมูล (Data Controller)',
-        body: `ทุนดี (tundee.org) เป็นโครงการของนักศึกษาที่ไม่แสวงหากำไร ดำเนินการโดย [RESPONSIBLE_PERSON_NAME] ซึ่งเป็นผู้ควบคุมข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)\n\nช่องทางติดต่อ: hello@tundee.org\nเว็บไซต์: tundee.org`,
+        body: `ทุนดี (tundee.org) เป็นโครงการของนักศึกษาที่ไม่แสวงหากำไร ดำเนินการโดย ${RESPONSIBLE_PERSON_NAME.th} ซึ่งเป็นผู้ควบคุมข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)\n\nช่องทางติดต่อ: hello@tundee.org\nเว็บไซต์: tundee.org`,
       },
       {
         heading: '2. ข้อมูลที่เราเก็บรวบรวม',
@@ -65,7 +68,7 @@ const SECTIONS = {
       },
       {
         heading: '10. ติดต่อเรา',
-        body: `หากคุณมีคำถามเกี่ยวกับนโยบายนี้หรือต้องการใช้สิทธิ์ของคุณ:\n\nอีเมล: hello@tundee.org\nเว็บไซต์: tundee.org\nผู้รับผิดชอบ: [RESPONSIBLE_PERSON_NAME]`,
+        body: `หากคุณมีคำถามเกี่ยวกับนโยบายนี้หรือต้องการใช้สิทธิ์ของคุณ:\n\nอีเมล: hello@tundee.org\nเว็บไซต์: tundee.org\nผู้รับผิดชอบ: ${RESPONSIBLE_PERSON_NAME.th}`,
       },
     ],
   },
@@ -77,7 +80,7 @@ const SECTIONS = {
     sections: [
       {
         heading: '1. Data Controller',
-        body: `TunDee (tundee.org) is a non-profit student-led project operated by [RESPONSIBLE_PERSON_NAME], who acts as the Data Controller under the Personal Data Protection Act B.E. 2562 (PDPA).\n\nContact: hello@tundee.org\nWebsite: tundee.org`,
+        body: `TunDee (tundee.org) is a non-profit student-led project operated by ${RESPONSIBLE_PERSON_NAME.en}, who acts as the Data Controller under the Personal Data Protection Act B.E. 2562 (PDPA).\n\nContact: hello@tundee.org\nWebsite: tundee.org`,
       },
       {
         heading: '2. What We Collect',
@@ -113,7 +116,7 @@ const SECTIONS = {
       },
       {
         heading: '10. Contact Us',
-        body: `For questions about this policy or to exercise your rights:\n\nEmail: hello@tundee.org\nWebsite: tundee.org\nResponsible person: [RESPONSIBLE_PERSON_NAME]`,
+        body: `For questions about this policy or to exercise your rights:\n\nEmail: hello@tundee.org\nWebsite: tundee.org\nResponsible person: ${RESPONSIBLE_PERSON_NAME.en}`,
       },
     ],
   },
