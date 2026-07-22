@@ -10,8 +10,8 @@
  * Policy version: 1.0  |  Last updated: 2026-07-12
  */
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useLang } from '@/lib/LanguageContext';
 
 const POLICY_VERSION = '1.0';
 const LAST_UPDATED   = '12 กรกฎาคม 2569 / 12 July 2026';
@@ -28,6 +28,7 @@ const SECTIONS = {
     title:   'นโยบายความเป็นส่วนตัว',
     draft:   '⚠️ ฉบับร่าง — อยู่ระหว่างการตรวจสอบโดยผู้เชี่ยวชาญด้านกฎหมาย ยังไม่ใช่ฉบับสมบูรณ์',
     version: `เวอร์ชัน ${POLICY_VERSION} · อัปเดตล่าสุด ${LAST_UPDATED}`,
+    footerNote: '© 2569 ทุนดี · สร้างขึ้นเพื่อนักเรียนไทยทุกคน · ข้อมูลทุนการศึกษาอัปเดตล่าสุด: มิถุนายน 2569',
     toc: ['ผู้รับผิดชอบข้อมูล', 'ข้อมูลที่เราเก็บ', 'วัตถุประสงค์', 'ฐานทางกฎหมาย', 'สิ่งที่เราไม่ทำ', 'การเก็บรักษาและการลบ', 'สิทธิของคุณ (PDPA)', 'ผู้ใช้อายุต่ำกว่า 18 ปี', 'การเปลี่ยนแปลงนโยบาย', 'ติดต่อเรา'],
     sections: [
       {
@@ -73,50 +74,51 @@ const SECTIONS = {
     ],
   },
   en: {
-    title:   'Privacy Policy',
-    draft:   '⚠️ DRAFT — Pending review by a qualified legal professional. Not final.',
-    version: `Version ${POLICY_VERSION} · Last updated ${LAST_UPDATED}`,
-    toc: ['Data Controller', 'What We Collect', 'Purposes', 'Legal Basis', 'What We Do Not Do', 'Retention & Deletion', 'Your Rights (PDPA)', 'Users Under 18', 'Policy Changes', 'Contact Us'],
+    title:   'TunDee — Find Thai Scholarships',
+    draft:   'Draft — under legal review, not final',
+    version: `Version ${POLICY_VERSION} · Last updated: 12 July 2026`,
+    footerNote: '© 2026 TunDee · Made for every Thai student · Scholarship data last updated: June 2026',
+    toc: ['Data Controller', 'Information We Collect', 'How We Use Your Data', 'Legal Basis', 'What We Do Not Do', 'Data Retention and Deletion', 'Your Rights Under the PDPA', 'Users Under 18', 'Changes to This Policy', 'Contact Us'],
     sections: [
       {
         heading: '1. Data Controller',
-        body: `TunDee (tundee.org) is a non-profit student-led project operated by ${RESPONSIBLE_PERSON_NAME.en}, who acts as the Data Controller under the Personal Data Protection Act B.E. 2562 (PDPA).\n\nContact: hello@tundee.org\nWebsite: tundee.org`,
+        body: `TunDee is a non-profit student initiative. It acts as the data controller under Thailand's Personal Data Protection Act B.E. 2562 (PDPA). Contact: hello@tundee.org. Website: tundee.org`,
       },
       {
-        heading: '2. What We Collect',
-        body: `We collect only what is necessary to match you with scholarships:\n\n• Email or Google account used for sign-in (managed by Supabase Auth — not stored directly in TunDee's database)\n• Display name (optional)\n• Grade level\n• GPA\n• Province\n• Household income bracket (stored as a range, e.g. "฿5,000–10,000/month" — never an exact figure)\n• State welfare card status (optional)\n• Fields of academic interest (optional)\n• Research data: number of scholarships known before TunDee, how you heard about TunDee (collected only with your separate consent)\n\nWe do NOT collect: national ID, full address, phone number, disability status, ethnicity, or any sensitive data under PDPA Section 26.`,
+        heading: '2. Information We Collect',
+        body: `We collect only the information needed to match you with scholarships: your email or Google account (managed by Supabase Auth); display name (optional); education level; GPA; province of residence; household income range (stored as a bracket, never an exact figure); government welfare card status (optional); fields of interest (optional); and, from research volunteers only, research data such as how many scholarships you knew about before using TunDee and how you found us. We do not collect national ID numbers, full addresses, phone numbers, disability status, ethnicity, or other sensitive data as defined in PDPA Section 26.`,
       },
       {
-        heading: '3. Purposes',
-        body: `• Primary purpose: match scholarship listings to your profile so you see only relevant opportunities.\n• Secondary purpose (opt-in only): use de-identified, aggregated data for academic research on scholarship access in Thailand, aimed at improving fairness in the scholarship system.\n• Deadline reminders: if you save a scholarship, we may send you an email reminder as the deadline approaches.`,
+        heading: '3. How We Use Your Data',
+        body: `Primary: matching scholarships to your profile so you see genuinely relevant opportunities. Secondary (only with your consent): using anonymized data to research Thai students' access to scholarships and improve funding equity. Communications: sending deadline reminders for scholarships you've saved.`,
       },
       {
         heading: '4. Legal Basis',
-        body: `We process your data on the basis of consent (PDPA Section 19). You provide this consent when you create an account and agree to this policy. Research processing requires a separate, optional consent.`,
+        body: `We process your data on the basis of consent (PDPA Section 19), given when you create an account and accept this policy. Taking part in research requires a separate, optional consent.`,
       },
       {
         heading: '5. What We Do Not Do',
-        body: `• We do not sell your data to any third party.\n• We do not show advertisements.\n• We do not share identifiable data with scholarship funders.\n• We do not use your data for any purpose beyond those stated above.`,
+        body: `We never sell your data. We show no advertising. We do not share personally identifiable information with scholarship providers. We do not use your data for any purpose beyond those described here.`,
       },
       {
-        heading: '6. Retention & Deletion',
-        body: `We retain your data for as long as your account is active. To delete your data, email hello@tundee.org with the email address used to register. We will complete the deletion within 30 days.\n\nDe-identified aggregate research data may be retained after account deletion as it can no longer be linked to you.`,
+        heading: '6. Data Retention and Deletion',
+        body: `We keep your data while your account is active. To request deletion, email hello@tundee.org from your registered email address; we process requests within 30 days. Anonymized research data may be kept in aggregated form after deletion, as it cannot be traced back to any individual.`,
       },
       {
-        heading: '7. Your Rights Under PDPA',
-        body: `As a data subject you have the right to:\n\n• Access — request a copy of data we hold about you.\n• Rectification — correct inaccurate data.\n• Erasure — request deletion of your data.\n• Withdraw consent — at any time, without affecting prior processing.\n• Lodge a complaint — with the Office of the Personal Data Protection Committee (PDPC).\n\nTo exercise any right, email hello@tundee.org.`,
+        heading: '7. Your Rights Under the PDPA',
+        body: `You have the right to access the data we hold, correct inaccurate information, request deletion, withdraw consent at any time (without retroactive effect), and file a complaint with Thailand's Personal Data Protection Committee. To exercise any of these rights, contact hello@tundee.org.`,
       },
       {
         heading: '8. Users Under 18',
-        body: `TunDee is designed to help students of all ages, including those under 18. We recommend that users under 18 inform a parent or guardian that they are using TunDee, as acknowledged during account creation.\n\n⚠️ Note: Full verified parental consent for minors is under legal review and is flagged as a pre-launch item.`,
+        body: `TunDee serves students at all levels, including minors. We ask users under 18 to inform their parents about their use of the platform, as noted during account creation. Full parental-consent handling for minors is flagged for legal review.`,
       },
       {
-        heading: '9. Policy Changes',
-        body: `We may update this policy periodically. For material changes we will notify you by email or via a notice on the website. The version number and date at the top of this page will be updated accordingly.`,
+        heading: '9. Changes to This Policy',
+        body: `We may update this policy from time to time. We'll communicate material changes by email or a notice on the website, and update the version number and date at the top of this page.`,
       },
       {
         heading: '10. Contact Us',
-        body: `For questions about this policy or to exercise your rights:\n\nEmail: hello@tundee.org\nWebsite: tundee.org\nResponsible person: ${RESPONSIBLE_PERSON_NAME.en}`,
+        body: `Email: hello@tundee.org. Website: tundee.org. Responsible party: TunDee.`,
       },
     ],
   },
@@ -125,7 +127,7 @@ const SECTIONS = {
 // ─── component ──────────────────────────────────────────────────────────────
 
 export default function PrivacyPage() {
-  const [lang, setLang] = useState<'th' | 'en'>('th');
+  const { lang, setLang } = useLang();
   const c = SECTIONS[lang];
 
   return (
@@ -196,6 +198,10 @@ export default function PrivacyPage() {
           <Link href="/terms" className="hover:text-[#2E6BE6] transition-colors">{lang === 'th' ? 'ข้อกำหนดการใช้งาน' : 'Terms of Use'}</Link>
           <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-[#2E6BE6] transition-colors">{CONTACT_EMAIL}</a>
         </div>
+        <p className="mt-3 text-xs text-[#AEAEB2] dark:text-[#636366]"
+          style={{ fontFamily: lang === 'th' ? 'Sarabun, sans-serif' : 'inherit' }}>
+          {c.footerNote}
+        </p>
       </div>
     </main>
   );
