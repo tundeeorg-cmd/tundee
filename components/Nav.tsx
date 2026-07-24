@@ -157,6 +157,9 @@ export default function Nav() {
       <Link href="/scholarships" onClick={() => setMenuOpen(false)} className={linkClass}>
         {nav.search[lang]}
       </Link>
+      <Link href="/guide" onClick={() => setMenuOpen(false)} className={linkClass}>
+        {nav.guide[lang]}
+      </Link>
       {user && (
         <Link href="/tracker" onClick={() => setMenuOpen(false)}
           className={`relative ${linkClass}`}>

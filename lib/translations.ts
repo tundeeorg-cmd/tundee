@@ -4,6 +4,7 @@ export const translations = {
   nav: {
     home: { th: 'หน้าแรก', en: 'Home' },
     search: { th: 'ค้นหาทุน', en: 'Browse Scholarships' },
+    guide: { th: 'วิธีใช้งาน', en: 'How to Use' },
     about: { th: 'เกี่ยวกับเรา', en: 'About Us' },
     logo_sub: { th: 'ค้นหาทุนการศึกษา', en: 'Scholarship Discovery' },
     login: { th: 'เข้าสู่ระบบ', en: 'Login' },

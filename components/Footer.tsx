@@ -48,6 +48,7 @@ export default function Footer() {
             <nav className="flex flex-col gap-2.5">
               <Link href="/" className="text-sm text-white/40 hover:text-white/70 transition-colors">{nav.home[lang]}</Link>
               <Link href="/scholarships" className="text-sm text-white/40 hover:text-white/70 transition-colors">{nav.search[lang]}</Link>
+              <Link href="/guide" className="text-sm text-white/40 hover:text-white/70 transition-colors">{nav.guide[lang]}</Link>
               <Link href="/tracker" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'ติดตาม' : 'Tracker'}</Link>
               <Link href="/about" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'เกี่ยวกับเรา' : 'About'}</Link>
               <Link href="/privacy" className="text-sm text-white/40 hover:text-white/70 transition-colors">{lang === 'th' ? 'นโยบายความเป็นส่วนตัว' : 'Privacy Policy'}</Link>
