@@ -14,6 +14,7 @@ export const runtime = 'nodejs';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
+import { getLineRedirectUri } from '@/lib/line/redirectUri';
 
 const TOKEN_URL  = 'https://api.line.me/oauth2/v2.1/token';
 const VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
@@ -26,8 +27,12 @@ export async function GET(request: NextRequest) {
   const code  = searchParams.get('code');
   const state = searchParams.get('state');
   const err   = searchParams.get('error');
+  const errDescription = searchParams.get('error_description');
 
-  if (err) return redirect(`/tracker?line_error=${encodeURIComponent(err)}`);
+  if (err) {
+    console.error('[line/callback] LINE returned an error:', err, errDescription);
+    return redirect(`/tracker?line_error=${encodeURIComponent(err)}`);
+  }
 
   // Verify state
   const jar = await cookies();
@@ -40,6 +45,14 @@ export async function GET(request: NextRequest) {
   const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
   if (!channelId || !channelSecret) return redirect('/tracker?line_error=not_configured');
 
+  let redirectUri: string;
+  try {
+    redirectUri = getLineRedirectUri();
+  } catch (e) {
+    console.error('[line/callback] redirect_uri misconfigured:', e);
+    return redirect('/tracker?line_error=redirect_uri_not_configured');
+  }
+
   // Exchange code for tokens
   const tokenRes = await fetch(TOKEN_URL, {
     method: 'POST',
@@ -47,7 +60,7 @@ export async function GET(request: NextRequest) {
     body: new URLSearchParams({
       grant_type:    'authorization_code',
       code,
-      redirect_uri:  `${siteUrl}/api/line/callback`,
+      redirect_uri:  redirectUri,
       client_id:     channelId,
       client_secret: channelSecret,
     }),

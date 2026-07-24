@@ -12,6 +12,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
+import { getLineRedirectUri, getLineBotPrompt } from '@/lib/line/redirectUri';
 
 export const runtime = 'nodejs';
 
@@ -36,9 +37,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${siteUrl}/tracker?line_error=not_configured`);
   }
 
+  let callbackUrl: string;
+  try {
+    callbackUrl = getLineRedirectUri();
+  } catch (e) {
+    console.error('[line/connect] redirect_uri misconfigured:', e);
+    return NextResponse.redirect(`${siteUrl}/tracker?line_error=redirect_uri_not_configured`);
+  }
+
   const state = randomHex(16);
   const nonce = randomHex(16);
-  const callbackUrl = `${siteUrl}/api/line/callback`;
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -47,8 +55,10 @@ export async function GET(request: NextRequest) {
     state,
     scope: 'profile openid',
     nonce,
-    // bot_prompt=aggressive prompts the user to add the OA as a friend
-    bot_prompt: 'aggressive',
+    // bot_prompt=aggressive prompts the user to add the linked OA as a
+    // friend — only has any effect if this Login channel has a Linked OA
+    // configured; otherwise it's a silent no-op. See LINE_BOT_PROMPT.
+    bot_prompt: getLineBotPrompt(),
   });
 
   const lineUrl = `https://access.line.me/oauth2/v2.1/authorize?${params}`;

@@ -36,6 +36,17 @@ interface Profile {
   line_linked_at: string | null;
 }
 
+const LINE_ERROR_MESSAGES: Record<string, { th: string; en: string }> = {
+  redirect_uri_not_configured: { th: 'ระบบยังตั้งค่า LINE ไม่ครบ กรุณาติดต่อทีมงาน', en: "LINE isn't fully configured yet — please contact us." },
+  not_configured:              { th: 'ระบบยังไม่ได้ตั้งค่า LINE กรุณาติดต่อทีมงาน', en: 'LINE is not configured — please contact us.' },
+  state_mismatch:              { th: 'เซสชันหมดอายุ กรุณาลองเชื่อมต่อใหม่', en: 'Your session expired — please try connecting again.' },
+  access_denied:                { th: 'คุณยกเลิกการเชื่อมต่อ LINE', en: 'LINE connection was cancelled.' },
+  no_code:                      { th: 'คุณยกเลิกการเชื่อมต่อ LINE', en: 'LINE connection was cancelled.' },
+  token_exchange:               { th: 'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองใหม่', en: "Couldn't complete the LINE connection — please try again." },
+  verify_failed:                { th: 'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองใหม่', en: "Couldn't complete the LINE connection — please try again." },
+  db_error:                     { th: 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่', en: "Couldn't save your LINE connection — please try again." },
+};
+
 const STATUS_CONFIG: Record<TrackStatus, { th: string; en: string; color: string; bg: string }> = {
   interested: { th: 'สนใจ',       en: 'Interested',  color: 'text-blue-700 dark:text-blue-300',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
   applying:   { th: 'กำลังสมัคร', en: 'Applying',    color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-900/20' },
@@ -379,7 +390,9 @@ export default function TrackerPage() {
       setLineMsg(lang === 'th' ? 'เชื่อมต่อ LINE สำเร็จ!' : 'LINE connected successfully!');
       window.history.replaceState({}, '', '/tracker');
     } else if (p.get('line_error')) {
-      setLineMsg(lang === 'th' ? 'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองใหม่' : `LINE connection error: ${p.get('line_error')}`);
+      const code = p.get('line_error')!;
+      const msg = LINE_ERROR_MESSAGES[code] ?? { th: 'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองใหม่', en: 'LINE connection failed — please try again.' };
+      setLineMsg(lang === 'th' ? msg.th : msg.en);
       window.history.replaceState({}, '', '/tracker');
     }
   }, [lang]);
