@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
+import { trackSignupComplete } from '@/lib/adTracking';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -323,6 +324,10 @@ export default function ProfileSetupPage() {
         eventType: 'profile_completed',
         metadata:  { acquisition_source: acquisitionSource },
       });
+
+      // Ad-pixel conversion event — this is the real "signup complete" moment,
+      // regardless of which channel (ad or organic) brought the user in.
+      trackSignupComplete();
 
       router.replace('/scholarships');
     } catch (e) {
@@ -748,8 +753,8 @@ export default function ProfileSetupPage() {
             }`}
           >
             <span
-              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                welfareCard ? 'translate-x-6' : 'translate-x-0.5'
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                welfareCard ? 'translate-x-6' : 'translate-x-0'
               }`}
             />
           </button>

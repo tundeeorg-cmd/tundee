@@ -2,10 +2,8 @@ import type { Metadata } from 'next';
 import Script from 'next/script';
 import { Lato } from 'next/font/google';
 import './globals.css';
-import Nav from '@/components/Nav';
-import Footer from '@/components/Footer';
-import BottomNav from '@/components/BottomNav';
-import BackToTop from '@/components/BackToTop';
+import ChromeGate from '@/components/ChromeGate';
+import AdPixels from '@/components/AdPixels';
 import SessionStartLogger from '@/components/SessionStartLogger';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -103,17 +101,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Script>
           </>
         )}
+        <AdPixels />
         <ThemeProvider>
           <LanguageProvider>
             <UserProvider>
               <SessionStartLogger />
-              <Nav />
-              <main className="flex-1 pt-[52px] pb-[60px] md:pb-0">
-                {children}
-              </main>
-              <Footer />
-              <BackToTop />
-              <BottomNav />
+              <ChromeGate>{children}</ChromeGate>
             </UserProvider>
           </LanguageProvider>
         </ThemeProvider>
