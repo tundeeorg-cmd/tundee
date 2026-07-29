@@ -284,7 +284,7 @@ export default function StartLanding({ adParams }: { adParams: AdParams }) {
               </svg>
             </a>
             <a
-              href="https://web.facebook.com/profile.php?id=61589957670129"
+              href="https://www.facebook.com/tundeeth/"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Facebook"
