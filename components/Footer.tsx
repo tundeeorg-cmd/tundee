@@ -102,7 +102,7 @@ export default function Footer() {
               </a>
               {/* Facebook */}
               <a
-                href="https://web.facebook.com/profile.php?id=61589957670129"
+                href="https://www.facebook.com/tundeeth/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-white/40 hover:text-white/70 transition-colors flex items-center gap-2"
