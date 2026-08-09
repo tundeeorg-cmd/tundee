@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic';
  * Vercel Cron job: runs daily at 18:00 UTC (01:00 Thailand time, UTC+7).
  *
  * 1. Marks legacy scholarships with a past deadline as is_active = false.
- * 2. Recomputes is_displayed / display_reason / stale for every td_scholarships row
- *    so that past-deadline rows auto-expire and staleness updates without a re-import.
+ * 2. Recomputes status_effective / is_displayed / display_reason / stale for every
+ *    td_scholarships row (Status-only gate — see lib/tdScholarships/displayGate.ts)
+ *    so scholarships transition Opening Soon → Open → Closing Soon → Closed and
+ *    staleness updates without a re-import.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -49,10 +51,12 @@ export async function GET(request: NextRequest) {
   }
   const legacyCount = legacyHidden?.length ?? 0;
 
-  // ── 2. td_scholarships: recompute display gate for every row ─────────────
+  // ── 2. td_scholarships: recompute status_effective + display gate ────────
+  // This is what lets a scholarship auto-transition (Opening Soon → Open →
+  // Closing Soon → Closed) day to day with no re-upload and no code change.
   const { data: allRows, error: fetchErr } = await adminClient
     .from('td_scholarships')
-    .select('scholarship_id, verification_status, status, deadline_date, last_verified, is_displayed, stale');
+    .select('scholarship_id, open_date, deadline_date, status, status_effective, last_verified, is_displayed, stale');
 
   if (fetchErr) {
     console.error('[CRON] Error fetching td_scholarships:', fetchErr.message);
@@ -66,19 +70,20 @@ export async function GET(request: NextRequest) {
   let tdChanged = 0;
   const tdErrors: string[] = [];
 
-  for (const row of (allRows ?? []) as Pick<TdScholarship, 'scholarship_id' | 'verification_status' | 'status' | 'deadline_date' | 'last_verified' | 'is_displayed' | 'stale'>[]) {
+  for (const row of (allRows ?? []) as Pick<TdScholarship, 'scholarship_id' | 'open_date' | 'deadline_date' | 'status' | 'status_effective' | 'last_verified' | 'is_displayed' | 'stale'>[]) {
     const gate = isDisplayable(row, todayBkk);
 
     // Skip rows where nothing changed (avoid unnecessary writes)
-    if (gate.is_displayed === row.is_displayed && gate.stale === row.stale) continue;
+    if (gate.is_displayed === row.is_displayed && gate.stale === row.stale && gate.status_effective === row.status_effective) continue;
 
     const { error } = await adminClient
       .from('td_scholarships')
       .update({
-        is_displayed:   gate.is_displayed,
-        display_reason: gate.display_reason,
-        stale:          gate.stale,
-        updated_at:     new Date().toISOString(),
+        status_effective: gate.status_effective || null,
+        is_displayed:      gate.is_displayed,
+        display_reason:    gate.display_reason,
+        stale:             gate.stale,
+        updated_at:        new Date().toISOString(),
       })
       .eq('scholarship_id', row.scholarship_id);
 

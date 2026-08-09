@@ -4,7 +4,7 @@
  * Bulk-update verification state or status on a set of td_scholarships rows.
  * Re-computes is_displayed for each row and writes an audit log entry.
  *
- * Body: { ids: string[], action: 'verify' | 'unverify' | 'set_status', status?: 'Open' | 'Closed' | 'Recheck' }
+ * Body: { ids: string[], action: 'verify' | 'unverify' | 'set_status', status?: 'Opening Soon' | 'Open' | 'Closing Soon' | 'Closed' }
  * Response: { updated: number, displayedNow: number }
  */
 
@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest) {
   if (!['verify', 'unverify', 'set_status'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   }
-  if (action === 'set_status' && !['Open', 'Closed', 'Recheck'].includes(status ?? '')) {
+  if (action === 'set_status' && !['Opening Soon', 'Open', 'Closing Soon', 'Closed'].includes(status ?? '')) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
@@ -96,20 +96,23 @@ export async function PATCH(request: NextRequest) {
       update.status = status;
     }
 
-    // Recompute display gate with the new field values
+    // Recompute the Status-only display gate with the new field values.
+    // Note: 'verify'/'unverify' no longer change visibility — they only
+    // track the admin-only verification_status/verified_by fields.
     const gate = isDisplayable(
       {
-        verification_status: (update.verification_status ?? row.verification_status) as string,
-        status:              (update.status ?? row.status) as string,
-        deadline_date:       row.deadline_date as string | null,
-        last_verified:       (update.last_verified ?? row.last_verified) as string | null,
+        open_date:     row.open_date as string | null,
+        deadline_date: row.deadline_date as string | null,
+        status:        (update.status ?? row.status) as string,
+        last_verified: (update.last_verified ?? row.last_verified) as string | null,
       },
       todayBkk,
     );
     if (gate.is_displayed !== row.is_displayed) changes.is_displayed = { from: row.is_displayed, to: gate.is_displayed };
-    update.is_displayed   = gate.is_displayed;
-    update.display_reason = gate.display_reason;
-    update.stale          = gate.stale;
+    update.status_effective = gate.status_effective || null;
+    update.is_displayed     = gate.is_displayed;
+    update.display_reason   = gate.display_reason;
+    update.stale            = gate.stale;
 
     updates.push(update);
     if (Object.keys(changes).length > 0) {

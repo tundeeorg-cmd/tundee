@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { useLang } from '@/lib/LanguageContext';
 import TrackButton from './TrackButton';
-import { formatUserDate } from '@/lib/formatDate';
+import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 import { logFunnelEvent } from '@/lib/research/funnel';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -130,33 +130,19 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
   const tier   = s.award_value_tier ? AWARD_TIER_LABEL[s.award_value_tier] : null;
   const level  = s.level ? LEVEL_LABEL[s.level] : null;
 
-  // Deadline
-  let deadlineText = '';
-  let days: number | null = null;
-  if (s.deadline_date) {
-    days = Math.ceil((new Date(s.deadline_date).getTime() - Date.now()) / 86_400_000);
-    deadlineText = days === 0
-      ? (lo === 'th' ? 'หมดเขตวันนี้' : 'Closes today')
-      : days < 0
-      ? (lo === 'th' ? 'หมดเขตแล้ว' : 'Expired')
-      : formatUserDate(s.deadline_date, lo);
-  } else if (s.deadline_is_rolling) {
-    deadlineText = lo === 'th' ? 'เปิดรับตลอด' : 'Rolling / see details';
-  } else if (s.deadline_note) {
-    // If deadline_note is a concrete D-Mon-YYYY date stored as text, format it.
-    const NOTE_DATE_RE = /^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{4})$/;
-    const EN_MON: Record<string,string> = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
-    const noteMatch = s.deadline_note.match(NOTE_DATE_RE);
-    if (noteMatch) {
-      const iso = `${noteMatch[3]}-${EN_MON[noteMatch[2]]}-${noteMatch[1].padStart(2,'0')}`;
-      days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-      deadlineText = formatUserDate(iso, lo);
-    } else {
-      deadlineText = s.deadline_note;
-    }
-  } else {
-    deadlineText = lo === 'th' ? 'ดูเว็บไซต์' : 'See website';
-  }
+  // Status badge (per status_effective — never verification_status)
+  const statusEffective = s.status_effective || '';
+  const STATUS_BADGE: Record<string, { th: string; en: string; dot: string; pill: string }> = {
+    'Opening Soon': { th: 'เปิดรับเร็ว ๆ นี้', en: 'Opening Soon', dot: 'bg-blue-500', pill: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+    'Open':         { th: 'เปิดรับ',          en: 'Open',         dot: 'bg-green-500', pill: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+    'Closing Soon': { th: 'ใกล้หมดเขต',        en: 'Closing Soon', dot: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  };
+  const statusBadge = STATUS_BADGE[statusEffective] ?? STATUS_BADGE['Open'];
+  const isOpeningSoon = statusEffective === 'Opening Soon';
+
+  // Deadline / open-date line (wording driven by date_confidence, never visibility)
+  const schedule = resolveScheduleText(s, lo);
+  const days = schedule.daysUntil;
 
   const deadlineColor = days === null || days < 0
     ? 'text-[#ADADB8] dark:text-[#636366]'
@@ -195,10 +181,10 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
             </div>
           )}
         </div>
-        {/* Status pill */}
-        <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
-          {lo === 'th' ? 'เปิดรับ' : 'Open'}
+        {/* Status pill (status_effective — Opening Soon / Open / Closing Soon) */}
+        <span className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${statusBadge.pill}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} aria-hidden="true" />
+          {statusBadge[lo]}
         </span>
       </div>
 
@@ -291,16 +277,20 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         <span>
-          <span className="text-[#6E6E73] dark:text-[#8E8E93] font-normal">{lo === 'th' ? 'หมดเขต ' : 'Deadline '}</span>
-          {deadlineText}
+          {schedule.text}
           {daysLabel && (
             <span className="ml-1.5 font-bold">({daysLabel})</span>
           )}
         </span>
       </div>
 
-      {/* ── Actions: Track (primary) + Details (secondary) ── */}
+      {/* ── Actions: Track/Save (primary) + Details (secondary) ──
+          Opening Soon rows have no Apply link yet, so Track doubles as
+          "Get reminded" — it's the only actionable CTA until the sheet opens. */}
       <div className="flex items-center gap-2 mt-auto pt-3 border-t border-[#F0F2F5] dark:border-[#1A2440]">
+        {isOpeningSoon && (
+          <span className="sr-only">{lo === 'th' ? 'ยังไม่เปิดรับสมัคร — บันทึกเพื่อรับการแจ้งเตือน' : 'Not open yet — save to get reminded'}</span>
+        )}
         <TrackButton scholarshipId={s.scholarship_id} size="md" />
         <Link
           href={`/scholarships/td/${s.scholarship_id}`}

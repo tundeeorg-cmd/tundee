@@ -234,7 +234,7 @@ export default function AdminPage() {
   const [bulkWorking,  setBulkWorking]  = useState(false);
   const [toast,        setToast]        = useState('');
   const [editRow,      setEditRow]      = useState<TdScholarship | null>(null);
-  const [editForm,     setEditForm]     = useState<{ deadline_raw: string; status: string; application_url: string; verification_status: string; notes: string } | null>(null);
+  const [editForm,     setEditForm]     = useState<{ open_date: string; date_confidence: string; deadline_raw: string; status: string; application_url: string; verification_status: string; notes: string } | null>(null);
   const [editSaving,   setEditSaving]   = useState(false);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -583,6 +583,8 @@ export default function AdminPage() {
   function openEdit(row: TdScholarship) {
     setEditRow(row);
     setEditForm({
+      open_date:           row.open_date ?? '',
+      date_confidence:     row.date_confidence ?? '',
       deadline_raw:        row.deadline_raw ?? '',
       status:              row.status ?? '',
       application_url:     row.application_url ?? row.application_link ?? '',
@@ -599,6 +601,8 @@ export default function AdminPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          open_date:           editForm.open_date || null,
+          date_confidence:     editForm.date_confidence || null,
           deadline_raw:        editForm.deadline_raw || null,
           status:              editForm.status || null,
           application_url:     editForm.application_url || null,
@@ -1574,7 +1578,7 @@ export default function AdminPage() {
                           className="w-3.5 h-3.5 rounded cursor-pointer accent-[#2E6BE6]"
                         />
                       </th>
-                      {['ID', 'Name (EN/TH)', 'Funder', 'Tier', 'Status', 'Verification', 'Deadline', 'Displayed', 'Stale', 'Actions'].map(h => (
+                      {['ID', 'Name (EN/TH)', 'Funder', 'Tier', 'Status', 'Effective', 'Verification', 'Open Date', 'Deadline', 'Displayed', 'Stale', 'Actions'].map(h => (
                         <th key={h} className="px-3 py-2 text-left font-medium text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -1610,15 +1614,28 @@ export default function AdminPage() {
                         <td className="px-3 py-2 whitespace-nowrap text-[10px] text-[#6E6E73]">
                           {(r as TdScholarship).award_value_tier ?? '—'}
                         </td>
-                        <td className="px-3 py-2">
-                          <span className={`px-1.5 py-0.5 rounded-full font-medium ${r.status === 'Open' ? 'bg-green-50 text-green-700' : r.status === 'Closed' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
-                            {r.status ?? '—'}
+                        <td className="px-3 py-2 whitespace-nowrap text-[10px] text-[#6E6E73]" title="Raw status from the sheet">
+                          {r.status || '—'}
+                        </td>
+                        <td className="px-3 py-2" title={r.display_reason ?? ''}>
+                          <span className={`px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                            r.status_effective === 'Open' ? 'bg-green-50 text-green-700'
+                            : r.status_effective === 'Closing Soon' ? 'bg-amber-50 text-amber-700'
+                            : r.status_effective === 'Opening Soon' ? 'bg-blue-50 text-blue-700'
+                            : r.status_effective === 'Closed' ? 'bg-red-50 text-red-600'
+                            : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {r.status_effective || 'blank'}
                           </span>
                         </td>
-                        <td className="px-3 py-2 max-w-[120px] truncate" title={r.verification_status ?? ''}>
+                        <td className="px-3 py-2 max-w-[120px] truncate" title={`${r.verification_status ?? ''} — admin-only, does not affect visibility`}>
                           {(r.verification_status ?? '').toLowerCase() === 'verified'
                             ? <span className="text-green-600 font-medium">✓ verified{r.verified_by ? ` · ${r.verified_by.split('@')[0]}` : ''}</span>
                             : <span className="text-[#ADADB8]">{(r.verification_status ?? '').slice(0, 20) || '—'}</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-[#6E6E73]">
+                          {r.open_date ?? '—'}
+                          {r.date_confidence && <span className="text-[9px] text-[#ADADB8] ml-1">({r.date_confidence})</span>}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-[#6E6E73]">
                           {r.deadline_date ?? (r.deadline_is_rolling ? 'rolling' : r.deadline_note ?? '—')}
@@ -1658,9 +1675,19 @@ export default function AdminPage() {
                   ✓ Mark Verified
                 </button>
                 <button
+                  onClick={() => setBulkConfirm({ action: 'set_status', status: 'Opening Soon', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors">
+                  Set Status: Opening Soon
+                </button>
+                <button
                   onClick={() => setBulkConfirm({ action: 'set_status', status: 'Open', count: selectedIds.size })}
                   className="px-4 py-2 rounded-lg bg-[#2E6BE6] hover:bg-[#1E57CC] text-white text-xs font-semibold transition-colors">
                   Set Status: Open
+                </button>
+                <button
+                  onClick={() => setBulkConfirm({ action: 'set_status', status: 'Closing Soon', count: selectedIds.size })}
+                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors">
+                  Set Status: Closing Soon
                 </button>
                 <button
                   onClick={() => setBulkConfirm({ action: 'set_status', status: 'Closed', count: selectedIds.size })}
@@ -1691,10 +1718,10 @@ export default function AdminPage() {
               <SectionHead>📤 Import Master Scholarship Sheet (XLSX / CSV)</SectionHead>
               <div className="bg-[#F7F9FC] dark:bg-[#232B3E] rounded-xl p-4 text-xs text-[#6E6E73] dark:text-[#8E8E93] space-y-1">
                 <p className="font-semibold text-[#1D1D1F] dark:text-white text-sm mb-1">
-                  Expected columns (28): Scholarship ID · Scholarship Name (EN) · Scholarship Name (TH) · Funder (EN) · Funder (TH) · Funder Type · Level · Field of Study · Award Value Tier · Award Amount (THB) Numeric · Award Type · Renewable (Y/N) · Bond/Obligation (Y/N) · Region Eligibility · Targets Low-Income (Y/N) · Welfare Card Priority (Y/N) · Income Cap (THB/yr) · No. of Recipients · Min GPA · English Requirement · Source Language · Deadline · Status · Application Link · Source · Verification Status · Last Verified · Notes
+                  Expected columns (30): Scholarship ID · Scholarship Name (EN) · Scholarship Name (TH) · Funder (EN) · Funder (TH) · Funder Type · Level · Field of Study · Award Value Tier · Award Amount (THB) Numeric · Award Type · Renewable (Y/N) · Bond/Obligation (Y/N) · Region Eligibility · Targets Low-Income (Y/N) · Welfare Card Priority (Y/N) · Income Cap (THB/yr) · No. of Recipients · Min GPA · English Requirement · Source Language · Open Date · Deadline · Date Confidence · status · Application Link · Source · Verification Status · Last Verified · Notes
                 </p>
-                <p>Rows upserted by <strong className="text-[#1D1D1F] dark:text-white">Scholarship ID</strong>. Display gate recomputed automatically on import.</p>
-                <p>Only <strong className="text-green-700 dark:text-green-400">verified + Open + not expired</strong> rows appear publicly.</p>
+                <p>Rows upserted by <strong className="text-[#1D1D1F] dark:text-white">Scholarship ID</strong>. Status-only display gate recomputed automatically on import (and nightly).</p>
+                <p>Only rows with <strong className="text-green-700 dark:text-green-400">status_effective ∈ {'{'}Opening Soon, Open, Closing Soon{'}'}</strong> appear publicly. Verification Status no longer gates visibility.</p>
               </div>
 
               {!tdReport && !tdImportResult && (
@@ -1824,9 +1851,9 @@ export default function AdminPage() {
             </h3>
             <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
               Apply to <strong className="text-[#1D1D1F] dark:text-white">{bulkConfirm.count} scholarship{bulkConfirm.count !== 1 ? 's' : ''}</strong>?
-              {bulkConfirm.action === 'verify' && ' This sets verification_status = "verified" and last_verified = today. is_displayed is recomputed.'}
-              {bulkConfirm.action === 'unverify' && ' This resets verification_status to "Auto-extracted (confirm deadline + link)". Rows will be hidden until re-verified.'}
-              {bulkConfirm.action === 'set_status' && ` This changes status to "${bulkConfirm.status}". is_displayed is recomputed.`}
+              {bulkConfirm.action === 'verify' && ' This sets verification_status = "verified" and last_verified = today (admin-only — does not change visibility).'}
+              {bulkConfirm.action === 'unverify' && ' This resets verification_status to "Auto-extracted (confirm deadline + link)" (admin-only — does not change visibility).'}
+              {bulkConfirm.action === 'set_status' && ` This changes status to "${bulkConfirm.status}". Ignored if the row has both Open Date and Deadline set (those compute status_effective automatically). is_displayed is recomputed.`}
             </p>
             <div className="flex gap-3">
               <button
@@ -1898,7 +1925,7 @@ export default function AdminPage() {
             <div className="px-6 py-4 space-y-4 flex-1">
               <div>
                 <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">
-                  Verification Status
+                  Verification Status <span className="font-normal text-[#ADADB8]">(admin-only — does NOT affect visibility)</span>
                 </label>
                 <input
                   type="text"
@@ -1920,17 +1947,47 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Status</label>
+                <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">
+                  Status <span className="font-normal text-[#ADADB8]">(drives status_effective / visibility)</span>
+                </label>
                 <select
                   value={editForm.status}
                   onChange={e => setEditForm(f => f ? { ...f, status: e.target.value } : f)}
                   className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none"
                 >
                   <option value="">— select —</option>
+                  <option value="Opening Soon">Opening Soon</option>
                   <option value="Open">Open</option>
-                  <option value="Recheck">Recheck</option>
+                  <option value="Closing Soon">Closing Soon</option>
                   <option value="Closed">Closed</option>
                 </select>
+                <p className="text-[10px] text-[#ADADB8] mt-1">
+                  Ignored when both Open Date and Deadline are set — those dates compute status_effective automatically.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Open Date</label>
+                  <input
+                    type="date"
+                    value={editForm.open_date}
+                    onChange={e => setEditForm(f => f ? { ...f, open_date: e.target.value } : f)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2E6BE6]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#1D1D1F] dark:text-white mb-1">Date Confidence</label>
+                  <select
+                    value={editForm.date_confidence}
+                    onChange={e => setEditForm(f => f ? { ...f, date_confidence: e.target.value } : f)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white focus:outline-none"
+                  >
+                    <option value="">— none —</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Estimated">Estimated</option>
+                  </select>
+                </div>
               </div>
 
               <div>

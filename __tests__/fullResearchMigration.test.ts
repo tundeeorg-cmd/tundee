@@ -68,6 +68,10 @@ describe('TdScholarship — 13 new columns (2026-07-19 migration)', () => {
     source_url: null,
     // v3 award tier
     award_value_tier: null,
+    // Status-only display gate columns
+    open_date: null,
+    date_confidence: null,
+    status_effective: '',
   };
 
   it('accepts all 13 new columns as null (default state after migration)', () => {

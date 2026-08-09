@@ -8,7 +8,7 @@ import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import TrackButton from '@/components/TrackButton';
-import { formatUserDate } from '@/lib/formatDate';
+import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 
@@ -176,8 +176,9 @@ export default function TdScholarshipDetailPage() {
           renewable, bond_obligation,
           region_eligibility, targets_low_income, welfare_card_priority,
           income_cap_thb, num_recipients, min_gpa, english_requirement,
+          open_date, date_confidence,
           deadline_raw, deadline_date, deadline_is_rolling, deadline_note,
-          status, application_url, application_link,
+          status, status_effective, application_url, application_link,
           source_url, last_verified, stale
         `)
         .eq('scholarship_id', id)
@@ -226,29 +227,33 @@ export default function TdScholarshipDetailPage() {
   const displayFunder = resolveFunder(s, lang);
   const tierInfo      = s.award_value_tier ? AWARD_TIER[s.award_value_tier] : null;
   const funderBadge   = s.funder_type ? FUNDER_BADGE[s.funder_type] : null;
-  const applyUrl      = s.application_url ?? s.application_link ?? null;
-  const isClosed      = s.status === 'Closed' || s.status === 'Recheck';
+  const applyUrl       = s.application_url ?? s.application_link ?? null;
+  const statusEffective = s.status_effective || '';
+  const isOpeningSoon   = statusEffective === 'Opening Soon';
+  const isClosingSoon   = statusEffective === 'Closing Soon';
+  // Rows are only ever fetched with is_displayed=true, so status_effective is
+  // always one of Opening Soon/Open/Closing Soon here — isClosed is defensive.
+  const isClosed        = statusEffective === 'Closed' || statusEffective === '';
 
-  // Deadline
-  type Urgency = 'ok' | 'warn' | 'red' | 'past' | 'rolling' | 'approx';
-  let deadlineText: React.ReactNode = null;
-  let daysLeft: number | null = null;
+  // Schedule (deadline for Open/Closing Soon, open date for Opening Soon)
+  type Urgency = 'ok' | 'warn' | 'red' | 'past' | 'rolling' | 'approx' | 'opening';
+  const schedule = resolveScheduleText(s, lang as 'th' | 'en');
+  const deadlineText: React.ReactNode = schedule.text;
+  const daysLeft: number | null = schedule.daysUntil;
   let urgency: Urgency = 'ok';
 
-  if (s.deadline_date) {
-    daysLeft = daysUntil(s.deadline_date);
-    const fmt = formatUserDate(s.deadline_date, lang as 'th' | 'en');
-    if (daysLeft < 0)       { urgency = 'past';   deadlineText = lang === 'th' ? `ปิดรับแล้ว (${fmt})` : `Closed (${fmt})`; }
-    else if (daysLeft === 0) { urgency = 'red';    deadlineText = lang === 'th' ? 'หมดเขตวันนี้' : 'Closes today'; }
-    else if (daysLeft <= 7)  { urgency = 'red';    deadlineText = fmt; }
-    else if (daysLeft <= 30) { urgency = 'warn';   deadlineText = fmt; }
-    else                     { urgency = 'ok';     deadlineText = fmt; }
+  if (isOpeningSoon) {
+    urgency = 'opening';
+  } else if (s.deadline_date) {
+    const d = daysUntil(s.deadline_date);
+    if (d < 0)       urgency = 'past';
+    else if (d <= 7)  urgency = 'red';
+    else if (d <= 30) urgency = 'warn';
+    else              urgency = 'ok';
   } else if (s.deadline_is_rolling) {
     urgency = 'rolling';
-    deadlineText = lang === 'th' ? 'เปิดรับตลอดปี (Rolling)' : 'Rolling / open year-round';
   } else if (s.deadline_note || s.deadline_raw) {
     urgency = 'approx';
-    deadlineText = s.deadline_note ?? s.deadline_raw;
   }
 
   const urgencyTextClass: Record<Urgency, string> = {
@@ -258,6 +263,7 @@ export default function TdScholarshipDetailPage() {
     past:    'text-[#8A96A8] dark:text-[#6E7A8A]',
     rolling: 'text-green-700 dark:text-green-400',
     approx:  'text-[#1D1D1F] dark:text-[#E8EDF5]',
+    opening: 'text-blue-700 dark:text-blue-400',
   };
 
   const countdownClass: Record<Urgency, string> = {
@@ -267,6 +273,7 @@ export default function TdScholarshipDetailPage() {
     past:    'bg-slate-100 text-slate-500 dark:bg-slate-800/30 dark:text-slate-400',
     rolling: 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400',
     approx:  '',
+    opening: 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
   };
 
   // Key-facts tiles (only tiles with data)
@@ -309,8 +316,14 @@ export default function TdScholarshipDetailPage() {
     })();
   }
 
+  // Opening Soon scholarships aren't open for applications yet — no Apply link,
+  // just the Track button doubling as "Get reminded".
   const ApplyButton = ({ full = false }: { full?: boolean }) =>
-    !isClosed && applyUrl ? (
+    isOpeningSoon ? (
+      <div className={`inline-flex items-center justify-center px-4 py-3.5 rounded-[10px] text-sm font-semibold text-blue-700 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 ${full ? 'w-full' : 'flex-1'}`}>
+        {lang === 'th' ? '🔔 บันทึกเพื่อรับการแจ้งเตือนเมื่อเปิดรับ' : '🔔 Save to get reminded when it opens'}
+      </div>
+    ) : !isClosed && applyUrl ? (
       <a
         href={applyUrl}
         target="_blank"
@@ -348,18 +361,28 @@ export default function TdScholarshipDetailPage() {
         {/* ── 1. HEADER ──────────────────────────────────────────────────── */}
         <Card className="p-5 md:p-6">
 
-          {/* Status + tier row */}
+          {/* Status + tier row (status_effective — Opening Soon / Open / Closing Soon / Closed) */}
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
                 isClosed
                   ? 'bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400'
+                  : isOpeningSoon
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  : isClosingSoon
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
                   : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${isClosed ? 'bg-slate-400' : 'bg-green-500'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                isClosed ? 'bg-slate-400' : isOpeningSoon ? 'bg-blue-500' : isClosingSoon ? 'bg-amber-500' : 'bg-green-500'
+              }`} />
               {isClosed
                 ? (lang === 'th' ? 'ปิดรับสมัครแล้ว' : 'Closed')
+                : isOpeningSoon
+                ? (lang === 'th' ? 'เปิดรับเร็ว ๆ นี้' : 'Opening Soon')
+                : isClosingSoon
+                ? (lang === 'th' ? 'ใกล้หมดเขต' : 'Closing Soon')
                 : (lang === 'th' ? 'เปิดรับ' : 'Open')}
             </span>
 
@@ -573,14 +596,16 @@ export default function TdScholarshipDetailPage() {
             <div className="flex items-start gap-3 py-3 border-b border-[#F0F2F5] dark:border-[#1A2440]">
               <span className="mt-0.5 text-[#1B3A6B] dark:text-[#4A7FD4] shrink-0 w-4"><IcoCalendar /></span>
               <span className="w-32 shrink-0 text-xs text-[#6E6E73] dark:text-[#8E8E93] leading-5 pt-0.5">
-                {lang === 'th' ? 'วันหมดเขต' : 'Deadline'}
+                {isOpeningSoon ? (lang === 'th' ? 'วันเปิดรับ' : 'Opens') : (lang === 'th' ? 'วันหมดเขต' : 'Deadline')}
               </span>
               <div className="flex-1">
                 <p className={`text-sm font-semibold ${urgencyTextClass[urgency]}`}>{deadlineText}</p>
                 {/* Countdown badge */}
                 {daysLeft != null && daysLeft > 0 && countdownClass[urgency] && (
                   <span className={`inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${countdownClass[urgency]}`}>
-                    {lang === 'th' ? `ปิดรับใน ${daysLeft} วัน` : `Closes in ${daysLeft} days`}
+                    {isOpeningSoon
+                      ? (lang === 'th' ? `เปิดรับใน ${daysLeft} วัน` : `Opens in ${daysLeft} days`)
+                      : (lang === 'th' ? `ปิดรับใน ${daysLeft} วัน` : `Closes in ${daysLeft} days`)}
                   </span>
                 )}
                 {/* Rolling / approx hint */}

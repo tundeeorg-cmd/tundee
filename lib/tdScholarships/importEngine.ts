@@ -1,14 +1,15 @@
 import type {
   TdAwardType,
   TdAwardValueTier,
+  TdDateConfidence,
   TdFunderType,
   TdImportReport,
   TdImportRow,
   TdLevel,
   TdSourceLanguage,
-  TdStatus,
 } from './types';
-import { parseDeadline, parseDeadlineFromDate } from './deadlineParser';
+import { parseDeadline, parseDeadlineFromDate, parseOpenDate } from './deadlineParser';
+import { normalizeStatusValue, computeStatusEffective, bangkokMidnight } from './displayGate';
 
 // ── Column header mapping (28-field canonical schema) ────────────────────────
 // Maps canonical field names → accepted Excel header strings.
@@ -36,7 +37,9 @@ const COLUMN_MAP: Record<string, string[]> = {
   min_gpa:                 ['min gpa', 'mingpa', 'gpa', 'เกรดขั้นต่ำ'],
   english_requirement:     ['english requirement', 'english req'],
   source_language:         ['source language', 'sourcelanguage'],
+  open_date:               ['open date', 'วันเปิดรับ'],
   deadline_raw:            ['deadline', 'วันหมดเขต'],
+  date_confidence:         ['date confidence', 'dateconfidence'],
   status:                  ['status', 'สถานะ'],
   application_url:         ['application link', 'link', 'apply link', 'ลิงก์สมัคร'],
   source_url:              ['source', 'แหล่งข้อมูล'],
@@ -119,11 +122,10 @@ function normalizeLevel(v: unknown): TdLevel | null {
   return null;
 }
 
-function normalizeStatus(v: unknown): TdStatus | null {
+function normalizeDateConfidence(v: unknown): TdDateConfidence {
   const s = str(v).toLowerCase();
-  if (s === 'open') return 'Open';
-  if (s === 'recheck') return 'Recheck';
-  if (s === 'closed') return 'Closed';
+  if (s === 'confirmed') return 'Confirmed';
+  if (s === 'estimated') return 'Estimated';
   return null;
 }
 
@@ -244,11 +246,18 @@ export async function parseTdImportFile(file: File): Promise<TdImportReport> {
     const derivedName = resolvedNameEn ?? resolvedNameTh ?? '';
     const derivedFunder = resolvedFunderEn ?? resolvedFunderTh ?? '';
 
-    // Parse deadline
+    // Parse dates
     const deadlineRaw = mapped.deadline_raw;
     const deadlineParsed = deadlineRaw instanceof Date
       ? parseDeadlineFromDate(deadlineRaw)
       : parseDeadline(str(deadlineRaw) || null);
+    const openDate = parseOpenDate(mapped.open_date);
+
+    // Normalize the sheet's computed `status` value. Anything that isn't one of
+    // the 4 canonical states — including a raw "=IFERROR(...)" formula string
+    // left over from a file saved without a cached value — normalizes to ''
+    // (blank), which the display gate treats as "no usable status".
+    const normalizedStatus = normalizeStatusValue(mapped.status);
 
     // Canonical URL fields
     const applicationUrl = str(mapped.application_url) || str(mapped.application_link) || null;
@@ -287,12 +296,18 @@ export async function parseTdImportFile(file: File): Promise<TdImportReport> {
       min_gpa:                  parseDecimalOrNull(mapped.min_gpa),
       english_requirement:      str(mapped.english_requirement) || null,
 
+      open_date:                openDate,
       deadline_raw:             deadlineParsed.deadline_note || str(deadlineRaw) || null,
       deadline_date:            deadlineParsed.deadline_date,
       deadline_is_rolling:      deadlineParsed.deadline_is_rolling,
       deadline_note:            deadlineParsed.deadline_note || null,
+      date_confidence:          normalizeDateConfidence(mapped.date_confidence),
 
-      status:                   normalizeStatus(mapped.status),
+      status:                   normalizedStatus,
+      status_effective:         computeStatusEffective(
+                                   { open_date: openDate, deadline_date: deadlineParsed.deadline_date, status: normalizedStatus },
+                                   bangkokMidnight(),
+                                 ),
 
       application_url:          applicationUrl,
       source_url:               sourceUrl,

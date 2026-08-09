@@ -82,6 +82,10 @@ describe('TdScholarship — canonical 28-field schema', () => {
     source_url: 'https://example.com',
     // ── award_value_tier from v3 migration ──
     award_value_tier: 'large',
+    // ── Status-only display gate columns (open_date/date_confidence/status_effective) ──
+    open_date: '2026-08-01',
+    date_confidence: 'Confirmed',
+    status_effective: 'Open',
   };
 
   it('all 28 canonical fields are present and type-correct', () => {

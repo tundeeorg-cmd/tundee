@@ -2,8 +2,10 @@
  * PATCH /api/admin/td-scholarships/[id]
  *
  * Inline-edit a single td_scholarships row.
- * Editable fields: deadline_raw, status, application_link, verification_status, notes.
- * Deadline re-parse and is_displayed recompute happen automatically.
+ * Editable fields: open_date, deadline_raw, status, date_confidence,
+ * application_link, verification_status, notes.
+ * Deadline re-parse and status_effective/is_displayed recompute happen automatically
+ * (Status-only gate — verification_status no longer affects visibility).
  * Writes an audit log entry.
  *
  * Response: { scholarship: TdScholarship }
@@ -57,11 +59,17 @@ export async function PATCH(
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   // Simple string fields
-  for (const field of ['status', 'application_link', 'verification_status', 'notes'] as const) {
+  for (const field of ['status', 'date_confidence', 'application_link', 'verification_status', 'notes'] as const) {
     if (field in body && body[field] !== existing[field]) {
       changes[field] = { from: existing[field], to: body[field] };
       update[field] = body[field];
     }
+  }
+
+  // Open date: simple date field, no re-parsing needed
+  if ('open_date' in body && body.open_date !== existing.open_date) {
+    changes.open_date = { from: existing.open_date, to: body.open_date };
+    update.open_date = body.open_date || null;
   }
 
   // Deadline: re-parse when deadline_raw changes
@@ -77,22 +85,23 @@ export async function PATCH(
     }
   }
 
-  // Recompute display gate
+  // Recompute the Status-only display gate
   const gate = isDisplayable(
     {
-      verification_status: (update.verification_status ?? existing.verification_status) as string,
-      status:              (update.status ?? existing.status) as string,
-      deadline_date:       (update.deadline_date !== undefined ? update.deadline_date : existing.deadline_date) as string | null,
-      last_verified:       existing.last_verified as string | null,
+      open_date:     (update.open_date !== undefined ? update.open_date : existing.open_date) as string | null,
+      deadline_date: (update.deadline_date !== undefined ? update.deadline_date : existing.deadline_date) as string | null,
+      status:        (update.status ?? existing.status) as string,
+      last_verified: existing.last_verified as string | null,
     },
     bangkokMidnight(),
   );
   if (gate.is_displayed !== existing.is_displayed) {
     changes.is_displayed = { from: existing.is_displayed, to: gate.is_displayed };
   }
-  update.is_displayed   = gate.is_displayed;
-  update.display_reason = gate.display_reason;
-  update.stale          = gate.stale;
+  update.status_effective = gate.status_effective || null;
+  update.is_displayed     = gate.is_displayed;
+  update.display_reason   = gate.display_reason;
+  update.stale            = gate.stale;
 
   const { error: updateErr } = await db
     .from('td_scholarships')

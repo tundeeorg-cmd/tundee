@@ -11,7 +11,13 @@ export type TdLevel =
   | 'PhD'
   | 'Multiple';
 
-export type TdStatus = 'Open' | 'Recheck' | 'Closed';
+/**
+ * Computed 4-state status (spreadsheet column Y / `status`).
+ * Blank ('') means the sheet had no usable dates and no human-set status.
+ */
+export type TdStatus = 'Opening Soon' | 'Open' | 'Closing Soon' | 'Closed' | '';
+
+export type TdDateConfidence = 'Confirmed' | 'Estimated' | null;
 
 export type TdAwardType         = 'once' | 'annual' | 'monthly' | 'full';
 export type TdSourceLanguage    = 'th' | 'en';
@@ -72,14 +78,26 @@ export interface TdScholarship {
   /** @deprecated Use english_requirement. Medium of instruction. */
   language: string | null;
 
-  // ── Deadline ───────────────────────────────────────────────────────────────
+  // ── Dates ──────────────────────────────────────────────────────────────────
+  /** Date applications start. May be null (not all scholarships have one). */
+  open_date: string | null;
   deadline_raw: string | null;
   deadline_date: string | null;
   deadline_is_rolling: boolean;
   deadline_note: string | null;
+  /** Controls date-wording confidence on the frontend only — never visibility. */
+  date_confidence: TdDateConfidence;
 
   // ── Status & verification ──────────────────────────────────────────────────
+  /** Raw status value from the spreadsheet's computed `status` column. */
   status: TdStatus | null;
+  /**
+   * The status the site actually uses: derived from open_date/deadline_date
+   * when both are real dates, otherwise falls back to the normalized `status`.
+   * Set by the display gate (lib/tdScholarships/displayGate.ts), not the sheet.
+   */
+  status_effective: TdStatus;
+  /** @deprecated No longer gates visibility — admin-only field. */
   verification_status: string | null;
   last_verified: string | null;
   verified_by: string | null;
@@ -146,13 +164,16 @@ export interface TdImportRow {
   min_gpa: number | null;
   english_requirement: string | null;
 
+  open_date: string | null;
   deadline_raw: string | null;
   // Parsed deadline fields (populated by engine)
   deadline_date: string | null;
   deadline_is_rolling: boolean;
   deadline_note: string | null;
+  date_confidence: TdDateConfidence;
 
   status: TdStatus | null;
+  status_effective: TdStatus;
 
   application_url: string | null;
   source_url: string | null;

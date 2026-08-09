@@ -1,13 +1,17 @@
 /**
  * POST /api/admin/td-import
  *
- * Accepts pre-parsed rows from the client-side TdImport engine (28-field schema),
- * upserts them into td_scholarships (by scholarship_id), computes the display
- * gate for every upserted row, and returns an import report.
+ * Accepts pre-parsed rows from the client-side TdImport engine (30-field schema),
+ * upserts them into td_scholarships (by scholarship_id), computes the Status-only
+ * display gate for every upserted row, and returns an import report.
+ *
+ * Display gate: is_displayed is driven entirely by status_effective (derived from
+ * open_date/deadline_date when both are real dates, else the sheet's `status`).
+ * verification_status never gates visibility — it's an admin-only field.
  *
  * Protection: if the existing DB row has verification_status = "verified" and
- * the incoming row does not, we preserve the DB's deadline/status/name/funder/
- * verification fields and only update the other descriptive columns.
+ * the incoming row does not, we preserve the DB's curated name/funder/verification
+ * fields. Dates and status always come fresh from the sheet on every import.
  *
  * Body:    { rows: TdImportRow[] }
  * Response: { inserted, updated, skipped, protected, errors }
@@ -80,11 +84,6 @@ export async function POST(request: NextRequest) {
       verification_status:  string | null;
       last_verified:        string | null;
       verified_by:          string | null;
-      deadline_raw:         string | null;
-      deadline_date:        string | null;
-      deadline_is_rolling:  boolean;
-      deadline_note:        string | null;
-      status:               string | null;
       application_url:      string | null;
       application_link:     string | null;
       scholarship_name_en:  string | null;
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
     const ids = toUpsert.map(r => r.scholarship_id);
     const { data: rawExistingRows } = await adminClient
       .from('td_scholarships')
-      .select('scholarship_id, verification_status, last_verified, verified_by, deadline_raw, deadline_date, deadline_is_rolling, deadline_note, status, application_url, application_link, scholarship_name_en, scholarship_name_th, funder_en, funder_th')
+      .select('scholarship_id, verification_status, last_verified, verified_by, application_url, application_link, scholarship_name_en, scholarship_name_th, funder_en, funder_th')
       .in('scholarship_id', ids);
     const existingRows = (rawExistingRows ?? []) as unknown as ExistingRow[];
 
@@ -116,23 +115,17 @@ export async function POST(request: NextRequest) {
       try {
         const dbRow = verifiedDbRows.get(row.scholarship_id);
         const incomingIsVerified = (row.verification_status ?? '').toLowerCase() === 'verified';
+        // Verification protection guards curated identity fields only — dates/status
+        // always come fresh from the master sheet (that's what drives the Status-only
+        // display gate and lets scholarships auto-transition on re-import).
         const isProtected = !!dbRow && !incomingIsVerified;
         if (isProtected) protectedCount++;
 
-        // For protected rows, keep DB's critical admin-edited fields
-        const effectiveDeadlineRaw = isProtected ? (dbRow!.deadline_raw ?? row.deadline_raw) : row.deadline_raw;
-        const dp = isProtected
-          ? {
-              deadline_date:       dbRow!.deadline_date,
-              deadline_is_rolling: dbRow!.deadline_is_rolling,
-              deadline_note:       dbRow!.deadline_note ?? '',
-            }
-          : parseDeadline(row.deadline_raw ?? null);
+        const dp = parseDeadline(row.deadline_raw ?? null);
 
         const effectiveVerificationStatus = isProtected ? 'verified' : (row.verification_status ?? null);
         const effectiveLastVerified       = isProtected ? dbRow!.last_verified : (row.last_verified ?? null);
         const effectiveVerifiedBy         = isProtected ? dbRow!.verified_by : null;
-        const effectiveStatus             = isProtected ? (dbRow!.status ?? row.status) : row.status;
 
         // For protected rows, preserve existing name/funder
         const effectiveNameEn  = isProtected ? (dbRow!.scholarship_name_en ?? row.scholarship_name_en) : row.scholarship_name_en;
@@ -147,10 +140,10 @@ export async function POST(request: NextRequest) {
 
         const gate = isDisplayable(
           {
-            verification_status: effectiveVerificationStatus,
-            status:              effectiveStatus,
-            deadline_date:       dp.deadline_date,
-            last_verified:       effectiveLastVerified,
+            open_date:     row.open_date,
+            deadline_date: dp.deadline_date,
+            status:        row.status,
+            last_verified: effectiveLastVerified,
           },
           todayBkk,
         );
@@ -190,14 +183,17 @@ export async function POST(request: NextRequest) {
           min_gpa:                  row.min_gpa ?? null,
           english_requirement:      row.english_requirement ?? null,
 
-          // Deadline
-          deadline_raw:             effectiveDeadlineRaw ?? null,
+          // Dates
+          open_date:                row.open_date ?? null,
+          deadline_raw:             row.deadline_raw ?? null,
           deadline_date:            dp.deadline_date,
           deadline_is_rolling:      dp.deadline_is_rolling,
           deadline_note:            dp.deadline_note || null,
+          date_confidence:          row.date_confidence ?? null,
 
           // Status & verification
-          status:                   effectiveStatus ?? null,
+          status:                   row.status || null,
+          status_effective:         gate.status_effective || null,
           verification_status:      effectiveVerificationStatus,
           last_verified:            effectiveLastVerified,
           verified_by:              effectiveVerifiedBy,

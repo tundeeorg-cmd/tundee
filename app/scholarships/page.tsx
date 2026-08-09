@@ -63,6 +63,16 @@ const LEVEL_LABEL: Record<string, { th: string; en: string }> = {
   'Multiple':      { th: 'หลายระดับ', en: 'Multiple'    },
 };
 
+const STATUS_LABEL: Record<string, { th: string; en: string }> = {
+  'Opening Soon': { th: 'เปิดรับเร็ว ๆ นี้', en: 'Opening Soon' },
+  'Open':         { th: 'เปิดรับ',          en: 'Open'         },
+  'Closing Soon': { th: 'ใกล้หมดเขต',        en: 'Closing Soon' },
+};
+
+const STATUS_SORT_ORDER: Record<string, number> = {
+  'Closing Soon': 0, 'Open': 1, 'Opening Soon': 2,
+};
+
 const FUNDER_LABEL: Record<string, { th: string; en: string }> = {
   'Thai University':               { th: 'มหาวิทยาลัย',   en: 'University'    },
   'Thai Government / Royal':       { th: 'รัฐบาล/ราชการ', en: 'Government'    },
@@ -222,6 +232,7 @@ function SkeletonCard() {
 interface BrowseFilterPanelProps {
   open: boolean;
   lang: string;
+  tdStatusFilter: string;      setTdStatusFilter: (v: string) => void;
   tdLevelFilter: string;       setTdLevelFilter: (v: string) => void;
   tdFunderFilter: string;      setTdFunderFilter: (v: string) => void;
   tdAwardTierFilter: string;   setTdAwardTierFilter: (v: string) => void;
@@ -231,7 +242,8 @@ interface BrowseFilterPanelProps {
   tdBondObligation: boolean;   setTdBondObligation: (v: boolean) => void;
 }
 
-function BrowseFilterPanel({ open, lang, tdLevelFilter, setTdLevelFilter, tdFunderFilter, setTdFunderFilter,
+function BrowseFilterPanel({ open, lang, tdStatusFilter, setTdStatusFilter,
+    tdLevelFilter, setTdLevelFilter, tdFunderFilter, setTdFunderFilter,
     tdAwardTierFilter, setTdAwardTierFilter, tdTargetsLowIncome, setTdTargetsLowIncome,
     tdWelfareCard, setTdWelfareCard, tdRenewable, setTdRenewable,
     tdBondObligation, setTdBondObligation }: BrowseFilterPanelProps) {
@@ -243,7 +255,18 @@ function BrowseFilterPanel({ open, lang, tdLevelFilter, setTdLevelFilter, tdFund
   return (
     <div className="mt-3 bg-[#F5F7FA] dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-xl p-4 space-y-4">
       {/* Dropdowns row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-[11px] font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-widest mb-1">
+            {lo === 'th' ? 'สถานะ' : 'Status'}
+          </label>
+          <select value={tdStatusFilter} onChange={e => setTdStatusFilter(e.target.value)} className={sel}>
+            <option value="">{lo === 'th' ? 'ทุกสถานะ' : 'All statuses'}</option>
+            {(['Opening Soon', 'Open', 'Closing Soon'] as const).map(k => (
+              <option key={k} value={k}>{STATUS_LABEL[k][lo]}</option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-[11px] font-semibold text-[#6E6E73] dark:text-[#8E8E93] uppercase tracking-widest mb-1">
             {lo === 'th' ? 'ระดับการศึกษา' : 'Level'}
@@ -331,6 +354,7 @@ export default function BrowsePage() {
 
   // Browse filters
   const [tdSearch, setTdSearch]                     = useState('');
+  const [tdStatusFilter, setTdStatusFilter]         = useState('');
   const [tdLevelFilter, setTdLevelFilter]           = useState('');
   const [tdFunderFilter, setTdFunderFilter]         = useState('');
   const [tdAwardTierFilter, setTdAwardTierFilter]   = useState('');
@@ -354,8 +378,9 @@ export default function BrowsePage() {
         'renewable', 'bond_obligation',
         'region_eligibility', 'targets_low_income', 'welfare_card_priority',
         'income_cap_thb', 'num_recipients', 'min_gpa', 'english_requirement',
+        'open_date', 'date_confidence',
         'deadline_raw', 'deadline_date', 'deadline_is_rolling', 'deadline_note',
-        'status', 'application_url', 'application_link',
+        'status', 'status_effective', 'application_url', 'application_link',
         'is_displayed', 'stale', 'source_language', 'translation_review',
       ].join(', '))
       .eq('is_displayed', true)
@@ -467,6 +492,7 @@ export default function BrowsePage() {
           .some(v => v?.toLowerCase().includes(q))
       );
     }
+    if (tdStatusFilter)     items = items.filter(s => (s.status_effective || '') === tdStatusFilter);
     if (tdLevelFilter)      items = items.filter(s => s.level === tdLevelFilter);
     if (tdFunderFilter)     items = items.filter(s => s.funder_type === tdFunderFilter);
     if (tdAwardTierFilter)  items = items.filter(s => s.award_value_tier === tdAwardTierFilter);
@@ -500,12 +526,21 @@ export default function BrowsePage() {
       });
     }
 
+    // Closing Soon scholarships are pinned first regardless of the chosen sort —
+    // they're the most time-sensitive for students to act on.
+    items.sort((a, b) => {
+      const sa = STATUS_SORT_ORDER[a.status_effective || ''] ?? 1;
+      const sb = STATUS_SORT_ORDER[b.status_effective || ''] ?? 1;
+      return sa - sb;
+    });
+
     return items;
-  }, [tdScholarships, tdSearch, tdLevelFilter, tdFunderFilter, tdAwardTierFilter,
+  }, [tdScholarships, tdSearch, tdStatusFilter, tdLevelFilter, tdFunderFilter, tdAwardTierFilter,
       tdTargetsLowIncome, tdWelfareCard, tdRenewable, tdBondObligation, tdSortBy, lo]);
 
   // ── Active filter chips ────────────────────────────────────────────────────
   const activeFilters: { key: string; label: string; clear: () => void }[] = [
+    ...(tdStatusFilter ? [{ key: 'status', label: STATUS_LABEL[tdStatusFilter]?.[lo] ?? tdStatusFilter, clear: () => setTdStatusFilter('') }] : []),
     ...(tdLevelFilter ? [{ key: 'level', label: `${lo === 'th' ? 'ระดับ' : 'Level'}: ${LEVEL_LABEL[tdLevelFilter]?.[lo] ?? tdLevelFilter}`, clear: () => setTdLevelFilter('') }] : []),
     ...(tdFunderFilter ? [{ key: 'funder', label: FUNDER_LABEL[tdFunderFilter]?.[lo] ?? tdFunderFilter, clear: () => setTdFunderFilter('') }] : []),
     ...(tdAwardTierFilter ? [{ key: 'tier', label: TIER_LABEL[tdAwardTierFilter as TdAwardValueTier]?.[lo] ?? tdAwardTierFilter, clear: () => setTdAwardTierFilter('') }] : []),
@@ -516,7 +551,7 @@ export default function BrowsePage() {
   ];
 
   function clearAllFilters() {
-    setTdSearch(''); setTdLevelFilter(''); setTdFunderFilter(''); setTdAwardTierFilter('');
+    setTdSearch(''); setTdStatusFilter(''); setTdLevelFilter(''); setTdFunderFilter(''); setTdAwardTierFilter('');
     setTdTargetsLowIncome(false); setTdWelfareCard(false); setTdRenewable(false); setTdBondObligation(false);
   }
 
@@ -750,6 +785,7 @@ export default function BrowsePage() {
             {/* Collapsible filter panel */}
             <BrowseFilterPanel
               open={filtersOpen} lang={lang}
+              tdStatusFilter={tdStatusFilter} setTdStatusFilter={setTdStatusFilter}
               tdLevelFilter={tdLevelFilter} setTdLevelFilter={setTdLevelFilter}
               tdFunderFilter={tdFunderFilter} setTdFunderFilter={setTdFunderFilter}
               tdAwardTierFilter={tdAwardTierFilter} setTdAwardTierFilter={setTdAwardTierFilter}

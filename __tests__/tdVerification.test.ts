@@ -1,11 +1,12 @@
 /**
- * Tests for the in-app verification workflow.
+ * Tests for the in-app admin workflow under the Status-only display gate.
  *
  * Coverage:
- * 1. Bulk Mark Verified flips is_displayed for Open + non-expired rows
- * 2. Import protection: verified rows not overwritten by unverified file rows
- * 3. Inline deadline edit: past date → is_displayed false; future → true (if verified+Open)
- * 4. Export CSV round-trip: exported columns match the import schema
+ * 1. Bulk Set Status flips is_displayed per status_effective (verification_status is irrelevant)
+ * 2. Import protection: curated name/funder not overwritten by unverified file rows
+ *    (dates/status always come fresh from the sheet — see app/api/admin/td-import/route.ts)
+ * 3. Inline status/deadline/open_date edit: is_displayed recomputed automatically
+ * 4. CSV export column order matches the legacy 20-column export schema
  */
 
 import { describe, it, expect } from 'vitest';
@@ -14,164 +15,145 @@ import { parseDeadline } from '../lib/tdScholarships/deadlineParser';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-const TODAY_STR = '2026-07-19';
+const TODAY_STR = '2026-08-09';
 const TODAY = new Date(TODAY_STR + 'T00:00:00Z');
 
 function displayRow(overrides: Partial<{
-  verification_status: string | null;
-  status: string | null;
+  open_date: string | null;
   deadline_date: string | null;
+  status: string | null;
   last_verified: string | null;
 }>) {
   return {
-    verification_status: 'verified',
-    status: 'Open',
+    open_date: null,
     deadline_date: null,
+    status: 'Open',
     last_verified: null,
     ...overrides,
   };
 }
 
-// ── 1. Bulk verify ────────────────────────────────────────────────────────────
+// ── 1. Bulk set_status ────────────────────────────────────────────────────────
 
-describe('Bulk Mark Verified logic', () => {
-  it('Open + no deadline + newly verified → is_displayed = true', () => {
-    const gate = isDisplayable(displayRow({ verification_status: 'verified' }), TODAY);
+describe('Bulk Set Status logic (Status-only gate)', () => {
+  it('Open, no dates → is_displayed = true', () => {
+    const gate = isDisplayable(displayRow({ status: 'Open' }), TODAY);
     expect(gate.is_displayed).toBe(true);
   });
 
-  it('Open + future deadline + newly verified → is_displayed = true', () => {
-    const gate = isDisplayable(displayRow({ deadline_date: '2027-01-01' }), TODAY);
+  it('Opening Soon, no dates → is_displayed = true', () => {
+    const gate = isDisplayable(displayRow({ status: 'Opening Soon' }), TODAY);
     expect(gate.is_displayed).toBe(true);
   });
 
-  it('Open + past deadline + verified → is_displayed = false (hard expired)', () => {
-    const gate = isDisplayable(displayRow({ deadline_date: '2025-01-01' }), TODAY);
-    expect(gate.is_displayed).toBe(false);
+  it('Closing Soon, no dates → is_displayed = true', () => {
+    const gate = isDisplayable(displayRow({ status: 'Closing Soon' }), TODAY);
+    expect(gate.is_displayed).toBe(true);
   });
 
-  it('Closed + verified → is_displayed = false', () => {
+  it('Closed → is_displayed = false', () => {
     const gate = isDisplayable(displayRow({ status: 'Closed' }), TODAY);
     expect(gate.is_displayed).toBe(false);
   });
 
-  it('Unverify resets is_displayed to false (unverified status)', () => {
-    const gate = isDisplayable(
-      displayRow({ verification_status: 'Auto-extracted (confirm deadline + link)' }),
-      TODAY,
-    );
+  it('Both dates present, deadline in the past → is_displayed = false regardless of stored status', () => {
+    const gate = isDisplayable(displayRow({ open_date: '2025-01-01', deadline_date: '2025-06-01', status: 'Open' }), TODAY);
     expect(gate.is_displayed).toBe(false);
+    expect(gate.status_effective).toBe('Closed');
+  });
+
+  it('verification_status has no bearing — isDisplayable does not even accept the field', () => {
+    // Type-level guarantee: the row shape passed to isDisplayable has no
+    // verification_status key at all (see lib/tdScholarships/displayGate.ts).
+    const gate = isDisplayable(displayRow({ status: 'Open' }), TODAY);
+    expect(gate.is_displayed).toBe(true);
   });
 });
 
-// ── 2. Import protection ──────────────────────────────────────────────────────
+// ── 2. Import protection (name/funder only — not dates/status) ──────────────
 
-describe('Import protection: verified rows not overwritten', () => {
-  // Simulates what the import route does for a protected row
+describe('Import protection: curated name/funder not overwritten', () => {
+  // Simulates what app/api/admin/td-import/route.ts does for a protected row
   function simulateImportRow(
     incomingVerificationStatus: string | null,
     dbIsVerified: boolean,
-    incomingDeadlineRaw: string | null = null,
-    dbDeadlineRaw: string | null = '2027-06-30',
+    incomingNameEn: string,
+    dbNameEn: string,
   ) {
     const incomingIsVerified = (incomingVerificationStatus ?? '').toLowerCase() === 'verified';
     const isProtected = dbIsVerified && !incomingIsVerified;
-
-    const effectiveDeadlineRaw = isProtected ? dbDeadlineRaw : incomingDeadlineRaw;
-    const dp = parseDeadline(effectiveDeadlineRaw);
-    const effectiveVerificationStatus = isProtected ? 'verified' : incomingVerificationStatus;
-
-    return { isProtected, effectiveVerificationStatus, dp };
+    const effectiveNameEn = isProtected ? (dbNameEn ?? incomingNameEn) : incomingNameEn;
+    return { isProtected, effectiveNameEn };
   }
 
-  it('DB verified + incoming not verified → row is protected', () => {
-    const { isProtected, effectiveVerificationStatus } = simulateImportRow(
-      'Auto-extracted (confirm deadline + link)',
-      true,
+  it('DB verified + incoming not verified → name is protected', () => {
+    const { isProtected, effectiveNameEn } = simulateImportRow(
+      'Auto-extracted (confirm deadline + link)', true, 'Incoming Name', 'DB Name',
     );
     expect(isProtected).toBe(true);
-    expect(effectiveVerificationStatus).toBe('verified');
+    expect(effectiveNameEn).toBe('DB Name');
   });
 
-  it('DB verified + incoming also verified → row is NOT protected (update allowed)', () => {
-    const { isProtected } = simulateImportRow('verified', true);
+  it('DB verified + incoming also verified → not protected (update allowed)', () => {
+    const { isProtected, effectiveNameEn } = simulateImportRow('verified', true, 'Incoming Name', 'DB Name');
+    expect(isProtected).toBe(false);
+    expect(effectiveNameEn).toBe('Incoming Name');
+  });
+
+  it('DB not verified → not protected', () => {
+    const { isProtected } = simulateImportRow(null, false, 'Incoming Name', 'DB Name');
     expect(isProtected).toBe(false);
   });
 
-  it('DB not verified + incoming not verified → row is NOT protected', () => {
-    const { isProtected } = simulateImportRow(null, false);
-    expect(isProtected).toBe(false);
-  });
-
-  it('Protected row keeps DB deadline, not incoming deadline', () => {
-    const { dp } = simulateImportRow(
-      'Auto-extracted (confirm deadline + link)',
-      true,
-      '2020-01-01', // incoming (past)
-      '2027-06-30', // DB (future)
-    );
-    // Should use DB deadline '2027-06-30', not incoming '2020-01-01'
-    expect(dp.deadline_date).toBe('2027-06-30');
-  });
-
-  it('Protected row with future DB deadline stays displayed', () => {
-    const { effectiveVerificationStatus, dp } = simulateImportRow(
-      'Auto-extracted (confirm deadline + link)',
-      true,
-      '2020-01-01',
-      '2027-06-30',
-    );
-    const gate = isDisplayable(
-      { verification_status: effectiveVerificationStatus, status: 'Open', deadline_date: dp.deadline_date, last_verified: null },
-      TODAY,
-    );
-    expect(gate.is_displayed).toBe(true);
+  it('dates and status always come from the incoming sheet row, protected or not', () => {
+    // Unlike name/funder, deadline_raw/open_date/status are never read from the
+    // DB row on import — they always reflect the freshly uploaded master sheet.
+    const incomingDeadlineRaw = '2020-01-01';
+    const dp = parseDeadline(incomingDeadlineRaw);
+    expect(dp.deadline_date).toBe('2020-01-01');
   });
 });
 
-// ── 3. Inline deadline edit ───────────────────────────────────────────────────
+// ── 3. Inline edits → is_displayed recompute ─────────────────────────────────
 
-describe('Inline deadline edit → is_displayed recompute', () => {
-  it('Changing deadline to past date → is_displayed false (verified + Open)', () => {
+describe('Inline edit → is_displayed recompute (Status-only gate)', () => {
+  it('Changing status to Closed → is_displayed false', () => {
+    const gate = isDisplayable({ open_date: null, deadline_date: null, status: 'Closed', last_verified: null }, TODAY);
+    expect(gate.is_displayed).toBe(false);
+  });
+
+  it('Changing status to Open → is_displayed true', () => {
+    const gate = isDisplayable({ open_date: null, deadline_date: null, status: 'Open', last_verified: null }, TODAY);
+    expect(gate.is_displayed).toBe(true);
+  });
+
+  it('Setting open_date in the future (with a deadline) → Opening Soon, shown, no Apply', () => {
+    const gate = isDisplayable({ open_date: '2026-12-01', deadline_date: '2027-01-01', status: 'Open', last_verified: null }, TODAY);
+    expect(gate.is_displayed).toBe(true);
+    expect(gate.status_effective).toBe('Opening Soon');
+  });
+
+  it('Editing deadline_raw to a past date (with an open_date already past) → is_displayed false', () => {
     const dp = parseDeadline('2025-01-01');
-    const gate = isDisplayable(
-      { verification_status: 'verified', status: 'Open', deadline_date: dp.deadline_date, last_verified: null },
-      TODAY,
-    );
+    const gate = isDisplayable({ open_date: '2024-01-01', deadline_date: dp.deadline_date, status: 'Open', last_verified: null }, TODAY);
     expect(gate.is_displayed).toBe(false);
   });
 
-  it('Changing deadline to future date → is_displayed true (verified + Open)', () => {
+  it('Editing deadline_raw to a future date (no open_date) → falls back to stored status', () => {
     const dp = parseDeadline('2028-12-31');
-    const gate = isDisplayable(
-      { verification_status: 'verified', status: 'Open', deadline_date: dp.deadline_date, last_verified: null },
-      TODAY,
-    );
+    const gate = isDisplayable({ open_date: null, deadline_date: dp.deadline_date, status: 'Open', last_verified: null }, TODAY);
     expect(gate.is_displayed).toBe(true);
   });
 
-  it('Changing deadline to rolling → is_displayed true (verified + Open)', () => {
-    const dp = parseDeadline('rolling');
-    expect(dp.deadline_is_rolling).toBe(true);
-    const gate = isDisplayable(
-      { verification_status: 'verified', status: 'Open', deadline_date: dp.deadline_date, last_verified: null },
-      TODAY,
-    );
-    expect(gate.is_displayed).toBe(true);
-  });
-
-  it('Edit that changes status to Closed → is_displayed false', () => {
-    const gate = isDisplayable(
-      { verification_status: 'verified', status: 'Closed', deadline_date: null, last_verified: null },
-      TODAY,
-    );
-    expect(gate.is_displayed).toBe(false);
+  it('bangkokMidnight is used consistently for "today" in inline edits', () => {
+    const bkk = bangkokMidnight(new Date('2026-08-09T20:00:00Z'));
+    expect(bkk.toISOString().startsWith('2026-08-10')).toBe(true);
   });
 });
 
 // ── 4. CSV export column order ────────────────────────────────────────────────
 
-describe('CSV export column order matches import schema', () => {
+describe('CSV export column order (legacy 20-column export schema unchanged)', () => {
   const EXPORT_COLUMNS = [
     'scholarship_id', 'scholarship_name', 'funder', 'funder_type', 'level',
     'field_of_study', 'award_amount_thb', 'region_eligibility', 'targets_low_income',

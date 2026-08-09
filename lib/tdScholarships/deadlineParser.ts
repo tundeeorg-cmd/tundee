@@ -83,3 +83,16 @@ export function parseDeadlineFromDate(raw: unknown): ParsedDeadline {
   }
   return parseDeadline(raw == null ? null : String(raw));
 }
+
+/**
+ * Parse the "Open Date" column: a plain date (Excel Date object or ISO string).
+ * No rolling/prose handling — Open Date is either a concrete date or blank.
+ */
+export function parseOpenDate(raw: unknown): string | null {
+  if (raw == null || raw === '') return null;
+  if (raw instanceof Date) {
+    const y = raw.getFullYear() > 2400 ? raw.getFullYear() - 543 : raw.getFullYear();
+    return validateDate(y, raw.getMonth() + 1, raw.getDate());
+  }
+  return extractDate(String(raw).trim());
+}

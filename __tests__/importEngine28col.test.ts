@@ -1,9 +1,9 @@
 /**
- * Tests for the 28-column import engine (lib/tdScholarships/importEngine.ts).
+ * Tests for the 30-column import engine (lib/tdScholarships/importEngine.ts).
  *
  * All tests are pure TypeScript — no DB connection, no file I/O.
  * They verify header mapping, award_value_tier normalization, bilingual
- * field handling, validation rules, and protection logic.
+ * field handling, validation rules, and the Status-only display gate.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -74,11 +74,14 @@ describe('TdScholarship — award_value_tier field', () => {
     min_gpa: null,
     english_requirement: null,
     language: null,
+    open_date: null,
     deadline_raw: null,
     deadline_date: null,
     deadline_is_rolling: false,
     deadline_note: null,
+    date_confidence: null,
     status: 'Open',
+    status_effective: 'Open',
     verification_status: 'verified',
     last_verified: null,
     verified_by: null,
@@ -322,8 +325,8 @@ describe('Verified-row protection logic', () => {
 
 // ── 28-column header coverage ─────────────────────────────────────────────────
 
-describe('28-column canonical schema — header coverage', () => {
-  const CANONICAL_HEADERS_28 = [
+describe('30-column canonical schema — header coverage', () => {
+  const CANONICAL_HEADERS_30 = [
     'Scholarship ID',
     'Scholarship Name (EN)',
     'Scholarship Name (TH)',
@@ -345,8 +348,10 @@ describe('28-column canonical schema — header coverage', () => {
     'Min GPA',
     'English Requirement',
     'Source Language',
+    'Open Date',
     'Deadline',
-    'Status',
+    'Date Confidence',
+    'status',
     'Application Link',
     'Source',
     'Verification Status',
@@ -354,15 +359,15 @@ describe('28-column canonical schema — header coverage', () => {
     'Notes',
   ];
 
-  it('has exactly 28 canonical headers', () => {
-    expect(CANONICAL_HEADERS_28).toHaveLength(28);
+  it('has exactly 30 canonical headers', () => {
+    expect(CANONICAL_HEADERS_30).toHaveLength(30);
   });
 
   it('each canonical header normalizes to a non-empty lowercase+trimmed string', () => {
     function normalizeHeader(h: string) {
       return h.toLowerCase().trim().replace(/\s+/g, ' ').replace(/\*+$/, '');
     }
-    for (const h of CANONICAL_HEADERS_28) {
+    for (const h of CANONICAL_HEADERS_30) {
       const n = normalizeHeader(h);
       expect(n.length).toBeGreaterThan(0);
     }
@@ -428,23 +433,27 @@ describe('Upsert idempotency', () => {
 
 // ── Display gate summary ──────────────────────────────────────────────────────
 
-describe('Display gate (unchanged rule)', () => {
-  it('is_displayed = true only when verified + Open + not past deadline', () => {
+describe('Display gate (Status-only rule)', () => {
+  it('is_displayed = true iff status_effective ∈ {Opening Soon, Open, Closing Soon} — verification_status is irrelevant', () => {
     function gate(row: { verification_status: string | null; status: string | null; deadline_date: string | null }, today: string) {
-      const verif = (row.verification_status ?? '').trim().toLowerCase();
-      const status = (row.status ?? '').trim().toLowerCase();
-      if (verif !== 'verified') return false;
-      if (status !== 'open') return false;
-      if (row.deadline_date && row.deadline_date < today) return false;
+      // Mirrors lib/tdScholarships/displayGate.ts computeStatusEffective for the
+      // no-open-date case: status_effective falls back to the normalized status.
+      const status = (row.status ?? '').trim();
+      const normalized = ['Opening Soon', 'Open', 'Closing Soon', 'Closed'].includes(status) ? status : '';
+      if (normalized === 'Closed' || normalized === '') return false;
+      if (row.deadline_date && row.deadline_date < today) return false; // only relevant if dates were both known
       return true;
     }
 
     const today = '2026-07-19';
-    expect(gate({ verification_status: 'verified', status: 'Open', deadline_date: '2026-08-31' }, today)).toBe(true);
-    expect(gate({ verification_status: 'unverified', status: 'Open', deadline_date: null }, today)).toBe(false);
+    // verification_status is completely ignored by the gate now
+    expect(gate({ verification_status: 'verified', status: 'Open', deadline_date: null }, today)).toBe(true);
+    expect(gate({ verification_status: 'unverified', status: 'Open', deadline_date: null }, today)).toBe(true);
+    expect(gate({ verification_status: null, status: 'Open', deadline_date: null }, today)).toBe(true);
     expect(gate({ verification_status: 'verified', status: 'Closed', deadline_date: null }, today)).toBe(false);
-    expect(gate({ verification_status: 'verified', status: 'Open', deadline_date: '2026-01-01' }, today)).toBe(false); // past
-    expect(gate({ verification_status: 'verified', status: 'Open', deadline_date: null }, today)).toBe(true); // no deadline
+    expect(gate({ verification_status: 'verified', status: '', deadline_date: null }, today)).toBe(false); // blank → hidden
+    expect(gate({ verification_status: 'verified', status: 'Opening Soon', deadline_date: null }, today)).toBe(true);
+    expect(gate({ verification_status: 'verified', status: 'Closing Soon', deadline_date: null }, today)).toBe(true);
   });
 
   it('active count = rows where is_displayed = true', () => {

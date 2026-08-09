@@ -311,9 +311,9 @@ student's answer is written to `event` (`event_type='self_report_outcome'`,
 and `tracked_scholarship.status` is updated to `awarded`/`rejected` unless
 the answer is `waiting`.
 
-### `td_scholarships` — Canonical 28-field scholarship schema
+### `td_scholarships` — Canonical 30-field scholarship schema
 
-The authoritative scholarship table uses TEXT PK (`TD-0001` style). All 28
+The authoritative scholarship table uses TEXT PK (`TD-0001` style). All 30
 canonical columns mapped from the admin spreadsheet:
 
 | # | Sheet header | DB column | Type |
@@ -339,13 +339,40 @@ canonical columns mapped from the admin spreadsheet:
 | 19 | Min GPA | `min_gpa` | NUMERIC(3,2) |
 | 20 | English Requirement | `english_requirement` | TEXT |
 | 21 | Source Language | `source_language` | TEXT (`th`/`en`) |
-| 22 | Deadline | `deadline_raw` | TEXT (raw; `deadline_date`/`is_rolling`/`note` derived) |
-| 23 | Status | `status` | TEXT (`Open`/`Recheck`/`Closed`) |
-| 24 | Application Link | `application_url` | TEXT — canonical apply URL |
-| 25 | Source | `source_url` | TEXT — canonical source URL |
-| 26 | Verification Status | `verification_status` | TEXT |
-| 27 | Last Verified | `last_verified` | DATE |
-| 28 | Notes | `notes` | TEXT |
+| 22 | Open Date | `open_date` | DATE, nullable — date applications start |
+| 23 | Deadline | `deadline_raw` | TEXT (raw; `deadline_date`/`is_rolling`/`note` derived) |
+| 24 | Date Confidence | `date_confidence` | TEXT (`Confirmed`/`Estimated`/null) — controls date wording only, never visibility |
+| 25 | status | `status` | TEXT (`Opening Soon`/`Open`/`Closing Soon`/`Closed`/blank) — the sheet's own computed status formula, read as its cached value |
+| 26 | Application Link | `application_url` | TEXT — canonical apply URL |
+| 27 | Source | `source_url` | TEXT — canonical source URL |
+| 28 | Verification Status | `verification_status` | TEXT — **admin-only, does not gate visibility** |
+| 29 | Last Verified | `last_verified` | DATE |
+| 30 | Notes | `notes` | TEXT |
+
+#### Display gate — Status only
+
+A scholarship is shown to students **iff `status_effective` ∈ {`Opening Soon`, `Open`, `Closing Soon`}**.
+`Closed` and blank are hidden. `verification_status` never gates visibility — it's
+kept purely for the admin verification workflow/audit log.
+
+`status_effective` (TEXT, computed) is derived by
+[`lib/tdScholarships/displayGate.ts`](lib/tdScholarships/displayGate.ts):
+
+- If **both** `open_date` and `deadline_date` are real dates, it's computed
+  day-to-day from those dates (`statusFromDates`): `Closed` if the deadline has
+  passed, `Opening Soon` if `open_date` is still in the future, `Closing Soon`
+  if the deadline is within `TD_CLOSING_SOON_DAYS` days (default 14) and the
+  scholarship is already open, else `Open`.
+- Otherwise (rolling/prose deadlines with no clean dates) it falls back to the
+  normalized `status` value from the sheet.
+
+This recompute runs on every import (`/api/admin/td-import`) and nightly via
+the `/api/cron` job (01:00 Bangkok time), so a scholarship transitions
+Opening Soon → Open → Closing Soon → Closed automatically with **no re-upload
+and no code change**. The importer never stores a raw spreadsheet formula
+string (e.g. `=IFERROR(...)`) in `status` — an unrecognized value normalizes
+to blank, which is treated as "no usable status" and hidden until a human sets
+a real status or the dates become concrete.
 
 **`award_value_tier` codes** (normalized on import from raw display strings):
 
@@ -360,8 +387,8 @@ canonical columns mapped from the admin spreadsheet:
 | `null` | blank cell |
 
 **Internal columns** (computed by the app, not in import sheet): `translation_review`,
-`deadline_date`, `deadline_is_rolling`, `deadline_note`, `is_displayed`,
-`display_reason`, `stale`, `created_at`, `updated_at`.
+`deadline_date`, `deadline_is_rolling`, `deadline_note`, `status_effective`,
+`is_displayed`, `display_reason`, `stale`, `created_at`, `updated_at`.
 
 **Deprecated columns** (nullable, back-filled for backward compat, not imported):
 `scholarship_name`, `funder`, `application_link`, `source`, `award_amount_thb` (free text), `language`.
