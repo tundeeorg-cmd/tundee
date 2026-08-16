@@ -82,11 +82,16 @@ function computeRegionScore(s: TdScholarship, profile: RecommenderProfile): { sc
   const isNE = studentRegion === 'northeast' || NORTHEAST_PROVINCES.has(province);
   const isSouth = studentRegion === 'south' || SOUTH_PROVINCES.has(province);
 
+  // The non-empty guards matter: String.includes('') is true for EVERY string,
+  // so a student with no region or province on file (anonymous /start visitors,
+  // and any profile without a student_profile row) used to match every
+  // region-restricted scholarship — a Bangkok student was told a Northeast-only
+  // scholarship was "open to your region".
   if (
     (isNE && (regionElig.includes('northeast') || regionElig.includes('อีสาน')))
     || (isSouth && (regionElig.includes('south') || regionElig.includes('ใต้')))
-    || regionElig.includes(province.toLowerCase())
-    || regionElig.includes(studentRegion)
+    || (province !== '' && regionElig.includes(province.toLowerCase()))
+    || (studentRegion !== '' && regionElig.includes(studentRegion))
   ) {
     reasons.push('ภูมิภาคตรงกัน');
     reasons_en.push('Region match');
@@ -124,6 +129,91 @@ function computeFieldScore(s: TdScholarship, profile: RecommenderProfile): { sco
   return { score: 0.05, reasons, reasons_en };  // field declared but doesn't match (still eligible — caught in eligibility layer for hard mismatches)
 }
 
+// ─── Explanation building ─────────────────────────────────────────────────────
+
+/** A reason paired with the score it actually contributed, so the strongest wins. */
+interface WeightedReason {
+  th: string;
+  en: string;
+  weight: number;
+}
+
+/**
+ * A distinguishing fact about the scholarship itself, used as the second clause
+ * of the explanation.
+ *
+ * Personal reasons alone are often identical across a result set — a student in
+ * ขอนแก่น matching three Northeast scholarships gets "ภูมิภาคตรงกัน" three times,
+ * which reads like boilerplate and undercuts the ranking. These highlights vary
+ * per scholarship, so consecutive cards say something different.
+ *
+ * Ordered by what a student actually cares about first. Returns null when the
+ * scholarship has nothing notable to say.
+ */
+function scholarshipHighlight(s: TdScholarship): { th: string; en: string } | null {
+  if (s.award_value_tier === 'full_ride' || s.award_value_tier === 'full_tuition') {
+    return { th: 'เป็นทุนเต็มจำนวน', en: 'it covers full costs' };
+  }
+  if (s.targets_low_income) {
+    return { th: 'เป็นทุนสำหรับครอบครัวที่มีรายได้น้อย', en: 'it targets low-income families' };
+  }
+  if (s.min_gpa == null) {
+    return { th: 'ไม่กำหนดเกรดขั้นต่ำ', en: 'it has no minimum GPA' };
+  }
+  if (s.renewable) {
+    return { th: 'ต่อทุนได้ต่อเนื่องทุกปี', en: 'it is renewable each year' };
+  }
+  if (s.deadline_is_rolling) {
+    return { th: 'เปิดรับสมัครต่อเนื่อง', en: 'it accepts rolling applications' };
+  }
+  if (s.num_recipients != null && s.num_recipients >= 50) {
+    return { th: `รับผู้สมัครถึง ${s.num_recipients} ทุน`, en: `it awards ${s.num_recipients} places` };
+  }
+  return null;
+}
+
+/**
+ * Builds the one-sentence "why recommended" copy.
+ *
+ * Leads with the highest-scoring personal reason — previously this took
+ * reasons[0], which is push order, so region (pushed late but common) or GPA
+ * (pushed first) won regardless of how much either actually contributed.
+ * A scholarship-specific highlight is appended as a second clause when there is
+ * one, keeping neighbouring cards distinguishable.
+ */
+function buildExplanation(
+  weighted: WeightedReason[],
+  s: TdScholarship,
+): { explanation: string; explanation_en: string } {
+  const strongest = weighted.length > 0
+    ? weighted.reduce((best, r) => (r.weight > best.weight ? r : best))
+    : null;
+
+  const highlight = scholarshipHighlight(s);
+
+  const clausesTH: string[] = [];
+  const clausesEN: string[] = [];
+
+  if (strongest) {
+    clausesTH.push(strongest.th);
+    clausesEN.push(strongest.en);
+  }
+  if (highlight && highlight.th !== strongest?.th) {
+    clausesTH.push(highlight.th);
+    clausesEN.push(highlight.en);
+  }
+
+  if (clausesTH.length === 0) {
+    clausesTH.push('ตรงตามเกณฑ์คุณสมบัติ');
+    clausesEN.push('it matches your profile');
+  }
+
+  return {
+    explanation:    `ทุนนี้เหมาะกับคุณเพราะ${clausesTH.join(' และ')}`,
+    explanation_en: `Recommended because ${clausesEN.join(', and ')}`,
+  };
+}
+
 function urgencyBonus(s: TdScholarship, nowDate: Date): number {
   if (!s.deadline_date) return 0;
   const daysLeft = (new Date(s.deadline_date).getTime() - nowDate.getTime()) / 86_400_000;
@@ -144,6 +234,9 @@ export class ContentBasedScorer implements Scorer {
   score(s: TdScholarship, profile: RecommenderProfile): ScorerResult | null {
     const reasons: string[]    = [];
     const reasons_en: string[] = [];
+    // Mirrors `reasons`, but carries each reason's score contribution so the
+    // explanation can lead with the strongest rather than the first pushed.
+    const weighted: WeightedReason[] = [];
     let total = 0;
 
     // ── GPA margin (0–0.25) ──────────────────────────────────────────────
@@ -152,8 +245,11 @@ export class ContentBasedScorer implements Scorer {
     const gpaScore  = Math.min(gpaMargin / 2.0, 1.0) * 0.25;
     total += gpaScore;
     if (minGpa > 0 && profile.gpa >= minGpa) {
-      reasons.push(`GPA ${profile.gpa.toFixed(1)} ≥ ขั้นต่ำ ${minGpa}`);
-      reasons_en.push(`GPA ${profile.gpa.toFixed(1)} meets ${minGpa} minimum`);
+      const th = `GPA ${profile.gpa.toFixed(1)} ≥ ขั้นต่ำ ${minGpa}`;
+      const en = `GPA ${profile.gpa.toFixed(1)} meets ${minGpa} minimum`;
+      reasons.push(th);
+      reasons_en.push(en);
+      weighted.push({ th: `เกรดของคุณผ่านเกณฑ์ขั้นต่ำ ${minGpa}`, en: `your GPA clears the ${minGpa} minimum`, weight: gpaScore });
     }
 
     // ── Income fit (0–0.20) ──────────────────────────────────────────────
@@ -168,6 +264,7 @@ export class ContentBasedScorer implements Scorer {
       if (incScore > 0) {
         reasons.push('รายได้ครอบครัวตรงตามเกณฑ์ทุน');
         reasons_en.push('Household income within scholarship limit');
+        weighted.push({ th: 'รายได้ครอบครัวตรงตามเกณฑ์ทุน', en: 'your household income is within the limit', weight: incScore });
       }
     } else {
       total += 0.10;  // no cap = moderate fit
@@ -178,6 +275,8 @@ export class ContentBasedScorer implements Scorer {
       total += 0.10;
       reasons.push('มีบัตรสวัสดิการ + ทุนเพื่อผู้มีรายได้น้อย');
       reasons_en.push('Welfare card holder — scholarship targets low-income students');
+      // No embedded "และ" — buildExplanation joins clauses with it.
+      weighted.push({ th: 'คุณมีบัตรสวัสดิการตรงตามกลุ่มเป้าหมายของทุน', en: 'your welfare card matches who this is for', weight: 0.10 });
     } else if (profile.welfare_card || s.targets_low_income) {
       total += 0.05;
     }
@@ -186,11 +285,17 @@ export class ContentBasedScorer implements Scorer {
     const { score: fieldScore, reasons: fR, reasons_en: fRen } = computeFieldScore(s, profile);
     total += fieldScore;
     reasons.push(...fR); reasons_en.push(...fRen);
+    if (fR.length > 0) {
+      weighted.push({ th: 'ตรงกับสาขาที่คุณสนใจ', en: 'it matches your field of study', weight: fieldScore });
+    }
 
     // ── Region match (0–0.15) ────────────────────────────────────────────
     const { score: regionScore, reasons: rR, reasons_en: rRen } = computeRegionScore(s, profile);
     total += regionScore;
     reasons.push(...rR); reasons_en.push(...rRen);
+    if (rR.length > 0) {
+      weighted.push({ th: 'เปิดรับนักเรียนในภูมิภาคของคุณ', en: 'it is open to your region', weight: regionScore });
+    }
 
     // ── Amount bonus (0–0.05) ────────────────────────────────────────────
     const amount = parseFloat(s.award_amount_thb ?? '0') || 0;
@@ -202,15 +307,12 @@ export class ContentBasedScorer implements Scorer {
     if (urgency > 0) {
       reasons.push('ใกล้ถึงกำหนดสมัคร');
       reasons_en.push('Deadline coming soon');
+      weighted.push({ th: 'ใกล้ถึงกำหนดปิดรับสมัคร', en: 'the deadline is approaching', weight: urgency });
     }
 
     const score = Math.min(total, 1.0);
 
-    // Build single-sentence explanation
-    const topReasonTH = reasons[0] ?? 'ตรงตามเกณฑ์คุณสมบัติ';
-    const topReasonEN = reasons_en[0] ?? 'Matches your profile';
-    const explanation    = `ทุนนี้เหมาะกับคุณเพราะ${topReasonTH}`;
-    const explanation_en = `Recommended because: ${topReasonEN}`;
+    const { explanation, explanation_en } = buildExplanation(weighted, s);
 
     return { score, reasons, reasons_en, explanation, explanation_en };
   }
