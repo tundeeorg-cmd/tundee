@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import { Lato } from 'next/font/google';
 import './globals.css';
 import ChromeGate from '@/components/ChromeGate';
 import AdPixels from '@/components/AdPixels';
+import GoogleAnalytics from '@/components/GoogleAnalytics';
+import MetaPixel from '@/components/MetaPixel';
+import MetaPageView from '@/components/MetaPageView';
+import CookieConsent from '@/components/CookieConsent';
 import SessionStartLogger from '@/components/SessionStartLogger';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -68,8 +71,6 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
-
   return (
     <html lang="th" className={lato.variable} suppressHydrationWarning>
       <head>
@@ -89,18 +90,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col bg-[#F5F7FA] dark:bg-[#07111F]">
-        {/* Google Analytics */}
-        {GA_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="ga-init" strategy="afterInteractive">
-              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}',{page_path:window.location.pathname});`}
-            </Script>
-          </>
-        )}
+        {/* Analytics & ad tags — every one gated on cookie consent
+            (lib/analytics/consent.ts). Nothing loads until the visitor accepts. */}
+        <GoogleAnalytics />
+        <MetaPixel />
+        <MetaPageView />
         <AdPixels />
         <ThemeProvider>
           <LanguageProvider>
@@ -110,6 +104,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </UserProvider>
           </LanguageProvider>
         </ThemeProvider>
+        <CookieConsent />
       </body>
     </html>
   );

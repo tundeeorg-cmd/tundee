@@ -119,11 +119,13 @@ export default function PreviewResults({
   const tracked = useRef(false);
 
   // Ad-pixel conversion signal: the visitor reached real value before signup.
+  // content_ids are the scholarships actually shown, so Meta can build
+  // audiences around the specific opportunities that convert.
   useEffect(() => {
     if (tracked.current) return;
     tracked.current = true;
-    trackPreviewResults(results.total);
-  }, [results.total]);
+    trackPreviewResults(results.total, results.preview.map(c => c.scholarship_id));
+  }, [results]);
 
   const lockedPlaceholders = Math.min(results.lockedCount, 2);
 
