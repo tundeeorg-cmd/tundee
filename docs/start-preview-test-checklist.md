@@ -133,7 +133,16 @@ With `NEXT_PUBLIC_META_PIXEL_ID` set, in the Meta Pixel Helper:
 
 ---
 
-## Behaviour change to watch
+## Behaviour changes to watch
+
+`lib/recommender/scorer.ts` no longer awards a region match to students with no
+region **and** no matching province. `String.includes('')` is true for every
+string, so a null `profile.region` — the norm, since `/profile/setup` never
+writes to `student_profile` — used to match every region-restricted scholarship
+at the full 0.15. Ranking will shift for existing users: region-restricted
+scholarships drop for students outside that region, and genuinely local ones
+(e.g. จังหวัดชายแดนภาคใต้) rise for students inside it. Match counts fall
+slightly as a result; this is the ranking becoming truthful, not data loss.
 
 `lib/recommender/eligibility.ts` now normalizes grade levels through
 `lib/recommender/gradeLevel.ts`. Previously `'M4-M6'` — the value
