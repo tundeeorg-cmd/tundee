@@ -14,6 +14,7 @@ import type { RecommenderProfile, RecommendOptions, RecommendResult, Scorer } fr
 import { filterEligible } from './eligibility';
 import { ContentBasedScorer } from './scorer';
 import { rerank, classifyProtectedGroup } from './reranker';
+import { diversifyExplanations, type ExplanationOption } from './explanations';
 
 export function recommend(
   scholarships: TdScholarship[],
@@ -28,16 +29,28 @@ export function recommend(
   const candidates = filterEligible(scholarships, profile, nowDate);
 
   // Stage 2: base scoring (null = scorer's own hard disqualification guard)
+  // Candidate sentences are kept aside rather than threaded through rerank —
+  // they are presentation only and have no bearing on ranking.
+  const explanationOptions = new Map<string, ExplanationOption[]>();
+
   const prescored = candidates
     .map(s => {
       const result = scorer.score(s, profile);
       if (!result) return null;
+      if (result.explanation_options?.length) {
+        explanationOptions.set(s.scholarship_id, result.explanation_options);
+      }
       return { scholarship: s, raw_score: result.score, reasons: result.reasons, reasons_en: result.reasons_en, explanation: result.explanation, explanation_en: result.explanation_en };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   // Stage 3: fairness-aware re-ranking
   const items = rerank(prescored, profile, fairness_mode, limit);
+
+  // Stage 4: presentation only — vary the copy so adjacent cards don't repeat
+  // the same sentence. Runs after re-ranking so it follows final display order,
+  // and never touches scores, ordering, or the reasons chips.
+  diversifyExplanations(items, item => explanationOptions.get(item.scholarship.scholarship_id));
 
   return {
     items,

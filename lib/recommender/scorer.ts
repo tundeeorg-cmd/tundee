@@ -19,6 +19,13 @@
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import type { RecommenderProfile, Scorer, ScorerResult } from './types';
+import {
+  type ExplanationOption,
+  GENERIC_OPTION,
+  combineOptions,
+  dedupeOptions,
+  renderExplanation,
+} from './explanations';
 
 // Monthly income ceiling per bracket (THB) — duplicated here for scorer independence
 const INCOME_CEILING_MONTHLY: Record<number, number> = {
@@ -139,79 +146,80 @@ interface WeightedReason {
 }
 
 /**
- * A distinguishing fact about the scholarship itself, used as the second clause
- * of the explanation.
+ * Every distinguishing fact this scholarship offers, best first.
  *
- * Personal reasons alone are often identical across a result set — a student in
- * ขอนแก่น matching three Northeast scholarships gets "ภูมิภาคตรงกัน" three times,
- * which reads like boilerplate and undercuts the ranking. These highlights vary
- * per scholarship, so consecutive cards say something different.
- *
- * Ordered by what a student actually cares about first. Returns null when the
- * scholarship has nothing notable to say.
+ * Returns all that apply rather than just the first: when two cards share a
+ * highlight, the list-level de-duplication in ./explanations.ts needs a real
+ * alternative to fall back to. A second true fact always beats generic copy.
  */
-function scholarshipHighlight(s: TdScholarship): { th: string; en: string } | null {
+function scholarshipHighlights(s: TdScholarship): ExplanationOption[] {
+  const out: ExplanationOption[] = [];
+
   if (s.award_value_tier === 'full_ride' || s.award_value_tier === 'full_tuition') {
-    return { th: 'เป็นทุนเต็มจำนวน', en: 'it covers full costs' };
+    out.push({ th: 'เป็นทุนเต็มจำนวน', en: 'it covers full costs' });
   }
   if (s.targets_low_income) {
-    return { th: 'เป็นทุนสำหรับครอบครัวที่มีรายได้น้อย', en: 'it targets low-income families' };
+    out.push({ th: 'เป็นทุนสำหรับครอบครัวที่มีรายได้น้อย', en: 'it targets low-income families' });
   }
   if (s.min_gpa == null) {
-    return { th: 'ไม่กำหนดเกรดขั้นต่ำ', en: 'it has no minimum GPA' };
+    out.push({ th: 'ไม่กำหนดเกรดขั้นต่ำ', en: 'it has no minimum GPA' });
   }
   if (s.renewable) {
-    return { th: 'ต่อทุนได้ต่อเนื่องทุกปี', en: 'it is renewable each year' };
+    out.push({ th: 'ต่อทุนได้ต่อเนื่องทุกปี', en: 'it is renewable each year' });
   }
   if (s.deadline_is_rolling) {
-    return { th: 'เปิดรับสมัครต่อเนื่อง', en: 'it accepts rolling applications' };
+    out.push({ th: 'เปิดรับสมัครต่อเนื่อง', en: 'it accepts rolling applications' });
   }
   if (s.num_recipients != null && s.num_recipients >= 50) {
-    return { th: `รับผู้สมัครถึง ${s.num_recipients} ทุน`, en: `it awards ${s.num_recipients} places` };
+    out.push({ th: `รับผู้สมัครถึง ${s.num_recipients} ทุน`, en: `it awards ${s.num_recipients} places` });
   }
-  return null;
+  if (s.bond_obligation === false) {
+    out.push({ th: 'ไม่มีข้อผูกมัดใช้ทุน', en: 'it carries no service obligation' });
+  }
+
+  return out;
 }
 
 /**
- * Builds the one-sentence "why recommended" copy.
+ * All candidate sentences for this scholarship, best first.
  *
- * Leads with the highest-scoring personal reason — previously this took
- * reasons[0], which is push order, so region (pushed late but common) or GPA
- * (pushed first) won regardless of how much either actually contributed.
- * A scholarship-specific highlight is appended as a second clause when there is
- * one, keeping neighbouring cards distinguishable.
+ * Preference order:
+ *   1. strongest personal reason + each highlight
+ *   2. strongest personal reason alone
+ *   3. each highlight alone
+ *   4. weaker personal reasons, same treatment
+ *   5. generic — only when nothing specific exists at all
+ *
+ * The first entry is what the card shows when no de-duplication is needed, so
+ * this doubles as the default. Personal reasons lead because "why YOU match"
+ * beats "what this scholarship is"; the fallbacks trade that down one step at a
+ * time rather than dropping straight to boilerplate.
  */
-function buildExplanation(
+function buildExplanationOptions(
   weighted: WeightedReason[],
   s: TdScholarship,
-): { explanation: string; explanation_en: string } {
-  const strongest = weighted.length > 0
-    ? weighted.reduce((best, r) => (r.weight > best.weight ? r : best))
-    : null;
+): ExplanationOption[] {
+  const personal = [...weighted].sort((a, b) => b.weight - a.weight);
+  const highlights = scholarshipHighlights(s);
 
-  const highlight = scholarshipHighlight(s);
+  const options: ExplanationOption[] = [];
 
-  const clausesTH: string[] = [];
-  const clausesEN: string[] = [];
+  personal.forEach((reason, i) => {
+    const clause: ExplanationOption = { th: reason.th, en: reason.en };
+    for (const h of highlights) {
+      if (h.th !== clause.th) options.push(combineOptions(clause, h));
+    }
+    options.push(clause);
+    // After the strongest reason's variants, offer bare highlights before
+    // dropping to a weaker personal reason — a specific scholarship fact reads
+    // better than a marginal match.
+    if (i === 0) options.push(...highlights);
+  });
 
-  if (strongest) {
-    clausesTH.push(strongest.th);
-    clausesEN.push(strongest.en);
-  }
-  if (highlight && highlight.th !== strongest?.th) {
-    clausesTH.push(highlight.th);
-    clausesEN.push(highlight.en);
-  }
+  if (personal.length === 0) options.push(...highlights);
+  if (options.length === 0) options.push(GENERIC_OPTION);
 
-  if (clausesTH.length === 0) {
-    clausesTH.push('ตรงตามเกณฑ์คุณสมบัติ');
-    clausesEN.push('it matches your profile');
-  }
-
-  return {
-    explanation:    `ทุนนี้เหมาะกับคุณเพราะ${clausesTH.join(' และ')}`,
-    explanation_en: `Recommended because ${clausesEN.join(', and ')}`,
-  };
+  return dedupeOptions(options);
 }
 
 function urgencyBonus(s: TdScholarship, nowDate: Date): number {
@@ -312,8 +320,11 @@ export class ContentBasedScorer implements Scorer {
 
     const score = Math.min(total, 1.0);
 
-    const { explanation, explanation_en } = buildExplanation(weighted, s);
+    // The first option is the default; recommend() may swap in a later one to
+    // keep neighbouring cards distinct (see ./explanations.ts).
+    const explanation_options = buildExplanationOptions(weighted, s);
+    const { explanation, explanation_en } = renderExplanation(explanation_options[0]);
 
-    return { score, reasons, reasons_en, explanation, explanation_en };
+    return { score, reasons, reasons_en, explanation, explanation_en, explanation_options };
   }
 }
