@@ -1,0 +1,119 @@
+/**
+ * Shared contract for the logged-out /start preview matcher.
+ *
+ * The three inputs are deliberately the same three values /profile/setup stores
+ * (`grade_level`, `gpa`, `province_id`) so a visitor's preview answers can be
+ * replayed into the signup wizard without any re-typing.
+ */
+
+import { PROVINCES_TH } from '@/lib/translations';
+
+/** Cookie carrying the visitor's answers across the signup redirect. */
+export const PREVIEW_COOKIE = 'tundee_preview';
+
+/** 30 minutes — long enough to finish signup, short enough not to linger. */
+export const PREVIEW_COOKIE_MAX_AGE = 60 * 30;
+
+/** How many full, unlocked cards a logged-out visitor sees. */
+export const PREVIEW_TOP_N = 3;
+
+/** Upper bound on matches computed per preview request. */
+export const PREVIEW_LIMIT = 50;
+
+/** How many near-miss scholarships to show when nothing matches exactly. */
+export const PREVIEW_BROADENED_N = 5;
+
+/**
+ * Education levels offered on /start. Values are byte-identical to
+ * GRADE_OPTIONS in app/profile/setup/page.tsx — do not diverge.
+ */
+export const PREVIEW_LEVELS = [
+  { value: 'M1-M3',      th: 'ม.1–3' },
+  { value: 'M4-M6',      th: 'ม.4–6' },
+  { value: 'vocational', th: 'ปวช./ปวส.' },
+  { value: 'uni',        th: 'ปริญญาตรี' },
+  { value: 'graduate',   th: 'ปริญญาโท/เอก' },
+] as const;
+
+const VALID_LEVELS = new Set<string>(PREVIEW_LEVELS.map(l => l.value));
+const VALID_PROVINCES = new Set<string>(PROVINCES_TH);
+
+export interface PreviewInput {
+  level: string;
+  gpa: number;
+  province: string;
+}
+
+/** One preview card — a real, renderable scholarship. */
+export interface PreviewMatchCard {
+  scholarship_id: string;
+  name: string;
+  funder: string;
+  award_tier: string | null;
+  award_amount: string | null;
+  deadline_date: string | null;
+  deadline_is_rolling: boolean;
+  status: string | null;
+  /** Thai "why you match" sentence straight from the recommender. */
+  explanation: string;
+  reasons: string[];
+  score: number;
+}
+
+export interface PreviewResponse {
+  preview: PreviewMatchCard[];
+  /** Matches beyond the previewed ones — the number behind the signup gate. */
+  lockedCount: number;
+  /** Total eligible matches (preview + locked). */
+  total: number;
+  /**
+   * True when no scholarship matched exactly and the list was widened by
+   * relaxing the GPA rule, so the UI can label the results honestly.
+   */
+  broadened: boolean;
+}
+
+/**
+ * Validates an untrusted request body. Returns null when anything is off —
+ * callers respond 400 without echoing the input back.
+ */
+export function parsePreviewInput(raw: unknown): PreviewInput | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const body = raw as Record<string, unknown>;
+
+  const level = typeof body.level === 'string' ? body.level.trim() : '';
+  if (!VALID_LEVELS.has(level)) return null;
+
+  const gpa = typeof body.gpa === 'number' ? body.gpa : parseFloat(String(body.gpa ?? ''));
+  if (!Number.isFinite(gpa) || gpa < 0 || gpa > 4) return null;
+
+  const province = typeof body.province === 'string' ? body.province.trim() : '';
+  if (!VALID_PROVINCES.has(province)) return null;
+
+  return { level, gpa: Math.round(gpa * 100) / 100, province };
+}
+
+/** Serializes the visitor's answers for the cookie (base64url-encoded JSON). */
+export function encodePreviewInput(input: PreviewInput): string {
+  const json = JSON.stringify([input.level, input.gpa, input.province]);
+  const b64 = typeof Buffer !== 'undefined'
+    ? Buffer.from(json, 'utf8').toString('base64')
+    : btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Inverse of encodePreviewInput. Returns null on any tampering or drift. */
+export function decodePreviewInput(value: string | null | undefined): PreviewInput | null {
+  if (!value) return null;
+  try {
+    const b64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const json = typeof Buffer !== 'undefined'
+      ? Buffer.from(b64, 'base64').toString('utf8')
+      : decodeURIComponent(escape(atob(b64)));
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed) || parsed.length !== 3) return null;
+    return parsePreviewInput({ level: parsed[0], gpa: parsed[1], province: parsed[2] });
+  } catch {
+    return null;
+  }
+}

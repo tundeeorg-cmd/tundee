@@ -5,14 +5,20 @@
  * Redirected here from /auth/callback when profile is incomplete.
  *
  * Steps:
- *   0  Name
- *   1  Prior scholarship knowledge (research)
- *   2  Grade level
- *   3  GPA
- *   4  Province
- *   5  Income & welfare card
- *   6  Fields of interest
- *   7  Recruitment source (research) + save
+ *   0  Consent (PDPA)
+ *   1  Name
+ *   2  Prior scholarship knowledge (research)
+ *   3  Grade level
+ *   4  GPA
+ *   5  Province
+ *   6  Income & welfare card
+ *   7  Fields of interest
+ *   8  Recruitment source (research) + save
+ *
+ * Preview prefill: visitors who matched on /start arrive with a tundee_preview
+ * cookie holding the level/GPA/province they already typed. Those three steps
+ * are then answered and skipped, so nobody is asked the same question twice.
+ * Consent (step 0) is never skipped — PDPA requires it explicitly.
  */
 
 import { useEffect, useState } from 'react';
@@ -22,6 +28,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
 import { trackSignupComplete } from '@/lib/adTracking';
+import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -60,6 +67,24 @@ const RECRUITMENT_SOURCE_OPTIONS = [
   { value: 'google_search',  th: 'ค้นหาจาก Google',    en: 'Google search' },
   { value: 'social_media',   th: 'โซเชียลมีเดีย',       en: 'Social media' },
 ];
+
+/**
+ * Steps 3–5 (grade level, GPA, province) are exactly what the /start preview
+ * already collected, so when it prefilled them the wizard jumps step 2 → 6.
+ */
+const PREFILLED_STEPS = { before: 2, after: 6 } as const;
+
+/** Reads a non-httpOnly cookie in the browser. */
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function clearCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; Max-Age=0; path=/`;
+}
 
 // ─── Helper: determine signup cohort from Thai province name or TH-XX code ───
 
@@ -196,6 +221,9 @@ export default function ProfileSetupPage() {
   const [guardianAcknowledged,   setGuardianAcknowledged]   = useState(false);
   // Channel attribution — read from localStorage (set by /students?src=)
   const [acquisitionSource,      setAcquisitionSource]      = useState('direct');
+  // /start preview prefill
+  const [prefilled,              setPrefilled]              = useState(false);
+  const [destination,            setDestination]            = useState('/scholarships');
 
   // Read acquisition source set by /students?src= landing page
   useEffect(() => {
@@ -203,6 +231,24 @@ export default function ProfileSetupPage() {
       const src = localStorage.getItem('tundee_src');
       if (src) setAcquisitionSource(src);
     } catch { /* localStorage unavailable */ }
+  }, []);
+
+  // Replay the answers given on /start, if any, and remember where to land.
+  // Reading location/cookies directly rather than useSearchParams keeps this
+  // page out of the Suspense requirement that hook imposes.
+  useEffect(() => {
+    const preview = decodePreviewInput(readCookie(PREVIEW_COOKIE));
+    if (preview) {
+      setGradeLevel(preview.level);
+      setGpa(String(preview.gpa));
+      setProvince(preview.province);
+      setPrefilled(true);
+    }
+
+    try {
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next && next.startsWith('/') && !next.startsWith('//')) setDestination(next);
+    } catch { /* malformed query string — keep the default */ }
   }, []);
 
   // Auth guard
@@ -237,11 +283,20 @@ export default function ProfileSetupPage() {
         return;
       }
     }
+    // Already answered on /start → jump over grade/GPA/province
+    if (prefilled && step === PREFILLED_STEPS.before) {
+      setStep(PREFILLED_STEPS.after);
+      return;
+    }
     setStep((s) => s + 1);
   }
 
   function prevStep() {
     setError('');
+    if (prefilled && step === PREFILLED_STEPS.after) {
+      setStep(PREFILLED_STEPS.before);
+      return;
+    }
     setStep((s) => s - 1);
   }
 
@@ -318,6 +373,10 @@ export default function ProfileSetupPage() {
       // Clear acquisition source from localStorage after it's been saved to profile
       try { localStorage.removeItem('tundee_src'); } catch { /* ignore */ }
 
+      // The preview answers are now persisted on the profile — drop the cookie
+      // so a later visit doesn't replay stale inputs.
+      clearCookie(PREVIEW_COOKIE);
+
       // Fire profile_completed event — feeds research funnel (signup → profile → match)
       // acquisition_source in metadata lets us measure completion rate by channel
       void logEvent({
@@ -329,7 +388,9 @@ export default function ProfileSetupPage() {
       // regardless of which channel (ad or organic) brought the user in.
       trackSignupComplete();
 
-      router.replace('/scholarships');
+      // Back to wherever the funnel started — for /start traffic that's their
+      // own matched results, not a generic list.
+      router.replace(destination);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[TunDee Setup] exception:', e);

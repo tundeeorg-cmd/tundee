@@ -26,9 +26,14 @@ export async function middleware(request: NextRequest) {
   // Refresh the session keeps the user logged in across page navigations
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Redirect logged-in users away from /auth
+  // Redirect logged-in users away from /auth — honouring ?next= so someone who
+  // matched on /start and is already signed in still lands on their results.
   if (session && request.nextUrl.pathname === '/auth') {
-    return NextResponse.redirect(new URL('/scholarships', request.url))
+    const next = request.nextUrl.searchParams.get('next')
+    const destination = next && next.startsWith('/') && !next.startsWith('//')
+      ? next
+      : '/scholarships'
+    return NextResponse.redirect(new URL(destination, request.url))
   }
 
   // Protect /admin must be logged in (email check happens client-side)

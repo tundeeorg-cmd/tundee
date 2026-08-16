@@ -32,12 +32,18 @@ export function persistAdParams(params: AdParams) {
   }
 }
 
-/** Build the signup URL, forwarding any captured ad params as query params. */
-export function buildSignupHref(adParams: AdParams): string {
+/**
+ * Build the signup URL, forwarding any captured ad params as query params.
+ *
+ * `next` is the post-login destination — pass it so a visitor who matched on
+ * /start lands back on their full results instead of a generic dashboard.
+ */
+export function buildSignupHref(adParams: AdParams, next?: string): string {
   const qs = new URLSearchParams({ from: 'signup' });
   Object.entries(adParams).forEach(([key, value]) => {
     if (value) qs.set(key, value);
   });
+  if (next) qs.set('next', next);
   return `/auth?${qs.toString()}`;
 }
 
@@ -47,6 +53,19 @@ export function trackCTAClick(location: string) {
   window.fbq?.('track', 'Lead');
   window.ttq?.track('ClickButton', { content_name: location });
   window.gtag?.('event', 'generate_lead', { link_id: location });
+}
+
+/**
+ * Fire the "visitor reached real matched results before signing up" event.
+ * This is the mid-funnel signal to optimize ad delivery against, ahead of the
+ * sparser CompleteRegistration event.
+ */
+export function trackPreviewResults(matchCount: number) {
+  if (typeof window === 'undefined') return;
+  window.fbq?.('track', 'Search', { content_category: 'scholarship_preview', num_items: matchCount });
+  window.fbq?.('track', 'ViewContent', { content_category: 'scholarship_preview', num_items: matchCount });
+  window.ttq?.track('Search', { content_type: 'scholarship_preview', quantity: matchCount });
+  window.gtag?.('event', 'view_search_results', { search_term: 'scholarship_preview', num_items: matchCount });
 }
 
 /** Fire the signup-complete conversion event once a profile is actually saved. */
