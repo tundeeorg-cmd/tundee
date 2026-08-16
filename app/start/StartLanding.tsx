@@ -4,6 +4,13 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useScholarshipCount } from '@/lib/useScholarshipCount';
 import { persistAdParams, buildSignupHref, trackCTAClick, type AdParams } from '@/lib/adTracking';
+import PreviewMatcher from './PreviewMatcher';
+
+/** Where a visitor lands after logging in — their full matched results. */
+const POST_LOGIN_DESTINATION = '/scholarships?from=preview';
+
+/** Anchor for the in-page CTAs that send the visitor back up to the matcher. */
+const MATCHER_ANCHOR = 'tundee-matcher';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -48,7 +55,7 @@ function CtaButton({ href, location, children }: { href: string; location: strin
 
 export default function StartLanding({ adParams }: { adParams: AdParams }) {
   const scholarshipCount = useScholarshipCount(90);
-  const ctaHref = buildSignupHref(adParams);
+  const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
 
   useEffect(() => {
     persistAdParams(adParams);
@@ -64,34 +71,30 @@ export default function StartLanding({ adParams }: { adParams: AdParams }) {
         </span>
       </div>
 
-      {/* ── A) Hero ──────────────────────────────────────────────────────────── */}
-      <section className="px-5 pt-8 pb-10 text-center">
+      {/* ── A) Hero + matcher ────────────────────────────────────────────────── */}
+      {/* The matcher sits directly under the headline so it stays above the fold
+          on a phone — cold ad traffic sees real matches before any signup ask. */}
+      <section id={MATCHER_ANCHOR} className="px-5 pt-6 pb-10 text-center scroll-mt-4">
         <p
-          className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-xs font-semibold px-3 py-1.5 rounded-full mb-5"
+          className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-xs font-semibold px-3 py-1.5 rounded-full mb-4"
           style={th}
         >
-          ฟรี · สำหรับนักเรียนไทยทุกคน
+          ฟรี · ไม่ต้องสมัครสมาชิกก่อนดู
         </p>
         <h1
-          className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-4 mx-auto"
-          style={{ ...th, fontSize: 'clamp(1.65rem, 6.5vw, 2.4rem)', lineHeight: 1.4, maxWidth: 480 }}
+          className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3 mx-auto"
+          style={{ ...th, fontSize: 'clamp(1.5rem, 6vw, 2.2rem)', lineHeight: 1.4, maxWidth: 480 }}
         >
-          หาทุนการศึกษาที่คุณ &ldquo;มีสิทธิ์จริง&rdquo; ใน 3 นาที
+          ดูทุนที่คุณ &ldquo;มีสิทธิ์จริง&rdquo; ใน 30 วินาที
         </h1>
         <p
-          className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-8 mx-auto leading-relaxed"
+          className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-6 mx-auto leading-relaxed"
           style={{ ...th, fontSize: 'clamp(0.95rem, 3.5vw, 1.05rem)', maxWidth: 420 }}
         >
-          TunDee ใช้ AI ช่วยค้นหา จัดอันดับ และแนะแนวคุณผ่านทุกทุนที่คุณมีสิทธิ์สมัคร
-          ฟรีทั้งหมด ไม่มีโฆษณา ไม่มีข้อมูลหมดอายุ
+          ตอบแค่ 3 ข้อ แล้วดูผลลัพธ์ทันที — ไม่ต้องสมัครสมาชิก ไม่ต้องจ่ายอะไรเลย
         </p>
 
-        <CtaButton href={ctaHref} location="hero">
-          เริ่มค้นหาทุนฟรี →
-        </CtaButton>
-        <p className="mt-3 text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          ใช้เวลาแค่ 3 นาที · ไม่ต้องจ่ายอะไรเลย
-        </p>
+        <PreviewMatcher signupHref={ctaHref} />
       </section>
 
       {/* ── B) Trust bar ─────────────────────────────────────────────────────── */}
@@ -249,8 +252,10 @@ export default function StartLanding({ adParams }: { adParams: AdParams }) {
         >
           โอกาสของคุณรออยู่แล้ว เริ่มเลยวันนี้
         </h2>
-        <CtaButton href={ctaHref} location="final">
-          เริ่มค้นหาทุนฟรี →
+        {/* Sends the visitor back to the matcher, not to signup — they should
+            see their own matches before we ask for an account. */}
+        <CtaButton href={`#${MATCHER_ANCHOR}`} location="final">
+          ดูทุนที่ฉันมีสิทธิ์ (ฟรี) →
         </CtaButton>
       </section>
 

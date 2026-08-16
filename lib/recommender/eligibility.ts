@@ -7,6 +7,7 @@
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import type { RecommenderProfile } from './types';
+import { normalizeGradeLevel, normalizeScholarshipLevel, levelsAreCompatible } from './gradeLevel';
 
 // Monthly income ceiling per bracket (THB)
 const INCOME_CEILING_MONTHLY: Record<number, number> = {
@@ -18,11 +19,6 @@ const INCOME_CEILING_MONTHLY: Record<number, number> = {
   6: 50_000,
   7: 999_999,
 };
-
-// Grade-level groups for level matching
-const HIGH_SCHOOL_LEVELS = new Set(['M4', 'M5', 'M6', 'm4', 'm5', 'm6']);
-const UNI_LEVELS         = new Set(['uni', 'bachelor', 'undergraduate']);
-const GRAD_LEVELS        = new Set(['graduate', 'master', "master's", 'phd', 'doctoral']);
 
 export interface EligibilityResult {
   eligible: boolean;
@@ -69,23 +65,17 @@ export function isEligible(
     }
   }
 
-  // 6. Level match
-  const schLevel = (s.level ?? '').toLowerCase().trim();
-  if (schLevel && schLevel !== 'multiple' && schLevel !== 'all') {
-    const gradeLevel = profile.grade_level?.toLowerCase() ?? '';
-    const intendedLevel = (profile.intended_level ?? '').toLowerCase();
-
-    const isHighSchool = HIGH_SCHOOL_LEVELS.has(gradeLevel);
-    const isUni        = UNI_LEVELS.has(gradeLevel) || UNI_LEVELS.has(intendedLevel);
-    const isGrad       = GRAD_LEVELS.has(gradeLevel) || GRAD_LEVELS.has(intendedLevel);
-
-    const schIsHighSchool = schLevel.includes('high') || schLevel === 'secondary';
-    const schIsUni        = schLevel.includes('under') || schLevel.includes('bachelor');
-    const schIsGrad       = schLevel.includes('master') || schLevel.includes('phd') || schLevel.includes('doctoral');
-
-    if (schIsHighSchool && !isHighSchool) return { eligible: false, reason: 'level_mismatch' };
-    if (schIsUni        && !isUni && !isHighSchool) return { eligible: false, reason: 'level_mismatch' };
-    if (schIsGrad       && !isGrad) return { eligible: false, reason: 'level_mismatch' };
+  // 6. Level match — both sides go through lib/recommender/gradeLevel.ts so the
+  //    values /profile/setup stores ('M4-M6', 'vocational', …) are understood.
+  const schBucket = normalizeScholarshipLevel(s.level);
+  if (schBucket && schBucket !== 'multiple') {
+    const studentBuckets = [
+      normalizeGradeLevel(profile.grade_level),
+      normalizeGradeLevel(profile.intended_level),
+    ];
+    if (!levelsAreCompatible(schBucket, studentBuckets)) {
+      return { eligible: false, reason: 'level_mismatch' };
+    }
   }
 
   // 7. Field of study — hard mismatch only when scholarship specifies non-"any" fields

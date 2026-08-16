@@ -29,6 +29,36 @@ export function getLineRedirectUri(): string {
   return configured;
 }
 
+/**
+ * Redirect URI for LINE *login* (app/api/auth/line/*), which is a different
+ * callback from the bot-linking one above and must be registered separately in
+ * the LINE Developers Console. Same channel, same byte-identical rule.
+ */
+export function getLineAuthRedirectUri(): string {
+  const configured = process.env.LINE_AUTH_REDIRECT_URI;
+
+  if (!configured) {
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:3000/api/auth/line/callback';
+    }
+    throw new Error(
+      'LINE_AUTH_REDIRECT_URI is not set. Add it to your environment (Vercel → ' +
+      'Production and Preview) — see .env.example. It must exactly match a Callback ' +
+      'URL registered in LINE Developers Console → LINE Login channel.'
+    );
+  }
+
+  const isLocalDev = process.env.NODE_ENV === 'development' && configured.startsWith('http://localhost');
+  if (!configured.startsWith('https://') && !isLocalDev) {
+    throw new Error(
+      `LINE_AUTH_REDIRECT_URI is set to "${configured}", which does not start with https://. ` +
+      'LINE Login requires an HTTPS redirect_uri outside local development.'
+    );
+  }
+
+  return configured;
+}
+
 /** LINE's bot_prompt param — see report item F for what "aggressive" requires. */
 export function getLineBotPrompt(): 'normal' | 'aggressive' {
   const v = process.env.LINE_BOT_PROMPT;

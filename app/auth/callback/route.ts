@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { PREVIEW_COOKIE } from '@/lib/preview/types'
 
 /**
- * Auth callback handles both:
+ * Auth callback handles:
  *  • Magic link / OTP:  URL contains token_hash + type
  *  • Google OAuth:      URL contains code
+ *  • LINE login:        app/api/auth/line/callback hands off a token_hash here
  *
  * After successful session:
- *  • New user (no profile GPA)  → /profile/setup
- *  • Returning user              → /scholarships
+ *  • New user (no profile GPA)  → /profile/setup (prefilled from the /start preview)
+ *  • Returning user              → the `next` param, default /scholarships
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
   const code       = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type       = searchParams.get('type')
-  const next       = searchParams.get('next') ?? '/scholarships'
+  const next       = safeNext(searchParams.get('next'))
 
   const supabase = await createServerSupabaseClient()
 
@@ -52,10 +55,22 @@ export async function GET(request: NextRequest) {
   return NextResponse.redirect(`${origin}/auth?error=auth_failed`)
 }
 
+/** Only same-origin paths are accepted as a post-login destination. */
+function safeNext(raw: string | null): string {
+  if (!raw) return '/scholarships'
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/scholarships'
+  return raw
+}
+
 /**
  * After successful auth, check if user has a complete profile.
  * New users (no GPA set) → /profile/setup
  * Returning users        → the `next` param or /scholarships
+ *
+ * Setup can't be skipped even for visitors who already answered on /start —
+ * step 0 collects the PDPA terms consent. Instead they get `?prefill=1`, which
+ * replays their preview answers into the wizard and skips straight past those
+ * questions, then drops them at `next`.
  */
 async function resolveRedirect(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
@@ -76,7 +91,10 @@ async function resolveRedirect(
 
     if (!profile || profile.gpa == null) {
       // New user or incomplete profile → setup wizard
-      return '/profile/setup'
+      const hasPreview = Boolean((await cookies()).get(PREVIEW_COOKIE)?.value)
+      const params = new URLSearchParams({ next })
+      if (hasPreview) params.set('prefill', '1')
+      return `/profile/setup?${params.toString()}`
     }
 
     return next
