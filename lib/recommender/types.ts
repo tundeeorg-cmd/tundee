@@ -20,6 +20,7 @@
  */
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
+import type { ExplanationOption } from './explanations';
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,12 @@ export interface ScorerResult {
   /** Why recommended — one sentence shown to the student. */
   explanation: string;
   explanation_en: string;
+  /**
+   * Alternative sentences for this scholarship, best first, so recommend() can
+   * keep neighbouring cards distinct. `explanation` is always the first entry
+   * rendered. Optional — custom scorers may omit it and keep their own copy.
+   */
+  explanation_options?: ExplanationOption[];
 }
 
 export interface Scorer {
