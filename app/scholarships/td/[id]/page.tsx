@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { trackViewContent, trackSubmitApplication } from '@/lib/analytics/meta';
 import TrackButton from '@/components/TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 
@@ -188,7 +189,12 @@ export default function TdScholarshipDetailPage() {
       if (error || !data) {
         setNotFound(true);
       } else {
-        setScholarship(data as unknown as TdScholarship);
+        const row = data as unknown as TdScholarship;
+        setScholarship(row);
+        trackViewContent({
+          contentIds:  [id],
+          contentName: row.scholarship_name_th || row.scholarship_name_en || undefined,
+        });
         const { data: { user } } = await supabase.auth.getUser();
         logFunnelEvent({ eventType: 'view_detail', scholarshipId: id, userId: user?.id ?? null });
       }
@@ -310,6 +316,9 @@ export default function TdScholarshipDetailPage() {
 
   // Apply click handler
   function handleApplyClick() {
+    // Fired synchronously: the link opens a new tab and this component may stop
+    // being interacted with immediately after.
+    trackSubmitApplication({ scholarshipId: s.scholarship_id });
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       logFunnelEvent({ eventType: 'click_apply', scholarshipId: s.scholarship_id, userId: user?.id ?? null });

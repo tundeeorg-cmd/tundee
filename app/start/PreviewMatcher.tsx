@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import { PREVIEW_LEVELS, type PreviewInput, type PreviewResponse } from '@/lib/preview/types';
 import { PROVINCES_TH } from '@/lib/translations';
+import { trackPreviewSearch } from '@/lib/adTracking';
 import PreviewResults from './PreviewResults';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
@@ -71,6 +72,15 @@ export default function PreviewMatcher({ signupHref }: { signupHref: string }) {
     if (!input) return;
 
     setStatus('loading');
+
+    // Search fires on intent, before the result is known — a visitor who
+    // searched and got nothing is still a signal worth optimizing against.
+    trackPreviewSearch({
+      educationLevel: input.level,
+      gpa:            input.gpa,
+      province:       input.province,
+    });
+
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(input));
     } catch {
