@@ -89,7 +89,7 @@ function rateLimited(ip: string): boolean {
 function buildProfile(input: PreviewInput): RecommenderProfile {
   return {
     user_id:               'anonymous-preview',
-    province_id:           input.province,
+    province:              input.province,
     income_bracket:        4,
     gpa:                   input.gpa,
     grade_level:           input.level,

@@ -28,7 +28,7 @@ export interface RecommenderProfile {
   user_id: string;
 
   // From profiles table
-  province_id: string;         // Thai province name, e.g. 'เชียงใหม่'
+  province: string;            // Thai province name, e.g. 'เชียงใหม่'
   income_bracket: number;      // 1–7 (mapped to monthly THB ceilings)
   gpa: number;
   grade_level: string;         // 'M4'|'M5'|'M6'|'uni'|'graduate'

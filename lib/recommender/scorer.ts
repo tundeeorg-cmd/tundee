@@ -85,7 +85,7 @@ function computeRegionScore(s: TdScholarship, profile: RecommenderProfile): { sc
   }
 
   const studentRegion = (profile.region ?? '').toLowerCase();
-  const province      = profile.province_id ?? '';
+  const province      = profile.province ?? '';
   const isNE = studentRegion === 'northeast' || NORTHEAST_PROVINCES.has(province);
   const isSouth = studentRegion === 'south' || SOUTH_PROVINCES.has(province);
 

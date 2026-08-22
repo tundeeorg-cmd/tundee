@@ -2,7 +2,7 @@
  * Shared contract for the logged-out /start preview matcher.
  *
  * The three inputs are deliberately the same three values /profile/setup stores
- * (`grade_level`, `gpa`, `province_id`) so a visitor's preview answers can be
+ * (`grade_level`, `gpa`, `province`) so a visitor's preview answers can be
  * replayed into the signup wizard without any re-typing.
  */
 

@@ -45,7 +45,7 @@ const INCOME_CEILING: Record<number, number> = {
 // Both conditions required rural alone or low-income alone is insufficient
 // to trigger the correction, avoiding over-correction.
 export function classifyDemographic(profile: StudentProfile): 'disadvantaged' | 'advantaged' {
-  const isRural = NORTHEAST_PROVINCES.has(profile.province_id)
+  const isRural = NORTHEAST_PROVINCES.has(profile.province)
   const isLowIncome = profile.income_bracket <= 3  // Under 15,000 THB/month
   return (isRural && isLowIncome) ? 'disadvantaged' : 'advantaged'
 }
@@ -169,7 +169,7 @@ function scoreScholarship(
     score += 0.8
     reasons.push('เปิดรับนักเรียนจากทุกจังหวัดทั่วประเทศ')
     reasons_en.push('Open to students from all provinces (national)')
-  } else if (scholProvinces.includes(profile.province_id)) {
+  } else if (scholProvinces.includes(profile.province)) {
     score += 1.0
     reasons.push('จังหวัดของคุณมีสิทธิ์สมัครทุนนี้')
     reasons_en.push('Your province is specifically eligible for this scholarship')

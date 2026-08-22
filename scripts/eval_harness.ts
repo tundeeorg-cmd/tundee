@@ -37,7 +37,7 @@ function makeProfile(index: number, rng: () => number): RecommenderProfile {
   const isDisadvantaged = index % 2 === 0;   // alternating for balanced split
   return {
     user_id:               `synthetic-user-${index}`,
-    province_id:           isDisadvantaged ? NORTHEAST_PROVINCE : BANGKOK_PROVINCE,
+    province:              isDisadvantaged ? NORTHEAST_PROVINCE : BANGKOK_PROVINCE,
     income_bracket:        isDisadvantaged ? Math.floor(rng() * 3) + 1 : Math.floor(rng() * 3) + 4,
     gpa:                   2.5 + rng() * 1.5,
     grade_level:           'uni',

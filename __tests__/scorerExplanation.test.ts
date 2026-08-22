@@ -44,7 +44,7 @@ function makeScholarship(overrides: Partial<TdScholarship> = {}): TdScholarship 
 function makeProfile(overrides: Partial<RecommenderProfile> = {}): RecommenderProfile {
   return {
     user_id:               'test-user',
-    province_id:           'ขอนแก่น',
+    province:              'ขอนแก่น',
     income_bracket:        4,
     gpa:                   3.25,
     grade_level:           'M4-M6',
@@ -143,7 +143,7 @@ describe('explanation copy', () => {
     // match every region-restricted scholarship.
     const r = scorer.score(
       makeScholarship({ region_eligibility: 'Northeast' }),
-      makeProfile({ province_id: 'กรุงเทพมหานคร', region: null }),
+      makeProfile({ province: 'กรุงเทพมหานคร', region: null }),
     );
     expect(r!.reasons).not.toContain('ภูมิภาคตรงกัน');
     expect(r!.explanation).not.toContain('ภูมิภาค');
@@ -152,7 +152,7 @@ describe('explanation copy', () => {
   it('does not claim a region match when province is blank too', () => {
     const r = scorer.score(
       makeScholarship({ region_eligibility: 'Northeast' }),
-      makeProfile({ province_id: '', region: null }),
+      makeProfile({ province: '', region: null }),
     );
     expect(r!.reasons).not.toContain('ภูมิภาคตรงกัน');
   });
@@ -160,7 +160,7 @@ describe('explanation copy', () => {
   it('still matches a genuine region hit', () => {
     const r = scorer.score(
       makeScholarship({ region_eligibility: 'Northeast' }),
-      makeProfile({ province_id: 'ขอนแก่น', region: null }),
+      makeProfile({ province: 'ขอนแก่น', region: null }),
     );
     expect(r!.reasons).toContain('ภูมิภาคตรงกัน');
   });

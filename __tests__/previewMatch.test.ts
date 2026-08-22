@@ -47,7 +47,7 @@ function makeScholarship(overrides: Partial<TdScholarship> = {}): TdScholarship 
 function previewProfile(overrides: Partial<RecommenderProfile> = {}): RecommenderProfile {
   return {
     user_id:               'anonymous-preview',
-    province_id:           'ขอนแก่น',
+    province:              'ขอนแก่น',
     income_bracket:        4,
     gpa:                   3.25,
     grade_level:           'M4-M6',

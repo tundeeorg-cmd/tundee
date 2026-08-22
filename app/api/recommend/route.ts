@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   // Build merged recommender profile (graceful defaults for incomplete profiles)
   const profile: RecommenderProfile = {
     user_id:               user.id,
-    province_id:           profileRow?.province ?? '',
+    province:              profileRow?.province ?? '',
     income_bracket:        Number(profileRow?.income_bracket ?? 4),
     gpa:                   parseFloat(String(profileRow?.gpa ?? '3.0')),
     grade_level:           profileRow?.grade_level ?? '',

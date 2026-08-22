@@ -2,7 +2,7 @@
 // Student profile and matching result types for the TunDee fairness engine.
 
 export interface StudentProfile {
-  province_id: string            // Thai province name e.g. 'ขอนแก่น'
+  province: string               // Thai province name e.g. 'ขอนแก่น'
   income_bracket: number         // 1-7 (1=lowest <5k THB/mo, 7=highest >50k)
   gpa: number                    // 0.00-4.00
   fields_of_interest: string[]   // ['any'] or ['วิศวกรรมศาสตร์','แพทยศาสตร์',...]

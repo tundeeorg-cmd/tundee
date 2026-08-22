@@ -90,7 +90,7 @@ function clearCookie(name: string) {
 /**
  * Drops undefined keys so an upsert never overwrites a stored value with null.
  *
- * Since /auth/callback now writes grade_level, province_id, gpa and consent for
+ * Since /auth/callback now writes grade_level, province, gpa and consent for
  * anyone arriving from the /start preview, reopening this wizard with empty state
  * would otherwise wipe exactly the fields that made onboarding skippable.
  */

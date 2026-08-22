@@ -11,7 +11,7 @@ import type { Scholarship } from '@/lib/types'
 
 // ── Ploy's hardcoded profile ──────────────────────────────────────────────────
 const PLOY_PROFILE: StudentProfile = {
-  province_id: 'สุรินทร์', // Surin (northeast) use Thai name to match engine's NORTHEAST_PROVINCES set
+  province: 'สุรินทร์', // Surin (northeast) use Thai name to match engine's NORTHEAST_PROVINCES set
   income_bracket: 2,         // 5,001–10,000 THB/month
   gpa: 3.4,
   fields_of_interest: ['medicine', 'science'],

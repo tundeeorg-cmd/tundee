@@ -52,7 +52,7 @@ function makeScholarship(overrides: Partial<TdScholarship> = {}): TdScholarship 
 function makeProfile(overrides: Partial<RecommenderProfile> = {}): RecommenderProfile {
   return {
     user_id:               'test-user',
-    province_id:           'กรุงเทพมหานคร',
+    province:              'กรุงเทพมหานคร',
     income_bracket:        4,
     gpa:                   3.5,
     grade_level:           'uni',

@@ -25,7 +25,7 @@ type BrowseSortKey = 'deadline' | 'name' | 'tier';
 type MinScore     = 0 | 0.5 | 0.7 | 0.9;
 
 interface StudentProfile {
-  province_id: string;
+  province: string;
   income_bracket: number;
   gpa: number;
   fields_of_interest: string[];
@@ -414,7 +414,7 @@ export default function BrowsePage() {
           setUserResearchContext(arm, incomeBracket);
           getOrAssignVariant(authUser.id, RANKING_EXPERIMENT).then(v => setExperimentVariant(v));
           setUserProfile({
-            province_id:        profile.province         ?? '',
+            province:           profile.province         ?? '',
             income_bracket:     incomeBracket,
             gpa:                parseFloat(profile.gpa ?? '3.0'),
             fields_of_interest: profile.fields_of_interest ?? ['any'],
@@ -434,7 +434,7 @@ export default function BrowsePage() {
     if (!userProfile || !tdScholarships.length) return [];
     const recProfile: RecommenderProfile = {
       user_id:               user?.id ?? '',
-      province_id:           userProfile.province_id,
+      province:              userProfile.province,
       income_bracket:        userProfile.income_bracket,
       gpa:                   userProfile.gpa,
       grade_level:           userProfile.grade_level,
