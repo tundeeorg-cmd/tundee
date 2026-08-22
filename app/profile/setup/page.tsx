@@ -30,11 +30,11 @@ import { logEvent } from '@/lib/research/events';
 import { trackSignupComplete } from '@/lib/adTracking';
 import { signupMethodFrom } from '@/lib/analytics/meta';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
+import { CONSENT_VERSION } from '@/lib/consent';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 9;
-const CONSENT_VERSION = '1.0';
 
 const GRADE_OPTIONS = [
   { value: 'M1-M3',     th: 'ม.1–3',        en: 'Grade 7–9' },
@@ -85,6 +85,19 @@ function readCookie(name: string): string | null {
 function clearCookie(name: string) {
   if (typeof document === 'undefined') return;
   document.cookie = `${name}=; Max-Age=0; path=/`;
+}
+
+/**
+ * Drops undefined keys so an upsert never overwrites a stored value with null.
+ *
+ * Since /auth/callback now writes grade_level, province_id, gpa and consent for
+ * anyone arriving from the /start preview, reopening this wizard with empty state
+ * would otherwise wipe exactly the fields that made onboarding skippable.
+ */
+function compact<T extends Record<string, unknown>>(o: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(o).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
 }
 
 // ─── Helper: determine signup cohort from Thai province name or TH-XX code ───
@@ -315,28 +328,31 @@ export default function ProfileSetupPage() {
 
       const gpaNum = gpa ? parseFloat(gpa) : null;
 
-      const payload = {
+      const payload = compact({
         id:                          user.id,
-        display_name:                displayName.trim() || null,
-        grade_level:                 gradeLevel || null,
-        province_id:                 province || null,
-        gpa:                         gpaNum,
+        // undefined, not null: these may already be set by /auth/callback from
+        // the /start preview, and must not be wiped by an empty wizard field.
+        display_name:                displayName.trim() || undefined,
+        grade_level:                 gradeLevel || undefined,
+        province_id:                 province || undefined,
+        gpa:                         gpaNum ?? undefined,
         income_bracket:              incomeBracket,
         welfare_card:                welfareCard,
         fields_of_interest:          selectedFields.length > 0 ? selectedFields : ['any'],
         // Research fields
         prior_scholarship_knowledge: priorKnowledge !== null ? priorKnowledge : null,
         recruitment_source:          recruitmentSource || 'unknown',
-        signup_cohort:               province ? determineSignupCohort(province) : 'wave_3_national',
-        // Consent (PDPA)
-        consent_version:             consentTerms ? CONSENT_VERSION : null,
-        consent_at:                  consentTerms ? new Date().toISOString() : null,
+        signup_cohort:               province ? determineSignupCohort(province) : undefined,
+        // Consent (PDPA). undefined when unticked here, because consent may
+        // already have been recorded on /auth — never downgrade it to null.
+        consent_version:             consentTerms ? CONSENT_VERSION : undefined,
+        consent_at:                  consentTerms ? new Date().toISOString() : undefined,
         research_opt_in:             researchOptIn,
         guardian_acknowledged:       guardianAcknowledged,
         // Channel attribution (from /students?src= landing page)
         acquisition_source:          acquisitionSource,
         updated_at:                  new Date().toISOString(),
-      };
+      });
 
       console.log('[TunDee Setup] upserting profile for', user.id);
 

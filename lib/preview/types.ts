@@ -11,8 +11,20 @@ import { PROVINCES_TH } from '@/lib/translations';
 /** Cookie carrying the visitor's answers across the signup redirect. */
 export const PREVIEW_COOKIE = 'tundee_preview';
 
-/** 30 minutes — long enough to finish signup, short enough not to linger. */
-export const PREVIEW_COOKIE_MAX_AGE = 60 * 30;
+/**
+ * 24 hours. Was 30 minutes, which expired mid-signup: an OAuth detour plus any
+ * hesitation lost the answers, and /profile/setup then re-asked all three — the
+ * bug this exists to remove. The payload is non-sensitive (education level, GPA,
+ * province) and is re-validated through parsePreviewInput on every read, so a
+ * forged value can only decode to something the visitor could have typed anyway.
+ */
+export const PREVIEW_COOKIE_MAX_AGE = 60 * 60 * 24;
+
+/**
+ * Query-param name carrying the same answers through an email magic link, which
+ * is frequently opened in a different browser from the one that set the cookie.
+ */
+export const PREVIEW_PARAM = 'p';
 
 /** How many full, unlocked cards a logged-out visitor sees. */
 export const PREVIEW_TOP_N = 3;
