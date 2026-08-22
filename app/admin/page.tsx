@@ -16,6 +16,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, formatAwardRate,
+  type AwardRow, type AwardStats, type OutcomeStatus,
+} from '@/lib/admin/awards';
+import { PROVINCES, regionLabel } from '@/lib/studentProfile';
+import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -50,7 +55,23 @@ function provinceName(id: string): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'list' | 'add' | 'analytics' | 'import' | 'td-list' | 'td-import';
+type Tab = 'list' | 'add' | 'analytics' | 'import' | 'td-list' | 'td-import' | 'awards';
+
+const OUTCOME_PILL: Record<string, string> = {
+  awarded:     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  applied:     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  waiting:     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  rejected:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  not_applied: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  unknown:     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+};
+
+const REGIONS = ['Bangkok', 'Central', 'North', 'Northeast', 'South', 'East', 'West'] as const;
+
+const EMPTY_OUTCOME_FORM = {
+  user_id: '', scholarship_id: '', status: 'awarded' as OutcomeStatus,
+  amount_thb: '', note: '',
+};
 type ImportUIState = 'upload' | 'preview' | 'importing' | 'done';
 type SortField = 'created_at' | 'amount_thb' | 'name_th';
 type Range = '7' | '30' | '90' | '365';
@@ -204,6 +225,31 @@ export default function AdminPage() {
   const [mounted,           setMounted]           = useState(false);   // hydration guard for recharts
   // Research data
   const [eventCount,        setEventCount]        = useState(0);
+
+  // ── Awards / ผลการได้ทุน tab ───────────────────────────────────────────────
+  const [awards,        setAwards]        = useState<AwardRow[]>([]);
+  const [awardsLoading, setAwardsLoading] = useState(false);
+  const [awardsError,   setAwardsError]   = useState('');
+  const [awardStats,    setAwardStats]    = useState<AwardStats | null>(null);
+
+  // Filters
+  const [fStatus,   setFStatus]   = useState('');
+  const [fProvince, setFProvince] = useState('');
+  const [fRegion,   setFRegion]   = useState('');
+  const [fFrom,     setFFrom]     = useState('');
+  const [fTo,       setFTo]       = useState('');
+  const [fSearch,   setFSearch]   = useState('');
+
+  // Manual "Add outcome" form
+  const [outcomeForm,   setOutcomeForm]   = useState(EMPTY_OUTCOME_FORM);
+  const [outcomeSaving, setOutcomeSaving] = useState(false);
+  const [showAddForm,   setShowAddForm]   = useState(false);
+
+  // LINE survey trigger
+  const [surveyUserId,        setSurveyUserId]        = useState('');
+  const [surveyScholarshipId, setSurveyScholarshipId] = useState('');
+  const [surveyForce,         setSurveyForce]         = useState(false);
+  const [surveySending,       setSurveySending]       = useState(false);
 
   // ── Import tab ──────────────────────────────────────────────────────────────
   const [importUIState,    setImportUIState]    = useState<ImportUIState>('upload');
@@ -399,6 +445,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (authorized && tab === 'td-list') fetchTdScholarships();
+    if (authorized && tab === 'awards') { fetchAwards(); fetchAwardStats(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authorized, tab]);
 
@@ -546,6 +593,112 @@ export default function AdminPage() {
     setTdReport(null);
     setTdImportResult(null);
     setTdImportError('');
+  }
+
+  // ── Awards / ผลการได้ทุน tab ───────────────────────────────────────────────
+
+  /** Current filters as a query string — shared by the table and the CSV export. */
+  const awardQuery = useCallback(() => {
+    const p = new URLSearchParams();
+    if (fStatus)   p.set('status', fStatus);
+    if (fProvince) p.set('province', fProvince);
+    if (fRegion)   p.set('region', fRegion);
+    if (fFrom)     p.set('from', fFrom);
+    if (fTo)       p.set('to', fTo);
+    if (fSearch)   p.set('search', fSearch);
+    return p.toString();
+  }, [fStatus, fProvince, fRegion, fFrom, fTo, fSearch]);
+
+  const fetchAwards = useCallback(async () => {
+    setAwardsLoading(true);
+    try {
+      // Read via the admin API: outcomes is RLS-limited to own-row reads, so
+      // the browser client would come back empty.
+      const res  = await fetch(`/api/admin/outcomes?${awardQuery()}`);
+      const json = await res.json();
+      if (!res.ok) setAwardsError(json.error ?? res.statusText);
+      else { setAwardsError(''); setAwards((json.rows ?? []) as AwardRow[]); }
+    } catch (err) {
+      setAwardsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAwardsLoading(false);
+    }
+  }, [awardQuery]);
+
+  const fetchAwardStats = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/admin/outcomes/stats');
+      const json = await res.json();
+      if (res.ok) setAwardStats(json as AwardStats);
+    } catch { /* tiles are best-effort — the table still works without them */ }
+  }, []);
+
+  /** Log an outcome the admin learned about offline (source='admin'). */
+  async function handleAddOutcome(e: React.FormEvent) {
+    e.preventDefault();
+    if (!outcomeForm.user_id.trim() || !outcomeForm.scholarship_id.trim()) {
+      showToast('Enter both a user ID and a scholarship ID');
+      return;
+    }
+    setOutcomeSaving(true);
+    try {
+      const res = await fetch('/api/admin/outcomes', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          user_id:        outcomeForm.user_id.trim(),
+          scholarship_id: outcomeForm.scholarship_id.trim(),
+          status:         outcomeForm.status,
+          amount_thb:     outcomeForm.amount_thb === '' ? null : outcomeForm.amount_thb,
+          note:           outcomeForm.note,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showToast('✅ บันทึกแล้ว / Outcome saved');
+        setOutcomeForm(EMPTY_OUTCOME_FORM);
+        setShowAddForm(false);
+        fetchAwards(); fetchAwardStats();
+      } else {
+        showToast(`⚠️ ${json.error ?? res.statusText}`);
+      }
+    } catch (err) {
+      showToast(`⚠️ ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setOutcomeSaving(false);
+    }
+  }
+
+  /** Manually push the LINE outcome survey to one student. */
+  async function handleSendSurvey() {
+    if (!surveyUserId.trim() || !surveyScholarshipId.trim()) {
+      showToast('Enter both a user ID and a scholarship ID');
+      return;
+    }
+    setSurveySending(true);
+    try {
+      const res = await fetch('/api/admin/line-survey', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          user_id:        surveyUserId.trim(),
+          scholarship_id: surveyScholarshipId.trim(),
+          force:          surveyForce,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.sent) {
+        showToast('✅ Survey sent');
+        setSurveyUserId(''); setSurveyScholarshipId('');
+        fetchAwards();
+      } else {
+        showToast(`⚠️ Not sent: ${json.reason ?? json.error ?? res.statusText}`);
+      }
+    } catch (err) {
+      showToast(`⚠️ ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSurveySending(false);
+    }
   }
 
   // ── Verification helpers ──────────────────────────────────────────────────
@@ -730,6 +883,7 @@ export default function AdminPage() {
           {([
             { key: 'td-list',   label: '🗂️ Scholarships' },
             { key: 'td-import', label: '📤 Import' },
+            { key: 'awards',    label: '🎓 Awards / ผลการได้ทุน' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button
               key={key}
@@ -1827,6 +1981,253 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB AWARDS / ผลการได้ทุน
+            Summary tiles, filters, the users ↔ outcomes table, a manual
+            "Add outcome" form, the consent-gated CSV export, and the LINE
+            survey trigger.
+        ════════════════════════════════════════════════════════════════ */}
+        {tab === 'awards' && (
+          <div className="space-y-6">
+
+            {/* ── Summary tiles ─────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <StatCard label="สมัครสมาชิก / Signups"      value={awardStats?.total_signups ?? 0} icon="👥" />
+              <StatCard label="กดสมัครทุน / Apply clicks"   value={awardStats?.total_apply_clicks ?? 0} icon="🖱️" />
+              <StatCard label="ได้รับทุน / Awarded"         value={awardStats?.total_awarded ?? 0} icon="🎓" accent />
+              <StatCard label="มูลค่ารวม / Total THB"       value={(awardStats?.total_thb_awarded ?? 0).toLocaleString('en-US')} icon="฿" />
+              <StatCard label="อัตราได้ทุน / Award rate"    value={formatAwardRate(awardStats?.award_rate ?? null)} icon="📈" />
+            </div>
+
+            {/* ── Filters ───────────────────────────────────────────────── */}
+            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                <input
+                  type="text" placeholder="ค้นหา / Search name, email, scholarship…"
+                  value={fSearch} onChange={e => setFSearch(e.target.value)}
+                  className="lg:col-span-2 px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white"
+                />
+                <select value={fStatus} onChange={e => setFStatus(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white">
+                  <option value="">สถานะทั้งหมด / All statuses</option>
+                  {OUTCOME_STATUSES.map(st => (
+                    <option key={st} value={st}>{STATUS_LABELS[st].th} / {STATUS_LABELS[st].en}</option>
+                  ))}
+                </select>
+                <select value={fRegion} onChange={e => setFRegion(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white">
+                  <option value="">ทุกภาค / All regions</option>
+                  {REGIONS.map(r => (
+                    <option key={r} value={r}>{regionLabel(r, 'th')} / {r}</option>
+                  ))}
+                </select>
+                <select value={fProvince} onChange={e => setFProvince(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white">
+                  <option value="">ทุกจังหวัด / All provinces</option>
+                  {PROVINCES.map(pv => (
+                    <option key={pv.value} value={pv.value}>{pv.th} / {pv.en}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input type="date" value={fFrom} onChange={e => setFFrom(e.target.value)}
+                    className="w-full px-2 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                  <input type="date" value={fTo} onChange={e => setFTo(e.target.value)}
+                    className="w-full px-2 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 mt-3">
+                <button onClick={() => { fetchAwards(); fetchAwardStats(); }} disabled={awardsLoading}
+                  className="px-4 py-2 rounded-lg bg-[#2E6BE6] text-white text-sm font-medium disabled:opacity-50 hover:bg-[#2558BF] transition-colors">
+                  {awardsLoading ? <Spinner /> : 'ค้นหา / Apply filters'}
+                </button>
+                <button
+                  onClick={() => { setFStatus(''); setFProvince(''); setFRegion(''); setFFrom(''); setFTo(''); setFSearch(''); }}
+                  className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#1D1D1F] dark:text-white">
+                  ล้าง / Clear
+                </button>
+                <div className="flex-1" />
+                <button onClick={() => setShowAddForm(v => !v)}
+                  className="px-4 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm font-medium text-[#1D1D1F] dark:text-white">
+                  {showAddForm ? '× ปิด / Close' : '➕ บันทึกผลทุน / Add outcome'}
+                </button>
+                <a href={`/api/admin/outcomes/export?${awardQuery()}`}
+                  className="px-4 py-2 rounded-lg bg-[#1D1D1F] dark:bg-white text-white dark:text-[#1D1D1F] text-sm font-medium hover:opacity-90 transition-opacity">
+                  ⬇︎ ส่งออก CSV / Export CSV
+                </a>
+              </div>
+
+              <p className="mt-3 text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                🔒 การส่งออกมีเฉพาะผู้ที่ยินยอมให้ใช้ข้อมูลเพื่อการวิจัย และรหัสผู้ใช้ถูกเข้ารหัสแบบไม่ระบุตัวตน ·
+                Export includes only students who consented to research use; user IDs are pseudonymised.
+              </p>
+            </div>
+
+            {/* ── Manual "Add outcome" ──────────────────────────────────── */}
+            {showAddForm && (
+              <form onSubmit={handleAddOutcome}
+                className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-5">
+                <SectionHead>บันทึกผลทุนด้วยตนเอง / Add outcome</SectionHead>
+                <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-4">
+                  บันทึกเป็น source=&apos;admin&apos; · Saved with source=&apos;admin&apos;. Re-saving the same
+                  student and scholarship updates the existing record rather than duplicating it.
+                  Research consent can only be granted by the student, never here.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">ผู้ใช้ / User ID</label>
+                    <input type="text" required value={outcomeForm.user_id} placeholder="uuid"
+                      onChange={e => setOutcomeForm({ ...outcomeForm, user_id: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">ทุน / Scholarship ID</label>
+                    <input type="text" required value={outcomeForm.scholarship_id} placeholder="TD-0001"
+                      onChange={e => setOutcomeForm({ ...outcomeForm, scholarship_id: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">สถานะ / Status</label>
+                    <select value={outcomeForm.status}
+                      onChange={e => setOutcomeForm({ ...outcomeForm, status: e.target.value as OutcomeStatus })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white">
+                      {OUTCOME_STATUSES.map(st => (
+                        <option key={st} value={st}>{STATUS_LABELS[st].th} / {STATUS_LABELS[st].en}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">จำนวนเงิน / Amount (THB)</label>
+                    <input type="number" min="0" step="1" value={outcomeForm.amount_thb} placeholder="50000"
+                      onChange={e => setOutcomeForm({ ...outcomeForm, amount_thb: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">หมายเหตุ / Note</label>
+                    <input type="text" value={outcomeForm.note}
+                      onChange={e => setOutcomeForm({ ...outcomeForm, note: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] text-[#1D1D1F] dark:text-white" />
+                  </div>
+                </div>
+                <button type="submit" disabled={outcomeSaving}
+                  className="mt-4 px-5 py-2 rounded-lg bg-[#2E6BE6] text-white text-sm font-medium disabled:opacity-50 hover:bg-[#2558BF] transition-colors">
+                  {outcomeSaving ? <Spinner /> : 'บันทึก / Save outcome'}
+                </button>
+              </form>
+            )}
+
+            {/* ── LINE survey trigger ───────────────────────────────────── */}
+            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-5">
+              <SectionHead>ส่งแบบสอบถามทาง LINE / Send LINE survey</SectionHead>
+              <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93] mb-4">
+                ถามนักเรียนว่าได้รับทุนหรือไม่ · Pushes the outcome question with four quick replies.
+                The student must have a linked LINE account. Skipped if they were asked about the same
+                scholarship in the last 30 days, unless you override.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">ผู้ใช้ / User ID</label>
+                  <input type="text" value={surveyUserId} placeholder="uuid"
+                    onChange={e => setSurveyUserId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white" />
+                </div>
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1">ทุน / Scholarship ID</label>
+                  <input type="text" value={surveyScholarshipId} placeholder="TD-0001"
+                    onChange={e => setSurveyScholarshipId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E5E5EA] dark:border-[#3A3A3C] text-sm bg-white dark:bg-[#232B3E] focus:outline-none focus:ring-2 focus:ring-[#2E6BE6] text-[#1D1D1F] dark:text-white" />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-[#6E6E73] dark:text-[#8E8E93] pb-2">
+                  <input type="checkbox" checked={surveyForce} onChange={e => setSurveyForce(e.target.checked)} />
+                  ข้ามกฎ 30 วัน / Override 30-day guard
+                </label>
+                <button onClick={handleSendSurvey} disabled={surveySending}
+                  className="px-5 py-2 rounded-lg bg-[#2E6BE6] text-white text-sm font-medium disabled:opacity-50 hover:bg-[#2558BF] transition-colors">
+                  {surveySending ? <Spinner /> : 'ส่งแบบสอบถาม / Send'}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Awards table ──────────────────────────────────────────── */}
+            <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] overflow-hidden">
+              <div className="flex flex-wrap gap-3 items-center p-4 border-b border-[#E5E5EA] dark:border-[#3A3A3C]">
+                <SectionHead>ผลการได้ทุน / Outcomes</SectionHead>
+                <span className="text-sm text-[#6E6E73] dark:text-[#8E8E93]">
+                  {awards.length} {awards.length === 1 ? 'record' : 'records'}
+                </span>
+              </div>
+
+              {awardsError && (
+                <p className="px-4 py-3 text-sm text-red-600">
+                  {awardsError} — run scripts/20260822_v14_line_outcome_survey.sql and
+                  scripts/20260823_v15_admin_awards.sql in Supabase.
+                </p>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#F5F5F7] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93]">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">ผู้ใช้ / Student</th>
+                      <th className="px-3 py-2 text-left font-medium">ทุน / Scholarship</th>
+                      <th className="px-3 py-2 text-center font-medium">สถานะ / Status</th>
+                      <th className="px-3 py-2 text-right font-medium">จำนวนเงิน / Amount</th>
+                      <th className="px-3 py-2 text-left font-medium">จังหวัด / Province</th>
+                      <th className="px-3 py-2 text-left font-medium">ระดับ / Level</th>
+                      <th className="px-3 py-2 text-left font-medium">วันที่ / Reported</th>
+                      <th className="px-3 py-2 text-center font-medium">ที่มา / Source</th>
+                      <th className="px-3 py-2 text-center font-medium">ยินยอม / Consent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {awards.map(a => (
+                      <tr key={a.id} className="border-t border-[#E5E5EA] dark:border-[#3A3A3C]">
+                        <td className="px-3 py-2 max-w-[200px] text-[#1D1D1F] dark:text-white">
+                          <div className="truncate" title={a.display_name ?? a.user_id}>
+                            {a.display_name ?? '—'}
+                          </div>
+                          <div className="truncate text-xs text-[#6E6E73] dark:text-[#8E8E93]" title={a.email ?? ''}>
+                            {a.email ?? a.user_id.slice(0, 8)}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 max-w-[220px] truncate text-[#1D1D1F] dark:text-white"
+                            title={a.scholarship_name ?? a.scholarship_id}>
+                          {a.scholarship_name ?? a.scholarship_id}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${OUTCOME_PILL[a.status] ?? ''}`}>
+                            {STATUS_LABELS[a.status]?.th ?? a.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[#1D1D1F] dark:text-white">
+                          {a.amount_thb === null ? '—' : a.amount_thb.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">
+                          {a.province ?? '—'}
+                          {a.region && <span className="block text-xs">{regionLabel(a.region, 'th')}</span>}
+                        </td>
+                        <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93]">{a.education_level ?? '—'}</td>
+                        <td className="px-3 py-2 text-[#6E6E73] dark:text-[#8E8E93] whitespace-nowrap">
+                          {a.reported_at.slice(0, 10)}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+                          {SOURCE_LABELS[a.source]?.en ?? a.source}
+                        </td>
+                        <td className="px-3 py-2 text-center">{a.consent_research ? '✅' : '—'}</td>
+                      </tr>
+                    ))}
+                    {!awardsLoading && awards.length === 0 && (
+                      <tr><td colSpan={9} className="px-3 py-8 text-center text-[#6E6E73] dark:text-[#8E8E93]">
+                        ยังไม่มีข้อมูล / No outcomes match these filters.
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

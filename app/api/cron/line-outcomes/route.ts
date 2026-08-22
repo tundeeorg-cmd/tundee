@@ -1,10 +1,17 @@
 /**
  * GET|POST /api/cron/line-outcomes
  * Vercel Cron — runs daily at 01:00 UTC (08:00 Asia/Bangkok).
- * Asks students (via LINE quick-reply) whether they were awarded a
- * scholarship they tracked, at OUTCOME_OFFSETS days after its deadline.
  *
- * Vercel Cron Jobs invoke the path with a GET request (auto-attaching
+ * Sends the LINE outcome survey to students whose tracked scholarship's result
+ * window has passed and whose outcome is still unknown, and re-asks anyone who
+ * previously answered "ยังรอผลอยู่" (waiting) once their re-ask date arrives.
+ *
+ * Guards:
+ *   - never re-ask the same (user, scholarship) inside MIN_RESURVEY_GAP_DAYS (30)
+ *   - at most SURVEY_MAX_PER_USER_PER_DAY pushes per user per run (default 1)
+ *   - never start a second survey while one conversation is still open
+ *
+ * Vercel Cron Jobs invoke the path with GET (auto-attaching
  * `Authorization: Bearer $CRON_SECRET`); POST is also supported for manual
  * triggering/testing.
  *
@@ -13,6 +20,8 @@
  *   SUPABASE_SERVICE_ROLE_KEY
  *   LINE_CHANNEL_ACCESS_TOKEN
  *   OUTCOME_OFFSETS  (optional, default "30,60,90")
+ *   SURVEY_REASK_DAYS (optional, default 30)
+ *   SURVEY_MAX_PER_USER_PER_DAY (optional, default 1)
  *   OUTCOME_FOLLOWUP_INCENTIVE_NOTE (optional, appended to the message)
  */
 
@@ -21,8 +30,15 @@ export const runtime = 'nodejs';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { bangkokMidnight } from '@/lib/tdScholarships/displayGate';
-import { linePush } from '@/lib/line/push';
-import { parseOutcomeOffsets, shouldSendOutcomeFollowup, buildOutcomeFollowupMessage } from '@/lib/line/outcomes';
+import {
+  sendOutcomeSurvey,
+  shouldSendSurvey,
+  parseSurveyOffsets,
+  parseMaxPerUserPerDay,
+  isReaskDue,
+  OPEN_SURVEY_STATES,
+  type SurveyState,
+} from '@/lib/line/survey';
 
 function makeDb() {
   return createClient(
@@ -31,6 +47,17 @@ function makeDb() {
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }
+
+interface SurveyLogRow {
+  user_id: string;
+  scholarship_id: string;
+  sent_at: string;
+  state: SurveyState;
+  reask_after: string | null;
+  attempt_no: number;
+}
+
+const key = (userId: string, scholarshipId: string) => `${userId}|${scholarshipId}`;
 
 async function handleOutcomes(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -47,11 +74,11 @@ async function handleOutcomes(request: NextRequest) {
   const db       = makeDb();
   const todayBkk = bangkokMidnight();
   const todayStr = todayBkk.toISOString().slice(0, 10);
-  const offsets  = parseOutcomeOffsets(process.env.OUTCOME_OFFSETS);
+  const offsets  = parseSurveyOffsets(process.env.OUTCOME_OFFSETS);
+  const maxPerUserPerDay = parseMaxPerUserPerDay(process.env.SURVEY_MAX_PER_USER_PER_DAY);
   const incentiveNote = process.env.OUTCOME_FOLLOWUP_INCENTIVE_NOTE || undefined;
 
-  // Load all potentially eligible tracked rows in one query.
-  // Join: tracked_scholarship → profiles (line_user_id) → td_scholarships (deadline_date)
+  // ── Load candidate tracked rows ─────────────────────────────────────────
   const { data: rows, error: fetchErr } = await db
     .from('tracked_scholarship')
     .select(`
@@ -74,20 +101,106 @@ async function handleOutcomes(request: NextRequest) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
-  // Load existing outcome_followup_log entries (idempotency)
-  const { data: sentLog } = await db
-    .from('outcome_followup_log')
-    .select('user_id, scholarship_id, attempt_no');
+  // ── Load the survey ledger and fold it into lookup maps ─────────────────
+  const { data: logRows, error: logErr } = await db
+    .from('survey_log')
+    .select('user_id, scholarship_id, sent_at, state, reask_after, attempt_no');
 
-  const sentSet = new Set<string>(
-    (sentLog ?? []).map(
-      (r: { user_id: string; scholarship_id: string; attempt_no: number }) =>
-        `${r.user_id}|${r.scholarship_id}|${r.attempt_no}`,
-    ),
-  );
+  if (logErr) {
+    console.error('[line-outcomes] survey_log fetch error:', logErr);
+    return NextResponse.json({ error: logErr.message }, { status: 500 });
+  }
 
-  const results = { sent: 0, skipped: 0, errors: 0, attempts: {} as Record<number, number> };
+  const lastSentAt   = new Map<string, string>();   // pair → most recent sent_at
+  const attemptCount = new Map<string, number>();   // pair → highest attempt_no
+  const openPairs    = new Set<string>();           // pair → conversation still open
+  const sentToday    = new Map<string, number>();   // user → pushes already today
+  const dueReasks: SurveyLogRow[] = [];
 
+  for (const r of (logRows ?? []) as unknown as SurveyLogRow[]) {
+    const k = key(r.user_id, r.scholarship_id);
+
+    const prev = lastSentAt.get(k);
+    if (!prev || r.sent_at > prev) lastSentAt.set(k, r.sent_at);
+
+    attemptCount.set(k, Math.max(attemptCount.get(k) ?? 0, r.attempt_no));
+
+    if (OPEN_SURVEY_STATES.includes(r.state)) openPairs.add(k);
+
+    if (r.sent_at.slice(0, 10) === todayStr) {
+      sentToday.set(r.user_id, (sentToday.get(r.user_id) ?? 0) + 1);
+    }
+
+    if (r.state === 'awaiting_reask' && isReaskDue(r.reask_after, todayStr)) {
+      dueReasks.push(r);
+    }
+  }
+
+  const results = {
+    sent: 0, reasked: 0, skipped: 0, errors: 0,
+    reasons: {} as Record<string, number>,
+  };
+  const note = (reason: string) => {
+    results.skipped++;
+    results.reasons[reason] = (results.reasons[reason] ?? 0) + 1;
+  };
+
+  /** Push + log, keeping the in-run maps consistent so one run can't double-send. */
+  async function send(
+    lineUserId: string,
+    userId: string,
+    scholarshipId: string,
+    scholarshipName: string | null,
+    attemptNo: number,
+    isReask: boolean,
+  ): Promise<void> {
+    const k = key(userId, scholarshipId);
+    try {
+      const res = await sendOutcomeSurvey(
+        lineUserId,
+        { user_id: userId, scholarship_id: scholarshipId, scholarship_name: scholarshipName },
+        db,
+        { triggerSource: 'cron', attemptNo, incentiveNote },
+      );
+
+      if (!res.ok) { results.errors++; return; }
+
+      lastSentAt.set(k, new Date().toISOString());
+      attemptCount.set(k, attemptNo);
+      openPairs.add(k);
+      sentToday.set(userId, (sentToday.get(userId) ?? 0) + 1);
+
+      if (isReask) results.reasked++; else results.sent++;
+      console.log(`[line-outcomes] ${isReask ? 're-asked' : 'sent'} attempt=${attemptNo} user=${userId} scholarship=${scholarshipId}`);
+    } catch (err) {
+      console.error(`[line-outcomes] push failed user=${userId}:`, err);
+      results.errors++;
+    }
+  }
+
+  // ── 1. Due re-asks (students who answered "waiting") ────────────────────
+  // Handled first so a promised follow-up isn't crowded out by the rate limit.
+  for (const r of dueReasks) {
+    if ((sentToday.get(r.user_id) ?? 0) >= maxPerUserPerDay) { note('rate-limited'); continue; }
+
+    const { data: prof } = await db
+      .from('profiles').select('id, line_user_id').eq('id', r.user_id).maybeSingle();
+    const lineUserId = (prof as { line_user_id?: string | null } | null)?.line_user_id;
+    if (!lineUserId) { note('no-line-id'); continue; }
+
+    const { data: sch } = await db
+      .from('td_scholarships').select('scholarship_name')
+      .eq('scholarship_id', r.scholarship_id).maybeSingle();
+
+    const nextAttempt = Math.min((attemptCount.get(key(r.user_id, r.scholarship_id)) ?? 1) + 1, 6);
+    await send(
+      lineUserId, r.user_id, r.scholarship_id,
+      (sch as { scholarship_name?: string } | null)?.scholarship_name ?? null,
+      nextAttempt, true,
+    );
+  }
+
+  // ── 2. Scheduled first asks at each offset past the deadline ────────────
   for (const row of rows ?? []) {
     const profile     = row.profiles as unknown as { line_user_id: string | null } | null;
     const scholarship = row.td_scholarships as unknown as {
@@ -95,50 +208,31 @@ async function handleOutcomes(request: NextRequest) {
       deadline_date: string | null;
     } | null;
 
-    for (let i = 0; i < offsets.length; i++) {
-      const offsetDays = offsets[i];
-      const attemptNo  = i + 1;
-      const sentKey    = `${row.user_id}|${row.scholarship_id}|${attemptNo}`;
+    const userId         = row.user_id as string;
+    const scholarshipId  = row.scholarship_id as string;
+    const k              = key(userId, scholarshipId);
 
-      const { send } = shouldSendOutcomeFollowup({
-        deadlineDate:  scholarship?.deadline_date ?? null,
+    for (let i = 0; i < offsets.length; i++) {
+      const { send: ok, reason } = shouldSendSurvey({
+        lineUserId:       profile?.line_user_id,
+        reminderOptIn:    row.reminder_opt_in as boolean,
+        status:           row.status as string,
+        deadlineDate:     scholarship?.deadline_date ?? null,
         todayStr,
-        offsetDays,
-        attemptNo,
-        reminderOptIn: row.reminder_opt_in as boolean,
-        lineUserId:    profile?.line_user_id,
-        status:        row.status as string,
-        alreadySent:   sentSet.has(sentKey),
+        offsetDays:       offsets[i],
+        lastSentAt:       lastSentAt.get(k) ?? null,
+        sentToUserToday:  sentToday.get(userId) ?? 0,
+        maxPerUserPerDay,
+        hasOpenSurvey:    openPairs.has(k),
       });
 
-      if (!send) { results.skipped++; continue; }
+      if (!ok) { note(reason); continue; }
 
-      const message = buildOutcomeFollowupMessage(
-        scholarship!.scholarship_name,
-        row.scholarship_id as string,
-        'th',
-        incentiveNote,
+      await send(
+        profile!.line_user_id!, userId, scholarshipId,
+        scholarship?.scholarship_name ?? null, i + 1, false,
       );
-
-      try {
-        await linePush(profile!.line_user_id!, [message]);
-
-        await db.from('outcome_followup_log').insert({
-          user_id:        row.user_id,
-          scholarship_id: row.scholarship_id,
-          attempt_no:     attemptNo,
-          deadline_date:  scholarship!.deadline_date,
-        });
-
-        sentSet.add(sentKey); // prevent double-send within this run
-        results.sent++;
-        results.attempts[attemptNo] = (results.attempts[attemptNo] ?? 0) + 1;
-
-        console.log(`[line-outcomes] sent attempt=${attemptNo} user=${row.user_id} scholarship=${row.scholarship_id}`);
-      } catch (err) {
-        console.error(`[line-outcomes] push failed user=${row.user_id}:`, err);
-        results.errors++;
-      }
+      break;   // one survey per pair per run
     }
   }
 

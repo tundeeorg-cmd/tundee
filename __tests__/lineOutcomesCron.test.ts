@@ -83,10 +83,11 @@ describe('GET|POST /api/cron/line-outcomes', () => {
     expect((await POST(cronRequest(headers))).status).toBe(200);
   });
 
-  it('sends exactly one outcome follow-up (3 quick-reply buttons) for a row 30 days past deadline, and logs attempt 1', async () => {
+  it('sends exactly one outcome survey (4 quick-reply buttons) for a row 30 days past deadline, and logs attempt 1', async () => {
     const db = createMockDb({
       tracked_scholarship: { select: { data: [trackedRow()], error: null } },
-      outcome_followup_log: { select: { data: [], error: null }, insert: { error: null } },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
 
@@ -102,19 +103,33 @@ describe('GET|POST /api/cron/line-outcomes', () => {
     expect(url).toBe('https://api.line.me/v2/bot/message/push');
     const pushBody = JSON.parse(init.body as string);
     expect(pushBody.to).toBe('Uabc123');
-    expect(pushBody.messages[0].quickReply.items).toHaveLength(3);
+    expect(pushBody.messages[0].quickReply.items).toHaveLength(4);
+    expect(pushBody.messages[0].quickReply.items.map((i: any) => i.action.data)).toEqual([
+      'survey:TD-0001:awarded',
+      'survey:TD-0001:waiting',
+      'survey:TD-0001:not_applied',
+      'survey:TD-0001:rejected',
+    ]);
 
-    const logInsert = db._calls.find(c => c.table === 'outcome_followup_log' && c.fn === 'insert');
+    const logInsert = db._calls.find(c => c.table === 'survey_log' && c.fn === 'insert');
     expect(logInsert?.args[0]).toMatchObject({
       user_id: 'user-1', scholarship_id: 'TD-0001', attempt_no: 1,
+      state: 'sent', trigger_source: 'cron',
     });
   });
 
-  it('does not re-send an attempt already recorded in outcome_followup_log (idempotent)', async () => {
+  it('does not re-ask a user surveyed about the same scholarship inside 30 days', async () => {
     const db = createMockDb({
       tracked_scholarship: { select: { data: [trackedRow()], error: null } },
-      outcome_followup_log: {
-        select: { data: [{ user_id: 'user-1', scholarship_id: 'TD-0001', attempt_no: 1 }], error: null },
+      survey_log: {
+        select: {
+          data: [{
+            user_id: 'user-1', scholarship_id: 'TD-0001',
+            sent_at: `${addDays(TODAY_STR, -3)}T08:00:00.000Z`,
+            state: 'done', reask_after: null, attempt_no: 1,
+          }],
+          error: null,
+        },
       },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
@@ -123,8 +138,52 @@ describe('GET|POST /api/cron/line-outcomes', () => {
     const json = await res.json();
 
     expect(json.sent).toBe(0);
-    expect(json.skipped).toBeGreaterThan(0);
+    expect(json.reasons['asked-recently']).toBeGreaterThan(0);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not start a second survey while a conversation is still open', async () => {
+    const db = createMockDb({
+      tracked_scholarship: { select: { data: [trackedRow()], error: null } },
+      survey_log: {
+        select: {
+          data: [{
+            user_id: 'user-1', scholarship_id: 'TD-0001',
+            sent_at: `${addDays(TODAY_STR, -60)}T08:00:00.000Z`,
+            state: 'awaiting_amount', reask_after: null, attempt_no: 1,
+          }],
+          error: null,
+        },
+      },
+    });
+    (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+
+    const json = await (await GET(cronRequest({ authorization: `Bearer ${CRON_SECRET}` }))).json();
+    expect(json.sent).toBe(0);
+    expect(json.reasons['conversation-open']).toBeGreaterThan(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rate-limits a user to one survey per run', async () => {
+    const db = createMockDb({
+      tracked_scholarship: {
+        select: {
+          data: [
+            trackedRow(),
+            trackedRow({ id: 'row-2', scholarship_id: 'TD-0002' }),
+          ],
+          error: null,
+        },
+      },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
+    });
+    (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+
+    const json = await (await GET(cronRequest({ authorization: `Bearer ${CRON_SECRET}` }))).json();
+    expect(json.sent).toBe(1);
+    expect(json.reasons['rate-limited']).toBeGreaterThan(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('skips a row with no line_user_id', async () => {
@@ -132,7 +191,8 @@ describe('GET|POST /api/cron/line-outcomes', () => {
       tracked_scholarship: {
         select: { data: [trackedRow({ profiles: { line_user_id: null } })], error: null },
       },
-      outcome_followup_log: { select: { data: [], error: null } },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
 
@@ -150,7 +210,8 @@ describe('GET|POST /api/cron/line-outcomes', () => {
           error: null,
         },
       },
-      outcome_followup_log: { select: { data: [], error: null } },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
 
@@ -168,7 +229,8 @@ describe('GET|POST /api/cron/line-outcomes', () => {
           error: null,
         },
       },
-      outcome_followup_log: { select: { data: [], error: null } },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
 
@@ -182,7 +244,8 @@ describe('GET|POST /api/cron/line-outcomes', () => {
     vi.stubEnv('OUTCOME_FOLLOWUP_INCENTIVE_NOTE', 'ขอบคุณที่ช่วยตอบนะคะ 🙏');
     const db = createMockDb({
       tracked_scholarship: { select: { data: [trackedRow()], error: null } },
-      outcome_followup_log: { select: { data: [], error: null }, insert: { error: null } },
+      survey_log: { select: { data: [], error: null }, insert: { error: null }, update: { error: null } },
+      outcomes:   { upsert: { error: null } },
     });
     (createClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
 
