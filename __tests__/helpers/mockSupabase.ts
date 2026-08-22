@@ -2,10 +2,10 @@
  * Minimal fake Supabase query-builder for route-handler tests.
  *
  * Supports the subset of the chainable API used by the LINE routes:
- * .from(table).select/update/insert(...).eq/gt/in(...)... , and
- * .maybeSingle(). The chain is thenable so `await` resolves at any point,
+ * .from(table).select/update/insert/upsert(...).eq/gt/gte/lte/in/not/order/limit(...),
+ * plus .maybeSingle(). The chain is thenable so `await` resolves at any point,
  * using the response configured for the table + last action
- * (select/update/insert) called.
+ * (select/update/insert/upsert) called.
  */
 
 export interface MockDbCall {
@@ -19,11 +19,12 @@ export interface MockDbResponses {
     select?: { data: unknown; error: unknown };
     update?: { data?: unknown; error: unknown };
     insert?: { data?: unknown; error: unknown };
+    upsert?: { data?: unknown; error: unknown };
   };
 }
 
 function makeQueryBuilder(table: string, responses: MockDbResponses, calls: MockDbCall[]) {
-  let action: 'select' | 'update' | 'insert' | null = null;
+  let action: 'select' | 'update' | 'insert' | 'upsert' | null = null;
 
   const resolveResult = () => {
     const fallback = { data: null, error: null };
@@ -47,6 +48,11 @@ function makeQueryBuilder(table: string, responses: MockDbResponses, calls: Mock
       calls.push({ table, fn: 'insert', args });
       return builder;
     },
+    upsert(...args: unknown[]) {
+      action = 'upsert';
+      calls.push({ table, fn: 'upsert', args });
+      return builder;
+    },
     eq(...args: unknown[]) {
       calls.push({ table, fn: 'eq', args });
       return builder;
@@ -57,6 +63,26 @@ function makeQueryBuilder(table: string, responses: MockDbResponses, calls: Mock
     },
     in(...args: unknown[]) {
       calls.push({ table, fn: 'in', args });
+      return builder;
+    },
+    gte(...args: unknown[]) {
+      calls.push({ table, fn: 'gte', args });
+      return builder;
+    },
+    lte(...args: unknown[]) {
+      calls.push({ table, fn: 'lte', args });
+      return builder;
+    },
+    not(...args: unknown[]) {
+      calls.push({ table, fn: 'not', args });
+      return builder;
+    },
+    order(...args: unknown[]) {
+      calls.push({ table, fn: 'order', args });
+      return builder;
+    },
+    limit(...args: unknown[]) {
+      calls.push({ table, fn: 'limit', args });
       return builder;
     },
     maybeSingle() {
