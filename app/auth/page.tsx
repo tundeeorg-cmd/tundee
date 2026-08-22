@@ -4,6 +4,13 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
+import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
+import {
+  CONSENT_COOKIE,
+  CONSENT_COOKIE_MAX_AGE,
+  CONSENT_PARAM,
+  CONSENT_VERSION,
+} from '@/lib/consent';
 
 // ─── Suspense wrapper ─────────────────────────────────────────────────────────
 // useSearchParams() REQUIRES Suspense without a fallback prop the page is blank
@@ -70,6 +77,7 @@ function AuthForm() {
   const [lineLoading,   setLineLoading]   = useState(false);
   const [error,         setError]         = useState('');
   const [cooldown,      setCooldown]      = useState(0);
+  const [consent,       setConsent]       = useState(false);
 
   const isSignup = searchParams.get('from') === 'signup';
 
@@ -83,9 +91,39 @@ function AuthForm() {
     ? rawNext
     : '/scholarships';
 
-  const callbackUrl = `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+  /** Reads a non-httpOnly cookie in the browser. */
+  function readCookie(name: string): string | null {
+    if (typeof document === 'undefined') return null;
+    const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  /**
+   * Consent and the /start answers ride in the callback URL, not only in cookies.
+   * An email magic link is commonly opened in a different browser from the one
+   * that began signup — cookies are gone there, but the link's own query string
+   * survives, so the callback can still write a complete profile and skip the
+   * setup wizard entirely.
+   */
+  function buildCallbackUrl(): string {
+    const qs = new URLSearchParams({ next });
+    qs.set(CONSENT_PARAM, CONSENT_VERSION);
+    const preview = readCookie(PREVIEW_COOKIE);
+    if (preview && decodePreviewInput(preview)) qs.set(PREVIEW_PARAM, preview);
+    return `${siteUrl}/auth/callback?${qs.toString()}`;
+  }
+
+  /** Records consent for the Google and LINE paths, which return to this browser. */
+  function recordConsent() {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie =
+      `${CONSENT_COOKIE}=${CONSENT_VERSION}; Max-Age=${CONSENT_COOKIE_MAX_AGE}` +
+      `; Path=/; SameSite=Lax${secure}`;
+  }
 
   const busy = loading || googleLoading || lineLoading;
+  /** Every signup path is gated on consent — PDPA, and the callback writes a row. */
+  const blocked = busy || !consent;
 
   useEffect(() => {
     // Already logged in → redirect
@@ -118,11 +156,12 @@ function AuthForm() {
     }
     setLoading(true);
     setError('');
+    recordConsent();
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmed,
       options: {
-        emailRedirectTo: callbackUrl,
+        emailRedirectTo: buildCallbackUrl(),
         shouldCreateUser: true,
       },
     });
@@ -143,7 +182,7 @@ function AuthForm() {
     setLoading(true);
     await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: callbackUrl, shouldCreateUser: true },
+      options: { emailRedirectTo: buildCallbackUrl(), shouldCreateUser: true },
     });
     setLoading(false);
     setCooldown(60);
@@ -153,9 +192,10 @@ function AuthForm() {
   async function signInWithGoogle() {
     setGoogleLoading(true);
     setError('');
+    recordConsent();
     const { error: oauthErr } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: callbackUrl },
+      options: { redirectTo: buildCallbackUrl() },
     });
     if (oauthErr) {
       setError(oauthErr.message);
@@ -170,6 +210,7 @@ function AuthForm() {
   function signInWithLine() {
     setLineLoading(true);
     setError('');
+    recordConsent();
     window.location.href = `/api/auth/line/start?next=${encodeURIComponent(next)}`;
   }
 
@@ -309,11 +350,57 @@ function AuthForm() {
                 Google and LINE first: on phones these are a single tap with no
                 app-switch to an inbox, which is where email drop-off happens. */}
 
+            {/* ── PDPA consent ───────────────────────────────────────────────
+                Inline here rather than as step 0 of /profile/setup: with consent
+                in hand at callback time the profile can be written server-side and
+                the user sent straight to their matches, instead of through a
+                nine-step wizard that re-asks what /start already collected. */}
+            <label
+              className="flex items-start gap-3 mb-3 cursor-pointer select-none"
+              style={{ fontFamily: 'Sarabun, sans-serif' }}
+            >
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => { setConsent(e.target.checked); setError(''); }}
+                className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
+              />
+              <span className="text-sm leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
+                ฉันยอมรับ{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#1B3A6B] dark:text-[#8FB4FF] underline"
+                >
+                  ข้อกำหนดการใช้งาน
+                </a>
+                {' '}และ{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#1B3A6B] dark:text-[#8FB4FF] underline"
+                >
+                  นโยบายความเป็นส่วนตัว
+                </a>
+                {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
+              </span>
+            </label>
+            {!consent && (
+              <p
+                className="mb-4 text-xs text-[#8A96A8] dark:text-[#7A8FA8]"
+                style={{ fontFamily: 'Sarabun, sans-serif' }}
+              >
+                กรุณายอมรับข้อกำหนดก่อนดำเนินการต่อ
+              </p>
+            )}
+
             {/* Google OAuth */}
             <button
               type="button"
               onClick={signInWithGoogle}
-              disabled={busy}
+              disabled={blocked}
               className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-4 px-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-3"
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
@@ -336,7 +423,7 @@ function AuthForm() {
             <button
               type="button"
               onClick={signInWithLine}
-              disabled={busy}
+              disabled={blocked}
               className="w-full flex items-center justify-center gap-3 bg-[#06C755] hover:bg-[#05B34C] rounded-xl py-4 px-4 text-base font-semibold text-white transition-colors disabled:opacity-50 mb-4"
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
@@ -375,13 +462,13 @@ function AuthForm() {
                 inputMode="email"
                 // No autoFocus: email is now the fallback method, and stealing
                 // focus here would pop the phone keyboard over the one-tap buttons.
-                disabled={busy}
+                disabled={blocked}
                 style={{ fontSize: '16px' }}
                 className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#aeaeb2] focus:outline-none focus:border-[#1B3A6B] focus:ring-2 focus:ring-[#1B3A6B]/20 transition-colors mb-4 disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={busy}
+                disabled={blocked}
                 className="w-full bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 rounded-xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
