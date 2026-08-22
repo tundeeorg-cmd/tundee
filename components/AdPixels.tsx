@@ -8,13 +8,18 @@
  * fbq('init') — two loaders reading two different env vars would have
  * double-counted every PageView the moment both were set.
  *
- * No-ops if NEXT_PUBLIC_TIKTOK_PIXEL_ID isn't set.
+ * No-ops if NEXT_PUBLIC_TIKTOK_PIXEL_ID isn't set, so TikTok stays dormant
+ * until the pixel is created in TikTok Ads Manager.
+ *
+ * ttq.page() here is the INITIAL pageview only. Route changes are reported by
+ * components/AnalyticsPageView.tsx, which skips the initial load so the two
+ * can't double-count.
  */
 
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
 import { hasAnalyticsConsent, subscribeConsent } from '@/lib/analytics/consent';
-import { isProductionEnvironment } from '@/lib/analytics/meta';
+import { getTikTokPixelId, isTikTokPixelEnabled } from '@/lib/analytics/tiktok';
 
 export default function AdPixels() {
   const [consented, setConsented] = useState(false);
@@ -24,8 +29,8 @@ export default function AdPixels() {
     return subscribeConsent(choice => setConsented(choice === 'accepted'));
   }, []);
 
-  const tiktokPixelId = process.env.NEXT_PUBLIC_TIKTOK_PIXEL_ID;
-  if (!tiktokPixelId || !isProductionEnvironment() || !consented) return null;
+  const tiktokPixelId = getTikTokPixelId();
+  if (!consented || !isTikTokPixelEnabled()) return null;
 
   return (
     <Script id="tiktok-pixel-base" strategy="afterInteractive">

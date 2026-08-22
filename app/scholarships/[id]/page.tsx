@@ -11,7 +11,7 @@ import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
 import { logScholarshipViewed, logScholarshipApplied } from '@/lib/research/events';
-import { trackViewContent, trackSubmitApplication } from '@/lib/analytics/meta';
+import { viewContent, submitApplication } from '@/lib/analytics';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import { formatUserDate } from '@/lib/formatDate';
 import type { Scholarship } from '@/lib/types';
@@ -178,7 +178,7 @@ export default function ScholarshipDetailPage() {
     getScholarshipById(id).then((s) => {
       setScholarship(s);
       setLoading(false);
-      if (s) trackViewContent({ contentIds: [id], contentName: s.name_th ?? undefined });
+      if (s) viewContent({ contentIds: [id], contentName: s.name_th ?? undefined });
     });
 
     // Research: log that this scholarship was viewed (fire-and-forget)
@@ -572,7 +572,7 @@ export default function ScholarshipDetailPage() {
                   : `https://www.google.com/search?q=${encodeURIComponent((s.name_th ?? '') + ' สมัคร')}`;
                 const trackClick = async () => {
                   // Synchronous: the link opens a new tab straight away.
-                  trackSubmitApplication({ scholarshipId: s.id });
+                  submitApplication({ scholarshipId: s.id });
                   try {
                     const { data: { user: clickUser } } = await supabase.auth.getUser();
                     if (clickUser) {

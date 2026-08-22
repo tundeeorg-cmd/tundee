@@ -5,7 +5,8 @@ import ChromeGate from '@/components/ChromeGate';
 import AdPixels from '@/components/AdPixels';
 import GoogleAnalytics from '@/components/GoogleAnalytics';
 import MetaPixel from '@/components/MetaPixel';
-import MetaPageView from '@/components/MetaPageView';
+import AnalyticsPageView from '@/components/AnalyticsPageView';
+import SignupConversion from '@/components/SignupConversion';
 import CookieConsent from '@/components/CookieConsent';
 import SessionStartLogger from '@/components/SessionStartLogger';
 import { LanguageProvider } from '@/lib/LanguageContext';
@@ -94,7 +95,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             (lib/analytics/consent.ts). Nothing loads until the visitor accepts. */}
         <GoogleAnalytics />
         <MetaPixel />
-        <MetaPageView />
+        <AnalyticsPageView />
+        <SignupConversion />
         <AdPixels />
         <ThemeProvider>
           <LanguageProvider>
