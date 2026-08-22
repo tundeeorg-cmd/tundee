@@ -1,18 +1,20 @@
 'use client';
 
-// Ad-channel tracking for the /start funnel.
-//
-// Meta events are delegated to lib/analytics/meta.ts — the one place that calls
-// fbq — so consent gating, event ids and CAPI de-duplication apply everywhere.
-// TikTok and GA calls stay here and are gated on the same consent state.
+/**
+ * Ad-channel helpers for the /start funnel.
+ *
+ * These are thin, funnel-named wrappers over lib/analytics — they exist so call
+ * sites read in the language of the funnel ("preview results rendered") rather
+ * than the language of the ad platforms ("ViewContent"). All the platform
+ * mapping, consent gating and fan-out lives in lib/analytics/index.ts.
+ *
+ * This file used to call window.ttq and window.gtag directly. It no longer
+ * calls any platform SDK: those raw calls were why apply-link clicks reached
+ * Meta but never TikTok, and why two of the six events never reached TikTok at
+ * all. Add nothing here that talks to a platform directly.
+ */
 
-import { hasAnalyticsConsent } from './analytics/consent';
-import {
-  trackLead,
-  trackViewContent,
-  trackSearch,
-  trackCompleteRegistration,
-} from './analytics/meta';
+import * as analytics from './analytics';
 
 export type AdParams = {
   utm_source?: string;
@@ -22,13 +24,6 @@ export type AdParams = {
 };
 
 const SESSION_KEY = 'tundee_ad_params';
-
-declare global {
-  interface Window {
-    ttq?: { track: (...args: unknown[]) => void };
-    gtag?: (...args: unknown[]) => void;
-  }
-}
 
 /** Stash captured UTM/src params for the current session (best-effort). */
 export function persistAdParams(params: AdParams) {
@@ -56,42 +51,38 @@ export function buildSignupHref(adParams: AdParams, next?: string): string {
   return `/auth?${qs.toString()}`;
 }
 
-/** Fire the CTA-click conversion event on every configured channel. */
+/** The visitor reached the signup gate. */
 export function trackCTAClick(location: string) {
-  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return;
-  trackLead({ location });
-  window.ttq?.track('ClickButton', { content_name: location });
-  window.gtag?.('event', 'generate_lead', { link_id: location });
+  analytics.lead({ location });
 }
 
 /**
- * Fire the search event when a visitor submits the /start match form.
+ * The visitor submitted the /start match form.
  * Separate from the results render below: Search is the intent, ViewContent is
- * the payoff, and Meta needs both to model the funnel.
+ * the payoff, and the platforms need both to model the funnel.
  */
 export function trackPreviewSearch(input: { educationLevel: string; gpa: number; province: string }) {
-  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return;
-  trackSearch(input);
-  window.ttq?.track('Search', { content_type: 'scholarship_preview' });
-  window.gtag?.('event', 'search', { search_term: 'scholarship_match' });
+  analytics.search(input);
 }
 
 /**
- * Fire the "visitor reached real matched results before signing up" event.
- * This is the mid-funnel signal to optimize ad delivery against, ahead of the
- * sparser CompleteRegistration event.
+ * The visitor reached real matched results before signing up. This is the
+ * mid-funnel signal to optimize ad delivery against, ahead of the sparser
+ * CompleteRegistration event.
  */
 export function trackPreviewResults(matchCount: number, scholarshipIds: string[] = []) {
-  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return;
-  trackViewContent({ contentIds: scholarshipIds, numItems: matchCount });
-  window.ttq?.track('ViewContent', { content_type: 'scholarship_preview', quantity: matchCount });
-  window.gtag?.('event', 'view_search_results', { search_term: 'scholarship_preview', num_items: matchCount });
+  analytics.viewContent({ contentIds: scholarshipIds, numItems: matchCount });
 }
 
-/** Fire the signup-complete conversion event once a profile is actually saved. */
+/**
+ * A signup actually completed.
+ *
+ * Fired from two places, which between them cover every route into an account:
+ *   • components/SignupConversion.tsx — when the auth callback wrote the
+ *     profile itself and skipped the wizard (the /start → signup path)
+ *   • app/profile/setup — when the visitor completed the wizard
+ * They are mutually exclusive by construction, so there is no double-count.
+ */
 export function trackSignupComplete(method: 'google' | 'line' | 'email' = 'email') {
-  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return;
-  trackCompleteRegistration({ method });
-  window.ttq?.track('CompleteRegistration');
-  window.gtag?.('event', 'sign_up', { method });
+  analytics.completeRegistration(method);
 }

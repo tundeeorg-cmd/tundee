@@ -9,6 +9,12 @@ import {
   CONSENT_VERSION,
   isValidConsent,
 } from '@/lib/consent'
+import { signupMethodFrom } from '@/lib/analytics'
+import {
+  SIGNUP_CONVERSION_COOKIE,
+  SIGNUP_CONVERSION_MAX_AGE_SECONDS,
+  type SignupConversionMethod,
+} from '@/lib/analytics/signupConversion'
 
 /**
  * Auth callback handles:
@@ -38,8 +44,8 @@ export async function GET(request: NextRequest) {
     })
 
     if (!error) {
-      const redirectTo = await resolveRedirect(supabase, next, searchParams)
-      return NextResponse.redirect(`${origin}${redirectTo}`)
+      const resolved = await resolveRedirect(supabase, next, searchParams)
+      return redirectWithConversion(origin, resolved)
     }
 
     console.error('[TunDee] verifyOtp error:', error.message)
@@ -50,8 +56,8 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      const redirectTo = await resolveRedirect(supabase, next, searchParams)
-      return NextResponse.redirect(`${origin}${redirectTo}`)
+      const resolved = await resolveRedirect(supabase, next, searchParams)
+      return redirectWithConversion(origin, resolved)
     }
 
     console.error('[TunDee] exchangeCodeForSession error:', error.message)
@@ -59,6 +65,37 @@ export async function GET(request: NextRequest) {
 
   // ── Fallback: something went wrong ────────────────────────────────────────
   return NextResponse.redirect(`${origin}/auth?error=auth_failed`)
+}
+
+/**
+ * Where to send the visitor, plus — only when this route wrote the profile
+ * itself and skipped the wizard — which provider signed them up.
+ */
+interface ResolvedRedirect {
+  path: string
+  /** Set ONLY on the wizard-skip branch; app/profile/setup fires its own event. */
+  signupMethod?: SignupConversionMethod
+}
+
+/**
+ * Redirect, attaching the CompleteRegistration marker when a signup completed
+ * here. components/SignupConversion.tsx reads it on arrival and deletes it.
+ */
+function redirectWithConversion(origin: string, resolved: ResolvedRedirect): NextResponse {
+  const response = NextResponse.redirect(`${origin}${resolved.path}`)
+
+  if (resolved.signupMethod) {
+    response.cookies.set(SIGNUP_CONVERSION_COOKIE, resolved.signupMethod, {
+      // Readable by the client: a browser pixel cannot be fired from here.
+      httpOnly: false,
+      sameSite: 'lax',
+      path:     '/',
+      maxAge:   SIGNUP_CONVERSION_MAX_AGE_SECONDS,
+      secure:   process.env.NODE_ENV === 'production',
+    })
+  }
+
+  return response
 }
 
 /** Only same-origin paths are accepted as a post-login destination. */
@@ -84,10 +121,10 @@ async function resolveRedirect(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   next: string,
   searchParams: URLSearchParams,
-): Promise<string> {
+): Promise<ResolvedRedirect> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return '/auth?error=auth_failed'
+    if (!user) return { path: '/auth?error=auth_failed' }
 
     // (last_active_at removed column does not exist in profiles table)
 
@@ -123,7 +160,17 @@ async function resolveRedirect(
         updated_at:      new Date().toISOString(),
       }, { onConflict: 'id' })
 
-      if (!error) return next
+      if (!error) {
+        // The signup completed HERE — the wizard that normally reports it is
+        // being skipped, so hand the conversion to the client.
+        return {
+          path: next,
+          signupMethod: signupMethodFrom(
+            user.app_metadata?.provider,
+            user.user_metadata?.provider as string | undefined,
+          ),
+        }
+      }
 
       // Fall through to the wizard rather than stranding the user on a
       // half-written profile; their answers are still in the cookie.
@@ -133,11 +180,13 @@ async function resolveRedirect(
     if (incomplete) {
       const params = new URLSearchParams({ next })
       if (preview) params.set('prefill', '1')
-      return `/profile/setup?${params.toString()}`
+      // No marker: app/profile/setup fires CompleteRegistration on submit.
+      return { path: `/profile/setup?${params.toString()}` }
     }
 
-    return next
+    // A returning user with a complete profile is not a signup.
+    return { path: next }
   } catch {
-    return next
+    return { path: next }
   }
 }

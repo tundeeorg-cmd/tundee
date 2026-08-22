@@ -28,7 +28,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
 import { trackSignupComplete } from '@/lib/adTracking';
-import { signupMethodFrom } from '@/lib/analytics/meta';
+import { signupMethodFrom } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
 
