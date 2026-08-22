@@ -334,7 +334,7 @@ export default function ProfileSetupPage() {
         // the /start preview, and must not be wiped by an empty wizard field.
         display_name:                displayName.trim() || undefined,
         grade_level:                 gradeLevel || undefined,
-        province_id:                 province || undefined,
+        province:                    province || undefined,
         gpa:                         gpaNum ?? undefined,
         income_bracket:              incomeBracket,
         welfare_card:                welfareCard,

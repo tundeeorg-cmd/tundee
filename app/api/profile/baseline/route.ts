@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   // ── Fetch the current profile to snapshot ────────────────────────────────
   const { data: profile, error: profileErr } = await adminClient
     .from('profiles')
-    .select('grade_level, gpa, province_id, income_bracket, fields_of_interest, welfare_card, ab_arm, research_opt_in')
+    .select('grade_level, gpa, province, income_bracket, fields_of_interest, welfare_card, ab_arm, research_opt_in')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       user_id:            user.id,
       grade_level:        profile.grade_level        ?? null,
       gpa:                profile.gpa                ?? null,
-      province_id:        profile.province_id        ?? null,
+      province_id:        profile.province           ?? null,
       income_bracket:     profile.income_bracket     ?? null,
       fields_of_interest: profile.fields_of_interest ?? null,
       welfare_card:       profile.welfare_card       ?? false,

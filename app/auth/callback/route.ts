@@ -116,7 +116,7 @@ async function resolveRedirect(
       const { error } = await supabase.from('profiles').upsert({
         id:              user.id,
         grade_level:     preview.level,
-        province_id:     preview.province,
+        province:        preview.province,
         gpa:             preview.gpa,
         consent_version: CONSENT_VERSION,
         consent_at:      new Date().toISOString(),

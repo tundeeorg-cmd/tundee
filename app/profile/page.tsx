@@ -235,7 +235,7 @@ export default function ProfilePage() {
         setSavedDisplayName(data.display_name ?? '');
         setAvatarUrl(data.avatar_url ?? null);
         setGpa(data.gpa != null ? String(data.gpa) : '');
-        setProvince(data.province_id ?? '');
+        setProvince(data.province ?? '');
         setIncomeBracket(data.income_bracket ?? 4);
         setWelfareCard(data.welfare_card ?? false);
         setGradeLevel((data.grade_level as GradeLevel) ?? 'M6');
@@ -340,7 +340,7 @@ export default function ProfilePage() {
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         gpa: !isNaN(gpaNum) && gpaNum >= 0 && gpaNum <= 4 ? gpaNum : null,
-        province_id: province || null,
+        province: province || null,
         income_bracket: incomeBracket,
         welfare_card: welfareCard,
         grade_level: gradeLevel,

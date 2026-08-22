@@ -94,14 +94,19 @@ GROUP BY s.id, s.name_th, s.name_en, s.funder_name_th, s.tier, s.amount_thb, s.i
 ORDER BY total_saves DESC;
 
 -- View 4: Province distribution
-CREATE OR REPLACE VIEW admin_province_stats AS
+-- profiles.province_id was renamed to profiles.province (v12) — it always held a
+-- Thai province NAME, never an id. The province_id output alias is a temporary
+-- compatibility shim for code deployed before that rename; v13 removes it.
+DROP VIEW IF EXISTS public.admin_province_stats;
+CREATE VIEW public.admin_province_stats AS
 SELECT
-  province_id,
+  p.province,
+  p.province AS province_id,   -- compatibility alias; removed in v13
   COUNT(*)::INTEGER                                                        AS user_count,
   ROUND(COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (), 0), 1)::NUMERIC AS percentage
-FROM public.profiles
-WHERE province_id IS NOT NULL
-GROUP BY province_id
+FROM public.profiles p
+WHERE p.province IS NOT NULL
+GROUP BY p.province
 ORDER BY user_count DESC;
 
 -- View 5: Single-row summary

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   // Fetch profiles row (grade_level, income_bracket, gpa, etc.)
   const { data: profileRow } = await supabase
     .from('profiles')
-    .select('province_id, income_bracket, gpa, grade_level, fields_of_interest, welfare_card')
+    .select('province, income_bracket, gpa, grade_level, fields_of_interest, welfare_card')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   // Build merged recommender profile (graceful defaults for incomplete profiles)
   const profile: RecommenderProfile = {
     user_id:               user.id,
-    province_id:           profileRow?.province_id ?? '',
+    province_id:           profileRow?.province ?? '',
     income_bracket:        Number(profileRow?.income_bracket ?? 4),
     gpa:                   parseFloat(String(profileRow?.gpa ?? '3.0')),
     grade_level:           profileRow?.grade_level ?? '',

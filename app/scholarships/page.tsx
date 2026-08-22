@@ -414,7 +414,7 @@ export default function BrowsePage() {
           setUserResearchContext(arm, incomeBracket);
           getOrAssignVariant(authUser.id, RANKING_EXPERIMENT).then(v => setExperimentVariant(v));
           setUserProfile({
-            province_id:        profile.province_id      ?? '',
+            province_id:        profile.province         ?? '',
             income_bracket:     incomeBracket,
             gpa:                parseFloat(profile.gpa ?? '3.0'),
             fields_of_interest: profile.fields_of_interest ?? ['any'],

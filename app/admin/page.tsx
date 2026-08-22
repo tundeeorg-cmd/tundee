@@ -91,7 +91,7 @@ interface TopScholarship {
 }
 
 interface ProvinceRow {
-  province_id: string;
+  province: string;
   user_count: number;
   percentage: number;
 }
@@ -99,7 +99,7 @@ interface ProvinceRow {
 interface RecentProfile {
   id: string;
   display_name: string | null;
-  province_id: string | null;
+  province: string | null;
   gpa: string | null;
   welfare_card: boolean | null;
   created_at: string;
@@ -279,7 +279,7 @@ export default function AdminPage() {
         supabase.from('admin_top_scholarships').select('*').limit(10),
         supabase.from('admin_province_stats').select('*').limit(15),
         supabase.from('profiles')
-          .select('id, display_name, province_id, gpa, welfare_card, created_at')
+          .select('id, display_name, province, gpa, welfare_card, created_at')
           .order('created_at', { ascending: false })
           .limit(20),
       ]);
@@ -1120,9 +1120,9 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2.5">
                   {provinces.slice(0, 10).map(p => (
-                    <div key={p.province_id} className="flex items-center gap-3">
+                    <div key={p.province} className="flex items-center gap-3">
                       <span className="text-sm text-right truncate w-28 text-[#1D1D1F] dark:text-white shrink-0">
-                        {provinceName(p.province_id)}
+                        {provinceName(p.province)}
                       </span>
                       <div className="flex-1 bg-[#F7F9FC] dark:bg-[#232B3E] rounded-full h-5 overflow-hidden relative">
                         <div
@@ -1170,7 +1170,7 @@ export default function AdminPage() {
                               <span className="font-medium text-[#1D1D1F] dark:text-white">{name}</span>
                             </td>
                             <td className="py-2.5 text-center text-[#6E6E73] dark:text-[#8E8E93] hidden sm:table-cell">
-                              {p.province_id ? provinceName(p.province_id) : ' '}
+                              {p.province ? provinceName(p.province) : ' '}
                             </td>
                             <td className="py-2.5 text-center">
                               {p.gpa ? (
