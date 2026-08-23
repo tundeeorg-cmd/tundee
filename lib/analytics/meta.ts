@@ -56,6 +56,32 @@ export function getMetaPixelId(): string | undefined {
 }
 
 /**
+ * Second pixel, owned by the ad agency. Fires alongside the primary one rather
+ * than replacing it: fbq('init') is called once per pixel and every later
+ * fbq('track', ...) is delivered to all initialised pixels, so the agency sees
+ * the same events without any extra call sites.
+ *
+ * Independently optional — unset means only the primary pixel loads.
+ */
+export function getAgencyPixelId(): string | undefined {
+  return process.env.NEXT_PUBLIC_FB_PIXEL_ID_AGENCY || undefined;
+}
+
+/**
+ * Every configured pixel, primary first, de-duplicated.
+ *
+ * The de-dup matters: initialising the same id twice makes Meta count every
+ * event on that dataset twice, and setting both env vars to the same value is
+ * an easy mistake to make while an agency is being onboarded.
+ */
+export function getMetaPixelIds(): string[] {
+  const ids = [getMetaPixelId(), getAgencyPixelId()].filter(
+    (id): id is string => Boolean(id && id.trim()),
+  );
+  return Array.from(new Set(ids.map(id => id.trim())));
+}
+
+/**
  * True only in the real production deployment.
  *
  * NODE_ENV alone is not enough: Vercel builds preview deployments with
@@ -73,9 +99,9 @@ export function isProductionEnvironment(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-/** Whether the base pixel script should load at all. */
+/** Whether the base pixel script should load at all — true if ANY pixel is configured. */
 export function isPixelEnabled(): boolean {
-  return Boolean(getMetaPixelId()) && isProductionEnvironment() && hasAnalyticsConsent();
+  return getMetaPixelIds().length > 0 && isProductionEnvironment() && hasAnalyticsConsent();
 }
 
 // ─── Event ids ────────────────────────────────────────────────────────────────
