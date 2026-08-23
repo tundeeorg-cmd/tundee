@@ -12,7 +12,7 @@ import {
   OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, type AwardRow,
 } from '@/lib/admin/awards';
 import { countDistinctFunders } from '@/lib/scholarships/counts';
-import { rankByAward } from '@/lib/scholarships/featured';
+import { rankForFeature } from '@/lib/scholarships/featured';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 
@@ -290,47 +290,51 @@ describe('POST /api/admin/outcomes (manual add)', () => {
   });
 });
 
-describe('rankByAward (homepage featured order)', () => {
+describe('rankForFeature (homepage featured order)', () => {
   const INTL = 'International (open to Thais)';
-  const row = (id: string, tier: string | null, funder = 'Thai University') =>
-    ({ scholarship_id: id, award_value_tier: tier, funder_type: funder } as never);
+  const row = (id: string, deadline: string | null, funder = 'Thai University', tier: string | null = 'medium') =>
+    ({ scholarship_id: id, deadline_date: deadline, funder_type: funder, award_value_tier: tier } as never);
+  const ids = (rows: unknown[]) => rows.map(r => (r as { scholarship_id: string }).scholarship_id);
 
-  it('puts the biggest award first', () => {
-    const ordered = rankByAward([
-      row('c', 'medium'), row('a', 'full_ride'), row('b', 'full_tuition'),
-    ]);
-    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['a', 'b', 'c']);
+  it('puts the soonest deadline first', () => {
+    expect(ids(rankForFeature([
+      row('c', '2026-12-01'), row('a', '2026-08-28'), row('b', '2026-09-15'),
+    ]))).toEqual(['a', 'b', 'c']);
   });
 
-  it('keeps untiered rows rather than dropping them, and sorts them last', () => {
-    // 313 of 518 displayed scholarships have no award_value_tier. Dropping them would
-    // silently shrink the pool the homepage draws from.
-    const ordered = rankByAward([row('x', null), row('y', 'small')]);
-    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['y', 'x']);
+  it('sorts undated rows last rather than dropping them', () => {
+    // A scholarship with no known closing date cannot claim urgency, but it is still a
+    // real scholarship and still eligible for a slot nothing else fills.
+    const ordered = rankForFeature([row('undated', null), row('soon', '2027-06-01')]);
+    expect(ids(ordered)).toEqual(['soon', 'undated']);
     expect(ordered).toHaveLength(2);
   });
 
-  it('puts a Thai funder above a bigger international award', () => {
-    // Ranking on award size alone filled all six homepage slots with foreign
-    // universities: 451 of 518 displayed scholarships are international, and the
-    // full-ride tier is almost entirely theirs.
-    const ordered = rankByAward([
-      row('stanford', 'full_ride', INTL), row('chula', 'medium'),
-    ]);
-    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id))
-      .toEqual(['chula', 'stanford']);
+  it('breaks a same-day tie with the Thai funder', () => {
+    // Four of the current candidates share 2026-08-31, so this decides real slots.
+    expect(ids(rankForFeature([
+      row('intl', '2026-08-31', INTL), row('thai', '2026-08-31'),
+    ]))).toEqual(['thai', 'intl']);
   });
 
-  it('still ranks international awards among themselves by size', () => {
-    const ordered = rankByAward([
-      row('b', 'medium', INTL), row('a', 'full_ride', INTL),
-    ]);
-    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['a', 'b']);
+  it('lets an earlier international deadline beat a later Thai one', () => {
+    // Deadline outranks funder origin: the whole point of the ordering is that the thing
+    // closing first is the thing a student needs to see first.
+    expect(ids(rankForFeature([
+      row('thai-later', '2026-12-01'), row('intl-sooner', '2026-08-28', INTL),
+    ]))).toEqual(['intl-sooner', 'thai-later']);
+  });
+
+  it('falls through to award size when deadline and origin both tie', () => {
+    expect(ids(rankForFeature([
+      row('small', '2026-08-31', 'Thai University', 'small'),
+      row('full', '2026-08-31', 'Thai University', 'full_ride'),
+    ]))).toEqual(['full', 'small']);
   });
 
   it('does not mutate its input', () => {
-    const input = [row('c', 'small'), row('a', 'full_ride')];
-    rankByAward(input);
-    expect((input[0] as { scholarship_id: string }).scholarship_id).toBe('c');
+    const input = [row('c', '2026-12-01'), row('a', '2026-08-28')];
+    rankForFeature(input);
+    expect(ids(input)).toEqual(['c', 'a']);
   });
 });

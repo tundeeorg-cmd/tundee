@@ -6,32 +6,37 @@
  * `td_scholarships` — and then filtered client-side for active rows, so the grid was
  * always empty and silently so.
  *
- * **Selection rule: verified first, then by award size.** Two options were unavailable.
- * Sorting by deadline is impossible because `deadline_date` is NULL on all 518 displayed
- * rows (the dates exist only as unparsed text in `deadline_raw`, e.g. "31-Aug-2026").
- * Sorting by amount is nearly as bad: `award_amount_thb_numeric` is populated on 11 rows.
+ * **Selection rule: verified only, soonest deadline first.**
  *
- * Verification is what is left, and it is also the right axis. TunDee's claim is verified
- * data, 72 of the 518 displayed rows carry `verification_status = 'verified'`, and the
- * homepage is the one place where showing the checked ones rather than a random six is
- * the honest choice. A featured section is curated by definition; this is the curation
- * rule, stated.
+ * `verification_status = 'verified'` is the filter. TunDee's claim is verified data, 72
+ * of the 518 displayed rows carry it, and the homepage is the one place where showing
+ * the checked ones rather than a random six is the honest choice.
  *
- * **Thai funders first.** Ranking on award size alone filled all six slots with
- * international awards — Stanford, ETH Zurich, CUHK, Chevening — because full-ride
+ * Deadline is the order. This was not available when the section was first rebuilt —
+ * `deadline_date` was NULL on every row because the parser could not read the sheet's
+ * "31-Aug-2026" format, so the section fell back to ranking by award size. With the
+ * dates backfilled, urgency is the better axis by a distance: a scholarship closing in
+ * five days is the one a student needs to see, and the section can now say so.
+ *
+ * **Thai funders still break ties.** Ranking on award size alone had filled all six slots
+ * with international awards — Stanford, ETH Zurich, CUHK, Chevening — because full-ride
  * scholarships in this corpus are overwhelmingly foreign (451 of 518 displayed rows are
- * `International (open to Thais)`). Six foreign universities under the heading ทุนแนะนำ,
- * on a site whose eyebrow reads ทุนการศึกษาไทย, is the wrong first impression and buries
- * the awards the mission statement is about: 31 verified, currently-open Thai-funded
- * scholarships exist, including Chulalongkorn's rural scholarship and Teacher Return to
- * Hometown. International awards still fill any slot Thai funders leave empty.
+ * `International (open to Thais)`), and six foreign universities under the heading
+ * ทุนแนะนำ, on a site whose eyebrow reads ทุนการศึกษาไทย, is the wrong first impression.
+ * That ordering is a product decision confirmed by the project owner on 2026-08-23, so it
+ * is kept — demoted below deadline rather than dropped. Urgency leads; among scholarships
+ * closing on the same day, Thai funders come first. Four of the current candidates share
+ * 2026-08-31, so the tiebreak does real work.
  *
- * This ordering is a product decision, confirmed by the project owner on 2026-08-23, not
- * an implementation detail. The funder-origin key looks redundant beside award size;
- * removing it sorts purely by award again and repopulates the homepage with foreign
- * universities, which is the behaviour it exists to prevent.
+ * Rows with **no** deadline sort last. A scholarship with no known closing date cannot
+ * claim urgency, and putting it above one that closes this week would misinform the
+ * reader the ordering exists to inform.
  *
- * `Opening Soon` rows are excluded — a student cannot act on them yet.
+ * `Opening Soon` rows are excluded — a student cannot act on them yet — and so is
+ * anything whose deadline has already passed. `status_effective` is derived from the
+ * sheet's text column rather than from dates (it needs both `open_date` and
+ * `deadline_date`, and `open_date` is NULL corpus-wide), so it does not self-close: the
+ * date filter is the only thing standing between a lapsed deadline and the homepage.
  */
 
 import { unstable_cache } from 'next/cache';
@@ -72,20 +77,28 @@ const COLUMNS = [
 ].join(', ');
 
 /**
- * Exported for tests: Thai funders first, then biggest award, unranked last.
+ * Exported for tests. Sort keys, in order:
  *
- * The two keys are ordered deliberately. Funder origin outranks award size, so a medium
- * Thai award appears above a foreign full-ride — on this site that is the right trade.
+ *   1. deadline, soonest first — undated rows last
+ *   2. Thai funders before international, among rows closing the same day
+ *   3. biggest award, as the final tiebreak
+ *
+ * The order of the keys is the whole design. Deadline leads because urgency is what a
+ * featured slot is for; the other two only decide ties.
  */
-export function rankByAward(rows: TdScholarship[]): TdScholarship[] {
-  const key = (row: TdScholarship): [number, number] => [
+export function rankForFeature(rows: TdScholarship[]): TdScholarship[] {
+  // Sorts after every real date, so undated rows land at the end without needing a
+  // separate pass or a sentinel date that could be mistaken for data.
+  const NO_DEADLINE = '\uffff';
+  const key = (row: TdScholarship): [string, number, number] => [
+    row.deadline_date || NO_DEADLINE,
     row.funder_type === INTERNATIONAL_FUNDER ? 1 : 0,
     TIER_RANK[row.award_value_tier ?? ''] ?? Number.MAX_SAFE_INTEGER,
   ];
   return [...rows].sort((a, b) => {
-    const [thaiA, tierA] = key(a);
-    const [thaiB, tierB] = key(b);
-    return thaiA - thaiB || tierA - tierB;
+    const [dateA, thaiA, tierA] = key(a);
+    const [dateB, thaiB, tierB] = key(b);
+    return dateA.localeCompare(dateB) || thaiA - thaiB || tierA - tierB;
   });
 }
 
@@ -96,12 +109,20 @@ async function fetchFeatured(): Promise<TdScholarship[]> {
 
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
+  // Bangkok, not the server's timezone: a deadline is a local calendar date, and on a
+  // UTC host "today" flips seven hours before it does for the student reading the page.
+  const todayBkk = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   const { data, error } = await db
     .from('td_scholarships')
     .select(COLUMNS)
     .eq(PUBLIC_SCHOLARSHIP_FILTER.column, PUBLIC_SCHOLARSHIP_FILTER.value)
     .eq('verification_status', 'verified')
     .in('status_effective', ['Open', 'Closing Soon'])
+    // A lapsed deadline must not be featured as urgent. `or` rather than a plain filter
+    // because a NULL deadline is not an expired one — those rows stay eligible and simply
+    // rank last.
+    .or(`deadline_date.gte.${todayBkk},deadline_date.is.null`)
     .order('scholarship_id');
 
   // An empty list renders nothing, which is what this section did before. The difference
@@ -109,7 +130,7 @@ async function fetchFeatured(): Promise<TdScholarship[]> {
   // a query pointed at the wrong table.
   if (error || !data) return [];
 
-  return rankByAward(data as unknown as TdScholarship[]).slice(0, FEATURED_COUNT);
+  return rankForFeature(data as unknown as TdScholarship[]).slice(0, FEATURED_COUNT);
 }
 
 export const getFeaturedScholarships = unstable_cache(
