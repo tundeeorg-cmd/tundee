@@ -26,6 +26,11 @@
  * scholarships exist, including Chulalongkorn's rural scholarship and Teacher Return to
  * Hometown. International awards still fill any slot Thai funders leave empty.
  *
+ * This ordering is a product decision, confirmed by the project owner on 2026-08-23, not
+ * an implementation detail. The funder-origin key looks redundant beside award size;
+ * removing it sorts purely by award again and repopulates the homepage with foreign
+ * universities, which is the behaviour it exists to prevent.
+ *
  * `Opening Soon` rows are excluded — a student cannot act on them yet.
  */
 
