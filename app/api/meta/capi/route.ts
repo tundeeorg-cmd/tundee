@@ -1,10 +1,16 @@
 /**
  * POST /api/meta/capi — server-side mirror of browser Pixel conversions.
  *
- * DORMANT UNTIL CONFIGURED: with META_CAPI_ACCESS_TOKEN unset this returns 204
+ * DORMANT UNTIL CONFIGURED: with no dataset fully configured this returns 204
  * immediately and logs nothing. The browser pixel works on its own today, and
- * CAPI switches on the moment the token is added — no code change, no deploy
+ * CAPI switches on the moment a token is added — no code change, no deploy
  * beyond picking up the env var.
+ *
+ * MIRRORS TO EVERY CONFIGURED DATASET: TunDee's own pixel and the agency's.
+ * Each needs its own access token (a token is scoped to one dataset), so they
+ * are paired in lib/analytics/capiDestinations.ts. The SAME event_id goes to
+ * both, which is what lets each dataset collapse its own server copy against
+ * its own browser copy.
  *
  * De-duplication: the client mints one event_id per event, passes it to
  * fbq(..., { eventID }) and sends the same id here. Meta collapses the browser
@@ -19,6 +25,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createHash } from 'crypto';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { capiDestinations, type CapiDestination } from '@/lib/analytics/capiDestinations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,13 +53,53 @@ function clientIp(request: NextRequest): string | undefined {
   return request.headers.get('x-real-ip') ?? undefined;
 }
 
+/**
+ * Post one conversion to one dataset. Never throws: a dataset that is down,
+ * misconfigured or rate-limited must not stop the others from receiving the
+ * event, and must never surface an error to a student.
+ */
+async function deliver(
+  dest: CapiDestination,
+  event: Record<string, unknown>,
+): Promise<boolean> {
+  const payload: Record<string, unknown> = { data: [event] };
+  if (dest.testEventCode) payload.test_event_code = dest.testEventCode;
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${dest.pixelId}/events?access_token=${encodeURIComponent(dest.accessToken)}`,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      },
+    );
+
+    if (!res.ok) {
+      // Name the dataset so a bad token is debuggable. The token itself is
+      // never logged.
+      console.warn(
+        `[meta/capi] ${dest.name} (${dest.pixelId}) rejected:`,
+        res.status, (await res.text()).slice(0, 200),
+      );
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn(
+      `[meta/capi] ${dest.name} (${dest.pixelId}) request failed:`,
+      e instanceof Error ? e.message : String(e),
+    );
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
-  const accessToken = process.env.META_CAPI_ACCESS_TOKEN;
-  const pixelId = process.env.NEXT_PUBLIC_FB_PIXEL_ID || process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  const destinations = capiDestinations();
 
   // The dormant path. Deliberately silent: this is the normal state until a
   // token exists, and warning on every conversion would be pure noise.
-  if (!accessToken || !pixelId) {
+  if (!destinations.length) {
     return new NextResponse(null, { status: 204 });
   }
 
@@ -94,43 +141,28 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Payload ────────────────────────────────────────────────────────────────
-  const payload: Record<string, unknown> = {
-    data: [
-      {
-        event_name:       eventName,
-        event_time:       Math.floor(Date.now() / 1000),
-        event_id:         eventId,
-        event_source_url: eventSourceUrl,
-        action_source:    'website',
-        user_data:        userData,
-        custom_data:      customData ?? {},
-      },
-    ],
+  // One event object, shared by every dataset. The event_id in particular MUST
+  // be identical across them: each dataset pairs this server copy with the
+  // browser copy that carried the same id.
+  const event: Record<string, unknown> = {
+    event_name:       eventName,
+    event_time:       Math.floor(Date.now() / 1000),
+    event_id:         eventId,
+    event_source_url: eventSourceUrl,
+    action_source:    'website',
+    user_data:        userData,
+    custom_data:      customData ?? {},
   };
 
-  const testEventCode = process.env.META_TEST_EVENT_CODE;
-  if (testEventCode) payload.test_event_code = testEventCode;
+  // In parallel, and independently: one failing dataset must not deprive the
+  // other of the conversion.
+  const results = await Promise.all(destinations.map(d => deliver(d, event)));
+  const delivered = results.filter(Boolean).length;
 
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_API_VERSION}/${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      },
-    );
-
-    if (!res.ok) {
-      // One line, only on a real rejection — enough to debug a bad token
-      // without flooding logs on transient failures.
-      console.warn('[meta/capi] rejected:', res.status, (await res.text()).slice(0, 200));
-      return NextResponse.json({ ok: false }, { status: 202 });
-    }
-  } catch (e) {
-    console.warn('[meta/capi] request failed:', e instanceof Error ? e.message : String(e));
-    return NextResponse.json({ ok: false }, { status: 202 });
-  }
-
-  return NextResponse.json({ ok: true });
+  // 202 when nothing landed — the caller is fire-and-forget either way, but the
+  // status keeps a total outage visible in logs and uptime checks.
+  return NextResponse.json(
+    { ok: delivered > 0, delivered, attempted: destinations.length },
+    { status: delivered > 0 ? 200 : 202 },
+  );
 }
