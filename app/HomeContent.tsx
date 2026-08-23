@@ -1,15 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import HeroSection from '@/components/HeroSection';
 import StatsBar from '@/components/StatsBar';
-import ScholarshipCard from '@/components/ScholarshipCard';
+import TdScholarshipCard from '@/components/TdScholarshipCard';
 import { useLang } from '@/lib/LanguageContext';
-import { createClient } from '@/lib/supabase/client';
 import { translations } from '@/lib/translations';
-import type { Scholarship } from '@/lib/types';
 import type { ScholarshipStats } from '@/lib/scholarships/counts';
+import type { TdScholarship } from '@/lib/tdScholarships/types';
 
 const steps = [
   { num: '01', th_title: 'ค้นหา', en_title: 'Browse', th_desc: 'กรองทุนตามเกรด รายได้ จังหวัด และสาขาวิชา', en_desc: 'Filter by GPA, income, province and field of study' },
@@ -20,28 +18,14 @@ const steps = [
 interface Props {
   /** Live counts, resolved on the server. See lib/scholarships/counts.ts. */
   stats: ScholarshipStats;
+  /** Verified, currently-open scholarships. See lib/scholarships/featured.ts. */
+  featured: TdScholarship[];
 }
 
-export default function HomeContent({ stats }: Props) {
+export default function HomeContent({ stats, featured }: Props) {
   const { lang } = useLang();
   const th = lang === 'th';
-  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
-  const [loading, setLoading] = useState(true);
   const f = translations.featured;
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from('scholarships')
-      .select('*')
-      .order('amount_thb', { ascending: false, nullsFirst: false })
-      .limit(6)
-      .then(({ data }) => {
-        const active = (data ?? []).filter((s) => s.is_active !== false) as Scholarship[];
-        setScholarships(active.slice(0, 6));
-        setLoading(false);
-      });
-  }, []);
 
   return (
     <>
@@ -160,16 +144,12 @@ export default function HomeContent({ stats }: Props) {
             </Link>
           </div>
 
-          {loading ? (
+          {/* Resolved on the server, so there is no loading state to render. An empty
+              list hides the grid rather than showing skeletons that never resolve. */}
+          {featured.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-52 bg-[#DDE4EF] dark:bg-[#232B3E] rounded-[12px] animate-pulse" />
-              ))}
-            </div>
-          ) : scholarships.length === 0 ? null : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {scholarships.map((s) => (
-                <ScholarshipCard key={s.id} scholarship={s} />
+              {featured.map((s) => (
+                <TdScholarshipCard key={s.scholarship_id} scholarship={s} />
               ))}
             </div>
           )}

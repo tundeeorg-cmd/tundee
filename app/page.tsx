@@ -10,10 +10,14 @@
 
 import HomeContent from './HomeContent';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
+import { getFeaturedScholarships } from '@/lib/scholarships/featured';
 
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const stats = await getScholarshipStats();
-  return <HomeContent stats={stats} />;
+  const [stats, featured] = await Promise.all([
+    getScholarshipStats(),
+    getFeaturedScholarships(),
+  ]);
+  return <HomeContent stats={stats} featured={featured} />;
 }

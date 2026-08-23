@@ -12,6 +12,7 @@ import {
   OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, type AwardRow,
 } from '@/lib/admin/awards';
 import { countDistinctFunders } from '@/lib/scholarships/counts';
+import { rankByAward } from '@/lib/scholarships/featured';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 
@@ -286,5 +287,50 @@ describe('POST /api/admin/outcomes (manual add)', () => {
       createMockDb({ td_scholarships: { select: { data: null, error: null } } }),
     );
     expect((await post({ user_id: USER_ID, scholarship_id: 'NOPE', status: 'awarded' })).status).toBe(404);
+  });
+});
+
+describe('rankByAward (homepage featured order)', () => {
+  const INTL = 'International (open to Thais)';
+  const row = (id: string, tier: string | null, funder = 'Thai University') =>
+    ({ scholarship_id: id, award_value_tier: tier, funder_type: funder } as never);
+
+  it('puts the biggest award first', () => {
+    const ordered = rankByAward([
+      row('c', 'medium'), row('a', 'full_ride'), row('b', 'full_tuition'),
+    ]);
+    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps untiered rows rather than dropping them, and sorts them last', () => {
+    // 313 of 518 displayed scholarships have no award_value_tier. Dropping them would
+    // silently shrink the pool the homepage draws from.
+    const ordered = rankByAward([row('x', null), row('y', 'small')]);
+    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['y', 'x']);
+    expect(ordered).toHaveLength(2);
+  });
+
+  it('puts a Thai funder above a bigger international award', () => {
+    // Ranking on award size alone filled all six homepage slots with foreign
+    // universities: 451 of 518 displayed scholarships are international, and the
+    // full-ride tier is almost entirely theirs.
+    const ordered = rankByAward([
+      row('stanford', 'full_ride', INTL), row('chula', 'medium'),
+    ]);
+    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id))
+      .toEqual(['chula', 'stanford']);
+  });
+
+  it('still ranks international awards among themselves by size', () => {
+    const ordered = rankByAward([
+      row('b', 'medium', INTL), row('a', 'full_ride', INTL),
+    ]);
+    expect(ordered.map(r => (r as { scholarship_id: string }).scholarship_id)).toEqual(['a', 'b']);
+  });
+
+  it('does not mutate its input', () => {
+    const input = [row('c', 'small'), row('a', 'full_ride')];
+    rankByAward(input);
+    expect((input[0] as { scholarship_id: string }).scholarship_id).toBe('c');
   });
 });
