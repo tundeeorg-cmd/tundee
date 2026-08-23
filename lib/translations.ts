@@ -13,19 +13,10 @@ export const translations = {
     navTheme: { th: 'ธีม', en: 'Theme' },
     navSignout: { th: 'ออกจากระบบ', en: 'Sign Out' },
   },
-  hero: {
-    headline_th: 'หาทุนที่ใช่\nสำหรับคุณ',
-    headline_en: 'Find the scholarship\nyou deserve',
-    sub_th: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 90 ทุน ให้คุณค้นหาได้ฟรี ตรงเป้า และง่ายดาย',
-    sub_en: 'TunDee aggregates 90+ real Thai scholarships AI-powered matching, free, bilingual.',
-    cta: { th: 'ค้นหาทุนของคุณ →', en: 'Find Your Scholarship →' },
-    eyebrow: { th: 'ค้นหาทุนการศึกษาฟรี', en: 'Free Scholarship Discovery' },
-  },
-  stats: {
-    scholarships: { th: '90+ ทุน', en: '90+ Scholarships' },
-    provinces: { th: '77 จังหวัด', en: '77 Provinces' },
-    free: { th: 'ฟรีตลอด', en: 'Always Free' },
-  },
+  // `hero` and `stats` blocks removed 2026-08-23. Nothing imported them — components/
+  // HeroSection.tsx and components/StatsBar.tsx carry their own copy — and they held
+  // the last of the hardcoded counts: "90+ ทุน", "90+ Scholarships" and "77 จังหวัด".
+  // Dead strings still get read by people, and these three were all wrong.
   howItWorks: {
     title: { th: 'วิธีใช้งาน', en: 'How It Works' },
     step1_title: { th: 'ค้นหา', en: 'Search' },

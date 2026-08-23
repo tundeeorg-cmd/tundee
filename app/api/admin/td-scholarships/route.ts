@@ -46,17 +46,36 @@ export async function GET(request: NextRequest) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    let query = adminClient.from('td_scholarships').select('*').order('scholarship_id');
+    // PostgREST caps an unbounded select at `max-rows` (1000 on Supabase). This route
+    // promises ALL rows and the admin dashboard counts the array it gets back, so the
+    // cap was being reported as the total: "1000 Total / 316 Displayed / 684 Hidden"
+    // was the displayed/hidden split of the first 1000 rows by scholarship_id, not of
+    // the table. Page explicitly until a short page comes back.
+    const PAGE_SIZE = 1000;
+    const rows: unknown[] = [];
 
-    if (displayedFilter === 'true')  query = query.eq('is_displayed', true);
-    if (displayedFilter === 'false') query = query.eq('is_displayed', false);
-    if (staleOnly) query = query.eq('stale', true);
+    for (let from = 0; ; from += PAGE_SIZE) {
+      let query = adminClient
+        .from('td_scholarships')
+        .select('*')
+        .order('scholarship_id')
+        .range(from, from + PAGE_SIZE - 1);
 
-    const { data, error } = await query;
+      if (displayedFilter === 'true')  query = query.eq('is_displayed', true);
+      if (displayedFilter === 'false') query = query.eq('is_displayed', false);
+      if (staleOnly) query = query.eq('stale', true);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const { data: page, error } = await query;
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      rows.push(...(page ?? []));
+      if (!page || page.length < PAGE_SIZE) break;
     }
+
+    const data = rows;
 
     return NextResponse.json({ scholarships: data ?? [] });
 

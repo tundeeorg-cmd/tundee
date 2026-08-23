@@ -1995,13 +1995,30 @@ export default function AdminPage() {
           <div className="space-y-6">
 
             {/* ── Summary tiles ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <StatCard label="สมัครสมาชิก / Signups"      value={awardStats?.total_signups ?? 0} icon="👥" />
-              <StatCard label="กดสมัครทุน / Apply clicks"   value={awardStats?.total_apply_clicks ?? 0} icon="🖱️" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <StatCard label="บัญชีทั้งหมด / Accounts"     value={awardStats?.total_accounts ?? 0} icon="👥" />
+              <StatCard
+                label={`โปรไฟล์สมบูรณ์ / Completed profiles (${formatAwardRate(awardStats?.profile_completion_rate ?? null)})`}
+                value={awardStats?.total_profiles ?? 0}
+                icon="✅"
+              />
+              <StatCard label="กดสมัครทุน / Apply clicks (total)" value={awardStats?.total_apply_clicks ?? 0} icon="🖱️" />
               <StatCard label="ได้รับทุน / Awarded"         value={awardStats?.total_awarded ?? 0} icon="🎓" accent />
               <StatCard label="มูลค่ารวม / Total THB"       value={(awardStats?.total_thb_awarded ?? 0).toLocaleString('en-US')} icon="฿" />
               <StatCard label="อัตราได้ทุน / Award rate"    value={formatAwardRate(awardStats?.award_rate ?? null)} icon="📈" />
             </div>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-[#6E6E73] dark:text-[#8E8E93]">
+              ℹ️ <strong>Apply clicks are complete from 23 Aug 2026.</strong> Before that date only the
+              tracker page logged them — the scholarship detail pages and the 7-step checklist did not,
+              so earlier totals undercount by an unknown amount. Nothing has been backfilled or estimated.
+              Clicks from LINE reminder messages are never counted: they leave the site directly.
+            </p>
+
+            <p className="mt-1 text-[11px] leading-relaxed text-[#6E6E73] dark:text-[#8E8E93]">
+              ℹ️ <strong>Accounts</strong> counts auth users. <strong>Completed profiles</strong> counts
+              students who finished onboarding — the gap is drop-off in the wizard, not missing data.
+            </p>
 
             {/* ── Filters ───────────────────────────────────────────────── */}
             <div className="bg-white dark:bg-[#1D1D1F] rounded-2xl border border-[#E5E5EA] dark:border-[#3A3A3C] p-4">

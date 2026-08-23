@@ -8,9 +8,10 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createMockDb, type MockDbCall } from './helpers/mockSupabase';
 import {
-  awardRate, formatAwardRate, normaliseFilters, matchesSearch,
+  awardRate, formatAwardRate, normaliseFilters, matchesSearch, profileCompletionRate,
   OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, type AwardRow,
 } from '@/lib/admin/awards';
+import { countDistinctFunders } from '@/lib/scholarships/counts';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 
@@ -26,6 +27,37 @@ const ADMIN = 'admin@tundee.org';
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 
 // ── pure helpers ───────────────────────────────────────────────────────────
+
+describe('profileCompletionRate', () => {
+  it('is profiles over accounts', () => {
+    expect(profileCompletionRate(30, 62)).toBeCloseTo(30 / 62);
+  });
+
+  it('is null when there are no accounts, never NaN', () => {
+    expect(profileCompletionRate(0, 0)).toBeNull();
+    expect(formatAwardRate(profileCompletionRate(0, 0))).toBe('—');
+  });
+
+  it('never exceeds 100% even if a profile outlives its auth user', () => {
+    expect(profileCompletionRate(70, 62)).toBe(1);
+  });
+});
+
+describe('countDistinctFunders', () => {
+  it('prefers the Thai name and falls back through the other columns', () => {
+    expect(countDistinctFunders([
+      { funder_th: 'มูลนิธิ ก', funder: 'Foundation A' },
+      { funder_th: null, funder: 'Foundation A' },
+      { funder_th: '', funder: null, funder_en: 'Foundation B' },
+    ])).toBe(3);
+  });
+
+  it('collapses repeats and ignores blank funders', () => {
+    expect(countDistinctFunders([
+      { funder_th: 'มูลนิธิ ก' }, { funder_th: 'มูลนิธิ ก' }, { funder_th: '  ' }, {},
+    ])).toBe(1);
+  });
+});
 
 describe('awardRate', () => {
   it('divides awarded by apply-clicks', () => {
@@ -135,10 +167,12 @@ describe('GET /api/admin/outcomes/stats', () => {
     expect((await STATS_GET(new NextRequest('http://localhost/api/admin/outcomes/stats'))).status).toBe(403);
   });
 
-  it('sums awarded THB and computes the award rate', async () => {
+  it('reports accounts and completed profiles as separate numbers', async () => {
     // The mock resolves per (table, action); counts come back on the same shape.
     const db: any = {
       _calls: [] as MockDbCall[],
+      // auth.users is counted through the GoTrue admin API, not PostgREST.
+      auth: { admin: { listUsers: async () => ({ data: { users: [], total: 250 }, error: null }) } },
       from(table: string) {
         const self = this;
         const b: any = {
@@ -167,7 +201,9 @@ describe('GET /api/admin/outcomes/stats', () => {
 
     const json = await (await STATS_GET(new NextRequest('http://localhost/api/admin/outcomes/stats'))).json();
 
-    expect(json.total_signups).toBe(120);
+    expect(json.total_accounts).toBe(250);          // auth.users
+    expect(json.total_profiles).toBe(120);          // completed onboarding
+    expect(json.profile_completion_rate).toBeCloseTo(120 / 250);
     expect(json.total_apply_clicks).toBe(400);
     expect(json.total_awarded).toBe(20);
     expect(json.total_thb_awarded).toBe(75000);   // nulls ignored

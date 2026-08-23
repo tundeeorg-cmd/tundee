@@ -15,6 +15,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatUserDate } from '@/lib/formatDate';
+import { recordApplyClick } from '@/lib/analytics/applyClick';
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
 
@@ -450,6 +451,7 @@ export default function ApplicationChecklist({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => {
+                              recordApplyClick(scholarshipId);
                               if (!done) void toggleStep(step.id);
                             }}
                             className="inline-flex items-center gap-1.5 bg-[#2E6BE6] text-white

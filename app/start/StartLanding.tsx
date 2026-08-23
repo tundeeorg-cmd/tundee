@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { useScholarshipCount } from '@/lib/useScholarshipCount';
 import { persistAdParams, buildSignupHref, trackCTAClick, type AdParams } from '@/lib/adTracking';
 import PreviewMatcher from './PreviewMatcher';
 
@@ -53,8 +52,14 @@ function CtaButton({ href, location, children }: { href: string; location: strin
   );
 }
 
-export default function StartLanding({ adParams }: { adParams: AdParams }) {
-  const scholarshipCount = useScholarshipCount(90);
+export default function StartLanding({
+  adParams,
+  scholarshipCount,
+}: {
+  adParams: AdParams;
+  /** Live count from lib/scholarships/counts.ts; null when the query failed. */
+  scholarshipCount: number | null;
+}) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
 
   useEffect(() => {
@@ -107,7 +112,11 @@ export default function StartLanding({ adParams }: { adParams: AdParams }) {
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          ทุนที่ตรวจสอบแล้วกว่า {scholarshipCount} รายการ
+          {/* Was "ทุนที่ตรวจสอบแล้วกว่า 90 รายการ". Two problems: the count was a
+              literal, and "ตรวจสอบแล้ว" (verified) described all of them when 72 of
+              518 carry verification_status = 'verified'. "กว่า" is a "+" in words and
+              overstates a number the database knows exactly. */}
+          {scholarshipCount !== null && `ทุนการศึกษา ${scholarshipCount.toLocaleString('th-TH')} ทุน`}
         </p>
       </section>
 
