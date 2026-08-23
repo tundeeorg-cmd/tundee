@@ -20,7 +20,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 import { linePush } from '@/lib/line/push';
-import { parseOffsets, shouldSendReminder, buildReminderText } from '@/lib/line/reminders';
+import { addDays, parseOffsets, shouldSendReminder, buildReminderText } from '@/lib/line/reminders';
 
 function makeDb() {
   return createClient(
@@ -72,11 +72,28 @@ async function handleReminders(request: NextRequest) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
-  // Load existing reminder_log entries for today's targets (idempotency)
-  const { data: sentLog } = await db
+  // Load existing reminder_log entries for today's targets (idempotency).
+  //
+  // Scoped to the deadline dates that can actually fire today, for two reasons. The whole
+  // table was being loaded unbounded, and PostgREST caps an unbounded select at 1000 rows
+  // — so once the log passed 1000 entries the dedup set would have been silently
+  // incomplete and students would have received the same reminder twice. Filtering also
+  // keeps the query small permanently, which paging would not.
+  const targetDeadlines = offsets.map(offsetDays => addDays(todayStr, offsetDays));
+
+  const { data: sentLog, error: logErr } = await db
     .from('reminder_log')
     .select('user_id, scholarship_id, offset_days, deadline_date')
-    .eq('channel', 'line');
+    .eq('channel', 'line')
+    .in('deadline_date', targetDeadlines);
+
+  // Abort rather than send. An unread log is indistinguishable from an empty one, and
+  // proceeding would treat every eligible reminder as never-sent and push the lot again.
+  // A missed run costs one day of reminders; a duplicate storm costs trust.
+  if (logErr) {
+    console.error('[line-reminders] reminder_log fetch failed, sending nothing:', logErr);
+    return NextResponse.json({ error: `reminder_log unreadable: ${logErr.message}` }, { status: 500 });
+  }
 
   const sentSet = new Set<string>(
     (sentLog ?? []).map(
