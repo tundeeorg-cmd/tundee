@@ -13,10 +13,49 @@ const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})/;
 // Date range: "2026-10-29 to 2027-01-20" — capture both ends, use the latest
 const RANGE_RE = /(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})/i;
 
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+const MONTH_NAMES = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
+
+/**
+ * "31-Aug-2026", "1 Sep 2026", "1/Sep/2026". This is the format the master spreadsheet
+ * actually uses — 515 of the 517 non-blank deadlines in the corpus — and it was the one
+ * shape the parser did not recognise, which is why `deadline_date` was NULL on every row.
+ * Separator is flexible because a hand-edited sheet is not consistent about it.
+ */
+const DAY_MONTH_YEAR_RE = new RegExp(
+  `\\b(\\d{1,2})[\\s./-]*(${MONTH_NAMES})[a-z]*\\.?[\\s./-]*(\\d{4})\\b`, 'i',
+);
+
+/** "Aug 31, 2026" / "August 31 2026" — the same date written the other way round. */
+const MONTH_DAY_YEAR_RE = new RegExp(
+  `\\b(${MONTH_NAMES})[a-z]*\\.?[\\s./-]+(\\d{1,2})(?:st|nd|rd|th)?,?[\\s./-]+(\\d{4})\\b`, 'i',
+);
+
+/** Days per month. Index 0 unused so the month number indexes directly; February is
+ *  resolved against the year, since the year is always known by the time we check. */
+const DAYS_IN_MONTH = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function daysInMonth(year: number, month: number): number {
+  if (month !== 2) return DAYS_IN_MONTH[month];
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  return leap ? 29 : 28;
+}
+
 function validateDate(y: number, m: number, d: number): string | null {
-  if (y < 2000) return null;
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  // Thai sheets are routinely typed in the Buddhist era: 2569 is 2026. The Date-object
+  // path already did this conversion; text dates reached validateDate unconverted and a
+  // year of 2569 passed the `>= 2000` check as if it were Gregorian, putting the deadline
+  // five centuries out.
+  const year = y > 2400 ? y - 543 : y;
+  if (year < 2000) return null;
+  if (m < 1 || m > 12) return null;
+  // Reject 31 April rather than accepting it: a deadline that does not exist is worse
+  // than no deadline, because the display gate will happily count down to it.
+  if (d < 1 || d > daysInMonth(year, m)) return null;
+  return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 // Try to extract a single concrete ISO date from a raw string.
@@ -40,19 +79,24 @@ function extractDate(s: string): string | null {
     return validateDate(y, m, d);
   }
 
-  // Excel serial number passed as string (rare, but handle it)
-  // XLSX with cellDates:true returns Date objects upstream, but guard here too.
-
-  // Try to parse a year and month from prose like "~early Jan 2027" or "Annual ~Feb"
-  // Pattern: optional non-digit chars, then YYYY at end, optionally with month name
-  const proseMatch = s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\b/i) ||
-                     s.match(/\b(\d{4})\b.*\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\b/i);
-  if (proseMatch) {
-    // We have a month + year but no day — can't produce a concrete date
-    // Return null so deadline_note is used instead
-    return null;
+  // "31-Aug-2026" and friends — the dominant format in the master sheet.
+  const dmy = s.match(DAY_MONTH_YEAR_RE);
+  if (dmy) {
+    const month = MONTHS[dmy[2].toLowerCase().slice(0, 3)];
+    return validateDate(parseInt(dmy[3], 10), month, parseInt(dmy[1], 10));
   }
 
+  // "Aug 31, 2026" — same date, other order.
+  const mdy = s.match(MONTH_DAY_YEAR_RE);
+  if (mdy) {
+    const month = MONTHS[mdy[1].toLowerCase().slice(0, 3)];
+    return validateDate(parseInt(mdy[3], 10), month, parseInt(mdy[2], 10));
+  }
+
+  // Month and year but no day — "Nov 2026", "Sep2027", "~early Jan 2027", "Annual ~Feb".
+  // Deliberately NOT resolved to a concrete date. Picking the 1st or the last of the
+  // month would invent a deadline, and a student would plan against it. The raw text is
+  // preserved in deadline_note and shown instead.
   return null;
 }
 
