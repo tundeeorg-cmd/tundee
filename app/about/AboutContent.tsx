@@ -1,24 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useLang } from '@/lib/LanguageContext';
-import { createClient } from '@/lib/supabase/client';
 
-export default function AboutContent() {
+interface Props {
+  /** Live count from lib/scholarships/counts.ts; null when the query failed. */
+  scholarshipCount: number | null;
+}
+
+export default function AboutContent({ scholarshipCount }: Props) {
   const { lang } = useLang();
   const th = lang === 'th';
-  const [scholarshipCount, setScholarshipCount] = useState<number | null>(null);
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from('scholarships')
-      .select('id', { count: 'exact', head: true })
-      .then(({ count }) => { if (count !== null && count > 0) setScholarshipCount(count); });
-  }, []);
-
-  const countLabel = scholarshipCount !== null ? `${scholarshipCount}+` : '90+';
+  // This page used to count the legacy `scholarships` table with no filter at all,
+  // then append "+". That table holds 102 rows, none of them active, and none of them
+  // browsable — so the figure described nothing a visitor could reach. The count now
+  // comes from the same place as every other count, and carries no "+": the exact
+  // number is known, and "+" claims more than the database can show.
+  const countLabel = scholarshipCount !== null ? scholarshipCount.toLocaleString('en-US') : null;
 
   return (
     <div className="bg-white dark:bg-[#07111F] min-h-screen">
@@ -60,8 +59,12 @@ export default function AboutContent() {
             className="mb-10 dark:text-[#7A8FA8]"
           >
             {th
-              ? `รวมทุนการศึกษาไทยกว่า ${countLabel} รายการ กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย`
-              : `${countLabel} Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.`}
+              ? (countLabel
+                  ? `รวมทุนการศึกษาไทย ${countLabel} ทุน กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย`
+                  : 'รวมทุนการศึกษาไทยไว้ในที่เดียว กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย')
+              : (countLabel
+                  ? `${countLabel} Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.`
+                  : 'Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.')}
           </p>
 
           <Link

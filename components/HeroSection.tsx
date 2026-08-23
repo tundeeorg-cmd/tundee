@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 
-export default function HeroSection() {
+interface Props {
+  /** Live count of browsable scholarships, or null when the query failed. */
+  scholarshipCount: number | null;
+}
+
+export default function HeroSection({ scholarshipCount }: Props) {
   const { lang } = useLang();
   const th = lang === 'th';
 
@@ -48,9 +53,16 @@ export default function HeroSection() {
             className="mt-5 text-[17px] text-[#6E7A8A] leading-relaxed max-w-[520px]"
             style={{ fontFamily: th ? "'Sarabun', sans-serif" : "var(--font-lato), Lato, sans-serif" }}
           >
-            {th
-              ? 'รวมทุนการศึกษาไทยกว่า 90 รายการ จับคู่ตรงตามโปรไฟล์ของคุณ ฟรีตลอด'
-              : '90+ verified Thai scholarships matched to your profile. Always free.'}
+            {/* The count is live. When the query fails we drop the number rather than
+                fall back to a literal — a stale hardcoded figure is the exact failure
+                this platform exists to correct. */}
+            {scholarshipCount === null
+              ? (th
+                  ? 'จับคู่ทุนการศึกษาไทยตรงตามโปรไฟล์ของคุณ ฟรีตลอด'
+                  : 'Thai scholarships matched to your profile. Always free.')
+              : (th
+                  ? `รวมทุนการศึกษาไทย ${scholarshipCount.toLocaleString('th-TH')} ทุน จับคู่ตรงตามโปรไฟล์ของคุณ ฟรีตลอด`
+                  : `${scholarshipCount.toLocaleString('en-US')} Thai scholarships, matched to your profile. Always free.`)}
           </p>
 
           {/* CTAs */}

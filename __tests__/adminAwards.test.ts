@@ -8,9 +8,11 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createMockDb, type MockDbCall } from './helpers/mockSupabase';
 import {
-  awardRate, formatAwardRate, normaliseFilters, matchesSearch,
+  awardRate, formatAwardRate, normaliseFilters, matchesSearch, profileCompletionRate,
   OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, type AwardRow,
 } from '@/lib/admin/awards';
+import { countDistinctFunders } from '@/lib/scholarships/counts';
+import { rankForFeature } from '@/lib/scholarships/featured';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 
@@ -26,6 +28,37 @@ const ADMIN = 'admin@tundee.org';
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 
 // ── pure helpers ───────────────────────────────────────────────────────────
+
+describe('profileCompletionRate', () => {
+  it('is profiles over accounts', () => {
+    expect(profileCompletionRate(30, 62)).toBeCloseTo(30 / 62);
+  });
+
+  it('is null when there are no accounts, never NaN', () => {
+    expect(profileCompletionRate(0, 0)).toBeNull();
+    expect(formatAwardRate(profileCompletionRate(0, 0))).toBe('—');
+  });
+
+  it('never exceeds 100% even if a profile outlives its auth user', () => {
+    expect(profileCompletionRate(70, 62)).toBe(1);
+  });
+});
+
+describe('countDistinctFunders', () => {
+  it('prefers the Thai name and falls back through the other columns', () => {
+    expect(countDistinctFunders([
+      { funder_th: 'มูลนิธิ ก', funder: 'Foundation A' },
+      { funder_th: null, funder: 'Foundation A' },
+      { funder_th: '', funder: null, funder_en: 'Foundation B' },
+    ])).toBe(3);
+  });
+
+  it('collapses repeats and ignores blank funders', () => {
+    expect(countDistinctFunders([
+      { funder_th: 'มูลนิธิ ก' }, { funder_th: 'มูลนิธิ ก' }, { funder_th: '  ' }, {},
+    ])).toBe(1);
+  });
+});
 
 describe('awardRate', () => {
   it('divides awarded by apply-clicks', () => {
@@ -135,10 +168,12 @@ describe('GET /api/admin/outcomes/stats', () => {
     expect((await STATS_GET(new NextRequest('http://localhost/api/admin/outcomes/stats'))).status).toBe(403);
   });
 
-  it('sums awarded THB and computes the award rate', async () => {
+  it('reports accounts and completed profiles as separate numbers', async () => {
     // The mock resolves per (table, action); counts come back on the same shape.
     const db: any = {
       _calls: [] as MockDbCall[],
+      // auth.users is counted through the GoTrue admin API, not PostgREST.
+      auth: { admin: { listUsers: async () => ({ data: { users: [], total: 250 }, error: null }) } },
       from(table: string) {
         const self = this;
         const b: any = {
@@ -167,7 +202,9 @@ describe('GET /api/admin/outcomes/stats', () => {
 
     const json = await (await STATS_GET(new NextRequest('http://localhost/api/admin/outcomes/stats'))).json();
 
-    expect(json.total_signups).toBe(120);
+    expect(json.total_accounts).toBe(250);          // auth.users
+    expect(json.total_profiles).toBe(120);          // completed onboarding
+    expect(json.profile_completion_rate).toBeCloseTo(120 / 250);
     expect(json.total_apply_clicks).toBe(400);
     expect(json.total_awarded).toBe(20);
     expect(json.total_thb_awarded).toBe(75000);   // nulls ignored
@@ -250,5 +287,54 @@ describe('POST /api/admin/outcomes (manual add)', () => {
       createMockDb({ td_scholarships: { select: { data: null, error: null } } }),
     );
     expect((await post({ user_id: USER_ID, scholarship_id: 'NOPE', status: 'awarded' })).status).toBe(404);
+  });
+});
+
+describe('rankForFeature (homepage featured order)', () => {
+  const INTL = 'International (open to Thais)';
+  const row = (id: string, deadline: string | null, funder = 'Thai University', tier: string | null = 'medium') =>
+    ({ scholarship_id: id, deadline_date: deadline, funder_type: funder, award_value_tier: tier } as never);
+  const ids = (rows: unknown[]) => rows.map(r => (r as { scholarship_id: string }).scholarship_id);
+
+  it('puts the soonest deadline first', () => {
+    expect(ids(rankForFeature([
+      row('c', '2026-12-01'), row('a', '2026-08-28'), row('b', '2026-09-15'),
+    ]))).toEqual(['a', 'b', 'c']);
+  });
+
+  it('sorts undated rows last rather than dropping them', () => {
+    // A scholarship with no known closing date cannot claim urgency, but it is still a
+    // real scholarship and still eligible for a slot nothing else fills.
+    const ordered = rankForFeature([row('undated', null), row('soon', '2027-06-01')]);
+    expect(ids(ordered)).toEqual(['soon', 'undated']);
+    expect(ordered).toHaveLength(2);
+  });
+
+  it('breaks a same-day tie with the Thai funder', () => {
+    // Four of the current candidates share 2026-08-31, so this decides real slots.
+    expect(ids(rankForFeature([
+      row('intl', '2026-08-31', INTL), row('thai', '2026-08-31'),
+    ]))).toEqual(['thai', 'intl']);
+  });
+
+  it('lets an earlier international deadline beat a later Thai one', () => {
+    // Deadline outranks funder origin: the whole point of the ordering is that the thing
+    // closing first is the thing a student needs to see first.
+    expect(ids(rankForFeature([
+      row('thai-later', '2026-12-01'), row('intl-sooner', '2026-08-28', INTL),
+    ]))).toEqual(['intl-sooner', 'thai-later']);
+  });
+
+  it('falls through to award size when deadline and origin both tie', () => {
+    expect(ids(rankForFeature([
+      row('small', '2026-08-31', 'Thai University', 'small'),
+      row('full', '2026-08-31', 'Thai University', 'full_ride'),
+    ]))).toEqual(['full', 'small']);
+  });
+
+  it('does not mutate its input', () => {
+    const input = [row('c', '2026-12-01'), row('a', '2026-08-28')];
+    rankForFeature(input);
+    expect(ids(input)).toEqual(['c', 'a']);
   });
 });

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { Lato } from 'next/font/google';
 import './globals.css';
 import ChromeGate from '@/components/ChromeGate';
@@ -20,13 +21,23 @@ const lato = Lato({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
+/**
+ * Root metadata is generated rather than static so the description carries the live
+ * scholarship count. It is the sentence Google prints under the result, and a hardcoded
+ * figure there is a claim to every searcher who never visits the site.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const stats = await getScholarshipStats();
+  const count = stats.ok ? stats.scholarships.toLocaleString('en-US') : null;
+  return {
   metadataBase: new URL('https://www.tundee.org'),
   title: {
     default: 'ทุนดี (TunDee) ค้นหาทุนการศึกษาไทย',
     template: '%s | TunDee ทุนดี',
   },
-  description: 'ทุนดีรวบรวมทุนการศึกษาไทยกว่า 90 ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates 90+ real Thai scholarships, AI-powered matching, free, bilingual.',
+  description: count
+    ? `ทุนดีรวบรวมทุนการศึกษาไทย ${count} ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates ${count} real Thai scholarships, AI-powered matching, free, bilingual.`
+    : 'ทุนดีรวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates real Thai scholarships, AI-powered matching, free, bilingual.',
   keywords: [
     'ทุนการศึกษา', 'scholarship', 'Thailand', 'thai scholarship', 'ทุนดี', 'tundee',
     'ทุนการศึกษาไทย', 'ทุนม.6', 'ทุนนักเรียน', 'Thai student scholarship',
@@ -69,7 +80,8 @@ export const metadata: Metadata = {
   verification: {
     google: 'nIhOC7OGoxjBxX-QBcW5KoakP8FzT_C7kexuCrX61WU',
   },
-};
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

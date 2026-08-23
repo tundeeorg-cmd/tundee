@@ -11,7 +11,8 @@
  *   CRON_SECRET
  *   SUPABASE_SERVICE_ROLE_KEY
  *   LINE_CHANNEL_ACCESS_TOKEN
- *   REMINDER_OFFSETS  (optional, default "14,1")
+ *   REMINDER_OFFSETS       (optional, default "14,1")
+ *   REMINDER_CATCHUP_DAYS  (optional, default 3; 0 = exact-date match only)
  */
 
 export const runtime = 'nodejs';
@@ -20,7 +21,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 import { linePush } from '@/lib/line/push';
-import { parseOffsets, shouldSendReminder, buildReminderText } from '@/lib/line/reminders';
+import {
+  addDays, parseOffsets, parseCatchupDays, offsetWindows,
+  shouldSendReminder, buildReminderText,
+} from '@/lib/line/reminders';
 
 function makeDb() {
   return createClient(
@@ -46,6 +50,12 @@ async function handleReminders(request: NextRequest) {
   const todayBkk = bangkokMidnight();
   const todayStr = todayBkk.toISOString().slice(0, 10);
   const offsets  = parseOffsets(process.env.REMINDER_OFFSETS);
+  // A run missed for any reason used to drop that day's reminders permanently — the rule
+  // was an exact date match and nothing looked back. Each offset now stays eligible for a
+  // few days past its target, clamped so two offsets can never fire for the same row on
+  // the same morning.
+  const catchup  = parseCatchupDays(process.env.REMINDER_CATCHUP_DAYS);
+  const windows  = offsetWindows(offsets, catchup);
 
   // Load all potentially eligible tracked rows in one query
   // Join: tracked_scholarship → profiles (line_user_id) → td_scholarships (deadline_date + link)
@@ -72,11 +82,35 @@ async function handleReminders(request: NextRequest) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
-  // Load existing reminder_log entries for today's targets (idempotency)
-  const { data: sentLog } = await db
+  // Load existing reminder_log entries for today's targets (idempotency).
+  //
+  // Scoped to every deadline date an offset could fire on today — the whole window, not
+  // just its top edge. The table was previously loaded unfiltered, and PostgREST caps an
+  // unbounded select at 1000 rows, so once the log passed 1000 entries the dedup set
+  // would have been silently short and students would have received the same reminder
+  // twice. Scoping also keeps the query small permanently, which paging would not.
+  const targetDeadlines = Array.from(new Set(
+    offsets.flatMap(offsetDays => {
+      const lowerBound = windows.get(offsetDays) ?? offsetDays;
+      const dates: string[] = [];
+      for (let d = lowerBound; d <= offsetDays; d++) dates.push(addDays(todayStr, d));
+      return dates;
+    }),
+  ));
+
+  const { data: sentLog, error: logErr } = await db
     .from('reminder_log')
     .select('user_id, scholarship_id, offset_days, deadline_date')
-    .eq('channel', 'line');
+    .eq('channel', 'line')
+    .in('deadline_date', targetDeadlines);
+
+  // Abort rather than send. An unread log is indistinguishable from an empty one, and
+  // proceeding would treat every eligible reminder as never-sent and push the lot again.
+  // A missed run costs one day of reminders; a duplicate storm costs trust.
+  if (logErr) {
+    console.error('[line-reminders] reminder_log fetch failed, sending nothing:', logErr);
+    return NextResponse.json({ error: `reminder_log unreadable: ${logErr.message}` }, { status: 500 });
+  }
 
   const sentSet = new Set<string>(
     (sentLog ?? []).map(
@@ -85,7 +119,10 @@ async function handleReminders(request: NextRequest) {
     ),
   );
 
-  const results = { sent: 0, skipped: 0, errors: 0, offsets: {} as Record<number, number> };
+  const results = {
+    sent: 0, skipped: 0, errors: 0, catchUp: 0,
+    offsets: {} as Record<number, number>,
+  };
 
   for (const row of rows ?? []) {
     const profile    = row.profiles as unknown as { line_user_id: string | null } | null;
@@ -97,7 +134,7 @@ async function handleReminders(request: NextRequest) {
 
     for (const offsetDays of offsets) {
       const sentKey = `${row.user_id}|${row.scholarship_id}|${offsetDays}|${scholarship?.deadline_date ?? ''}`;
-      const { send, reason } = shouldSendReminder({
+      const { send, reason, daysRemaining } = shouldSendReminder({
         deadlineDate:  scholarship?.deadline_date ?? null,
         todayStr,
         offsetDays,
@@ -105,15 +142,19 @@ async function handleReminders(request: NextRequest) {
         lineUserId:    profile?.line_user_id,
         status:        row.status as string,
         alreadySent:   sentSet.has(sentKey),
+        lowerBound:    windows.get(offsetDays),
       });
 
       if (!send) { results.skipped++; continue; }
+      if (reason === 'catch-up') results.catchUp++;
 
       const text = buildReminderText(
         scholarship!.scholarship_name,
         scholarship!.deadline_date!,
         scholarship!.application_link,
-        offsetDays,
+        // Days actually remaining, not the offset. A catch-up send is late by definition
+        // and must not claim more time than the student has.
+        daysRemaining ?? offsetDays,
         'th',
       );
 
@@ -132,7 +173,8 @@ async function handleReminders(request: NextRequest) {
         results.sent++;
         results.offsets[offsetDays] = (results.offsets[offsetDays] ?? 0) + 1;
 
-        console.log(`[line-reminders] sent offset=${offsetDays} user=${row.user_id} scholarship=${row.scholarship_id}`);
+        console.log(`[line-reminders] sent offset=${offsetDays} days_left=${daysRemaining} ` +
+                    `reason=${reason} user=${row.user_id} scholarship=${row.scholarship_id}`);
       } catch (err) {
         console.error(`[line-reminders] push failed user=${row.user_id}:`, err);
         results.errors++;

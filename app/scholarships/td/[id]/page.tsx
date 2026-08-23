@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
+import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { viewContent, submitApplication } from '@/lib/analytics';
 import TrackButton from '@/components/TrackButton';
@@ -319,6 +320,7 @@ export default function TdScholarshipDetailPage() {
     // Fired synchronously: the link opens a new tab and this component may stop
     // being interacted with immediately after.
     submitApplication({ scholarshipId: s.scholarship_id });
+    recordApplyClick(s.scholarship_id);
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       logFunnelEvent({ eventType: 'click_apply', scholarshipId: s.scholarship_id, userId: user?.id ?? null });

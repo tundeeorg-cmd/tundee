@@ -9,6 +9,7 @@
 
 import type { Metadata } from 'next';
 import StartLanding from './StartLanding';
+import { getScholarshipStats } from '@/lib/scholarships/counts';
 
 // The opengraph-image.tsx in this directory is auto-resolved by Next.js for
 // og:image. We declare the other tags here.
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
 
 // searchParams (utm_source/utm_medium/utm_campaign/src) are passed to the
 // client component, which persists them and forwards them to the CTA link.
-export default function StartPage({
+export default async function StartPage({
   searchParams,
 }: {
   searchParams: { utm_source?: string; utm_medium?: string; utm_campaign?: string; src?: string };
@@ -59,5 +60,6 @@ export default function StartPage({
     utm_campaign: typeof searchParams.utm_campaign === 'string' ? searchParams.utm_campaign : undefined,
     src: typeof searchParams.src === 'string' ? searchParams.src : undefined,
   };
-  return <StartLanding adParams={adParams} />;
+  const stats = await getScholarshipStats();
+  return <StartLanding adParams={adParams} scholarshipCount={stats.ok ? stats.scholarships : null} />;
 }

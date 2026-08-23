@@ -50,7 +50,12 @@ export interface AwardRow {
 }
 
 export interface AwardStats {
-  total_signups:      number;
+  /** Rows in auth.users — every account that exists, however far it got. */
+  total_accounts:     number;
+  /** Rows in profiles — accounts that finished onboarding. Always ≤ total_accounts. */
+  total_profiles:     number;
+  /** profiles ÷ accounts, 0–1. Null when there are no accounts yet. */
+  profile_completion_rate: number | null;
   total_apply_clicks: number;
   total_awarded:      number;
   total_thb_awarded:  number;
@@ -71,6 +76,23 @@ export interface AwardFilters {
 export function awardRate(awarded: number, applyClicks: number): number | null {
   if (!applyClicks) return null;
   return awarded / applyClicks;
+}
+
+/**
+ * profiles ÷ accounts — what share of people who signed up finished onboarding.
+ *
+ * These were one tile reading "Signups", counting `profiles`. That silently reported
+ * completed onboardings as signups and hid a third of the user base: 30 profiles
+ * against 62 auth accounts. The drop-off is real data about the wizard, so it is
+ * surfaced rather than reconciled away.
+ *
+ * Clamped at 1: a profile row whose auth user was deleted would otherwise produce a
+ * completion rate above 100%, which is a data problem to investigate, not a number to
+ * print on a dashboard.
+ */
+export function profileCompletionRate(profiles: number, accounts: number): number | null {
+  if (!accounts) return null;
+  return Math.min(profiles / accounts, 1);
 }
 
 export function formatAwardRate(rate: number | null): string {

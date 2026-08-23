@@ -37,7 +37,7 @@ const COLUMN_MAP: Record<string, string[]> = {
   min_gpa:                 ['min gpa', 'mingpa', 'gpa', 'เกรดขั้นต่ำ'],
   english_requirement:     ['english requirement', 'english req'],
   source_language:         ['source language', 'sourcelanguage'],
-  open_date:               ['open date', 'วันเปิดรับ'],
+  open_date:               ['open date', 'opendate', 'วันเปิดรับ'],
   deadline_raw:            ['deadline', 'วันหมดเขต'],
   date_confidence:         ['date confidence', 'dateconfidence'],
   status:                  ['status', 'สถานะ'],
@@ -206,6 +206,12 @@ export async function parseTdImportFile(file: File): Promise<TdImportReport> {
     wb.SheetNames[0];
 
   const sheet = wb.Sheets[sheetName];
+  // `raw: false` is load-bearing, not a formatting preference. It hands us each cell's
+  // *displayed* text — "15-Jul-2026" — rather than the Date object behind it. Those Date
+  // objects are constructed at 16:59:56Z, so reading them with local-time getters returns
+  // the 15th in Bangkok and the 14th on a UTC machine, and this parse runs client-side in
+  // whatever timezone the admin happens to be in. Switching to `raw: true` would shift
+  // every date in the sheet by a day for most of the world.
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     raw: false,
     blankrows: false,
