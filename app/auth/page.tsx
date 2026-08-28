@@ -11,6 +11,23 @@ import {
   CONSENT_PARAM,
   CONSENT_VERSION,
 } from '@/lib/consent';
+import {
+  detectInAppBrowser,
+  escapeToRealBrowserUrl,
+  type InAppBrowserInfo,
+} from '@/lib/browser/inAppBrowser';
+import { logFunnelEvent } from '@/lib/research/funnel';
+
+/** Flattened for the funnel event context — one shape, logged identically
+ *  on signup_started and signup_failed so the two are directly comparable. */
+function inAppContext(info: InAppBrowserInfo) {
+  return {
+    in_app_browser: info.isInApp,
+    in_app_name:    info.app,
+    google_blocked: info.googleBlocked,
+    platform:       info.platform,
+  };
+}
 
 // ─── Suspense wrapper ─────────────────────────────────────────────────────────
 // useSearchParams() REQUIRES Suspense without a fallback prop the page is blank
@@ -79,6 +96,13 @@ function AuthForm() {
   const [cooldown,      setCooldown]      = useState(0);
   const [consent,       setConsent]       = useState(false);
 
+  // Embedded-webview state. Starts as "normal browser" so server and first
+  // client render agree; the effect below corrects it. Erring toward showing
+  // Google for one frame is better than hiding it from users who can use it.
+  const [iab, setIab] = useState<InAppBrowserInfo>({
+    isInApp: false, app: null, googleBlocked: false, platform: 'other',
+  });
+
   const isSignup = searchParams.get('from') === 'signup';
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.tundee.org';
@@ -110,6 +134,20 @@ function AuthForm() {
     qs.set(CONSENT_PARAM, CONSENT_VERSION);
     const preview = readCookie(PREVIEW_COOKIE);
     if (preview && decodePreviewInput(preview)) qs.set(PREVIEW_PARAM, preview);
+
+    // utm_campaign rides the callback URL for the same reason consent and the
+    // preview answers do: an email magic link is routinely opened in a
+    // DIFFERENT browser, where sessionStorage and cookies are both gone. It was
+    // only ever stashed in sessionStorage, so every magic-link signup lost its
+    // campaign and fell back to 'organic'.
+    //
+    // That mattered more than it looks: email is the one signup path that
+    // reliably completes inside the Facebook in-app browser, so the loss was
+    // concentrated in exactly the paid traffic recruitment_source is meant to
+    // measure (PREREG §5.4).
+    const utmCampaign = searchParams.get('utm_campaign');
+    if (utmCampaign) qs.set('utm_campaign', utmCampaign);
+
     return `${siteUrl}/auth/callback?${qs.toString()}`;
   }
 
@@ -135,7 +173,19 @@ function AuthForm() {
     const err = searchParams.get('error');
     if (err) {
       setError(authErrorMessage(err, lang));
+      logFunnelEvent({
+        eventType: 'signup_failed',
+        context: { reason: err, ...inAppContext(detectInAppBrowser()) },
+      });
     }
+
+    // Detect the embedded webview and record it once per view. This is what
+    // turns "we think OAuth is the problem" into a number: signup_started and
+    // signup_failed both carry the in-app-browser flag, so the hypothesis can
+    // be confirmed or killed from data rather than argued about.
+    const info = detectInAppBrowser();
+    setIab(info);
+    logFunnelEvent({ eventType: 'signup_started', context: inAppContext(info) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -169,6 +219,10 @@ function AuthForm() {
     setLoading(false);
     if (otpError) {
       console.error('[TunDee] signInWithOtp:', otpError.message);
+      logFunnelEvent({
+        eventType: 'signup_failed',
+        context: { reason: `otp:${otpError.message}`, method: 'email', ...inAppContext(iab) },
+      });
       setError(lang === 'th' ? 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่' : 'Failed to send. Please try again.');
       return;
     }
@@ -198,7 +252,17 @@ function AuthForm() {
       options: { redirectTo: buildCallbackUrl() },
     });
     if (oauthErr) {
-      setError(oauthErr.message);
+      // Was setError(oauthErr.message) — a raw English Supabase string shown to
+      // Thai students. Note this only fires when the redirect fails to START;
+      // a disallowed_useragent rejection happens on Google's domain, which is
+      // why the button is hidden entirely inside a webview.
+      logFunnelEvent({
+        eventType: 'signup_failed',
+        context: { reason: `google:${oauthErr.message}`, method: 'google', ...inAppContext(iab) },
+      });
+      setError(lang === 'th'
+        ? 'เข้าสู่ระบบไม่สำเร็จ ลองสมัครด้วยอีเมลแทนได้เลย'
+        : 'Sign-in failed. Try signing up with email instead.');
       setGoogleLoading(false);
     }
   }
@@ -396,12 +460,22 @@ function AuthForm() {
               </p>
             )}
 
-            {/* Google OAuth */}
+            {/* Auth methods. flex-col so the order can change: inside an
+                embedded webview email leads, because it is the only method
+                that reliably completes there. Children are all w-full, so
+                flex-col lays out identically to block otherwise. */}
+            <div className="flex flex-col">
+
+            {/* Google OAuth — NOT rendered inside an embedded webview.
+                Google rejects those with disallowed_useragent on its own
+                domain, so the user never returns and no error can be shown.
+                A button that cannot work is worse than no button. */}
+            {!iab.googleBlocked && (
             <button
               type="button"
               onClick={signInWithGoogle}
               disabled={blocked}
-              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-4 px-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-3"
+              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-4 px-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-3 order-1"
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
               {googleLoading ? (
@@ -418,13 +492,15 @@ function AuthForm() {
                 ? (lang === 'th' ? 'สร้างบัญชีด้วย Google' : 'Sign up with Google')
                 : (lang === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google')}
             </button>
+            )}
 
-            {/* LINE login */}
+            {/* LINE login. Kept in an embedded webview: LINE Login is ordinary
+                web OAuth on line.me and is not subject to Google's policy. */}
             <button
               type="button"
               onClick={signInWithLine}
               disabled={blocked}
-              className="w-full flex items-center justify-center gap-3 bg-[#06C755] hover:bg-[#05B34C] rounded-xl py-4 px-4 text-base font-semibold text-white transition-colors disabled:opacity-50 mb-4"
+              className={`w-full flex items-center justify-center gap-3 bg-[#06C755] hover:bg-[#05B34C] rounded-xl py-4 px-4 text-base font-semibold text-white transition-colors disabled:opacity-50 mb-4 ${iab.googleBlocked ? 'order-3' : 'order-2'}`}
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
               {lineLoading ? (
@@ -440,16 +516,18 @@ function AuthForm() {
             </button>
 
             {/* Divider */}
-            <div className="flex items-center gap-3 mb-4">
+            <div className={`flex items-center gap-3 mb-4 ${iab.googleBlocked ? 'order-2' : 'order-3'}`}>
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
               <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium">
-                {lang === 'th' ? 'หรือใช้อีเมล' : 'or use email'}
+                {iab.googleBlocked
+                  ? (lang === 'th' ? 'หรือใช้วิธีอื่น' : 'or use another method')
+                  : (lang === 'th' ? 'หรือใช้อีเมล' : 'or use email')}
               </span>
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
             </div>
 
             {/* Magic link form */}
-            <form onSubmit={sendMagicLink} noValidate>
+            <form onSubmit={sendMagicLink} noValidate className={iab.googleBlocked ? 'order-1' : 'order-4'}>
               <label className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
                 {lang === 'th' ? 'อีเมลของคุณ' : 'Your email'}
               </label>
@@ -483,6 +561,57 @@ function AuthForm() {
                 )}
               </button>
             </form>
+
+            {/* Escape hatch, shown only where Google is unreachable. Android
+                can be handed to Chrome with an intent:// URL. iOS cannot —
+                Safari is not launchable from inside a webview — so it gets
+                instructions instead of a link that would do nothing. */}
+            {iab.googleBlocked && (
+              <div className="order-4 mt-4 rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] bg-[#F7F9FC] dark:bg-[#0D1F35] px-4 py-3">
+                <p
+                  className="text-xs text-[#6e6e73] dark:text-[#aeaeb2] leading-relaxed"
+                  style={{ fontFamily: 'Sarabun, sans-serif' }}
+                >
+                  {lang === 'th'
+                    ? 'เปิดในเบราว์เซอร์เพื่อเข้าสู่ระบบด้วย Google'
+                    : 'Open in your browser to sign in with Google'}
+                </p>
+
+                {iab.platform === 'android' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = escapeToRealBrowserUrl(window.location.href, 'android');
+                      if (url) window.location.href = url;
+                    }}
+                    className="mt-2 text-xs font-semibold text-[#1B3A6B] dark:text-[#8FB4FF] underline"
+                    style={{ fontFamily: 'Sarabun, sans-serif' }}
+                  >
+                    {lang === 'th' ? 'เปิดใน Chrome' : 'Open in Chrome'}
+                  </button>
+                ) : (
+                  <p
+                    className="mt-1 text-xs text-[#8e8e93]"
+                    style={{ fontFamily: 'Sarabun, sans-serif' }}
+                  >
+                    {lang === 'th'
+                      ? 'แตะปุ่ม ••• มุมขวาบน แล้วเลือก "เปิดในเบราว์เซอร์"'
+                      : 'Tap ••• at the top right, then choose "Open in browser".'}
+                  </p>
+                )}
+
+                <p
+                  className="mt-2 text-xs text-[#6e6e73] dark:text-[#aeaeb2]"
+                  style={{ fontFamily: 'Sarabun, sans-serif' }}
+                >
+                  {lang === 'th'
+                    ? 'หรือสมัครด้วยอีเมล ใช้เวลา 30 วินาที'
+                    : 'Or sign up with email — takes 30 seconds'}
+                </p>
+              </div>
+            )}
+
+            </div>
 
             <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-4 leading-relaxed"
                style={{ fontFamily: 'Sarabun, sans-serif' }}>
