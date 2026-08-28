@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { formatUserDate } from '@/lib/formatDate';
 import { getDeadlineInfo } from '@/lib/deadline';
 import { trackCTAClick, trackPreviewResults } from '@/lib/adTracking';
+import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
@@ -125,6 +126,19 @@ export default function PreviewResults({
     if (tracked.current) return;
     tracked.current = true;
     trackPreviewResults(results.total, results.preview.map(c => c.scholarship_id));
+
+    // results_viewed — the funnel step where the visitor has actually SEEN
+    // value. total and locked_count are recorded so the gate can be evaluated
+    // against what was really on screen, not what we assume was.
+    logFunnelEvent({
+      eventType: 'results_viewed',
+      context: {
+        total:        results.total,
+        shown:        results.preview.length,
+        locked_count: results.lockedCount,
+        broadened:    results.broadened,
+      },
+    });
   }, [results]);
 
   const lockedPlaceholders = Math.min(results.lockedCount, 2);
@@ -158,7 +172,7 @@ export default function PreviewResults({
 
           <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#F5F7FA]/80 to-[#F5F7FA] dark:via-[#07111F]/80 dark:to-[#07111F]">
             <p className="font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center px-5" style={{ ...th, fontSize: '1rem' }}>
-              และอีก {results.lockedCount} ทุนที่คุณมีสิทธิ์ — ดูทั้งหมดฟรี
+              คุณมีสิทธิ์สมัครทุนอีก {results.lockedCount} ทุน
             </p>
           </div>
         </div>
@@ -171,10 +185,10 @@ export default function PreviewResults({
           style={th}
           className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
         >
-          ดูทุนทั้งหมด (ฟรี) →
+          ดูทุนทั้งหมดของฉัน ฟรี →
         </Link>
         <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          สมัครด้วย Google หรือ LINE ใน 1 คลิก · ไม่ต้องกรอกข้อมูลซ้ำ
+          สมัครฟรีเพื่อดูทั้งหมด และรับแจ้งเตือนก่อนหมดเขต
         </p>
         <button
           type="button"

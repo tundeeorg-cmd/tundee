@@ -10,6 +10,7 @@ import {
   isValidConsent,
 } from '@/lib/consent'
 import { signupMethodFrom } from '@/lib/analytics'
+import { recruitmentSourceFrom } from '@/lib/research/assignment'
 import {
   SIGNUP_CONVERSION_COOKIE,
   SIGNUP_CONVERSION_MAX_AGE_SECONDS,
@@ -142,11 +143,15 @@ async function resolveRedirect(
     // Check if the user has filled in their profile (GPA as proxy)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('gpa')
+      .select('gpa, income_bracket')
       .eq('id', user.id)
       .maybeSingle()
 
-    const incomplete = !profile || profile.gpa == null
+    // GPA is no longer a reliable completeness proxy: it is optional on /start,
+    // so a visitor can arrive with a full preview and no GPA at all. Income is
+    // required there, so it is the better signal for "has this profile been
+    // filled in".
+    const incomplete = !profile || profile.income_bracket == null
 
     // Enough on hand to skip onboarding altogether.
     if (incomplete && preview && consented) {
@@ -154,7 +159,15 @@ async function resolveRedirect(
         id:              user.id,
         grade_level:     preview.level,
         province:        preview.province,
-        gpa:             preview.gpa,
+        income_bracket:  preview.income,
+        // PREREG §5.4. Validated against the closed campaign set here, not
+        // trusted as free text; anything unrecognised becomes 'organic'.
+        // /api/experiment/assign only writes this when it is still null, so
+        // whichever path runs first wins and neither overwrites the other.
+        recruitment_source: recruitmentSourceFrom(searchParams.get('utm_campaign')),
+        // Only write a GPA the visitor actually gave. Writing a default would
+        // put a grade on their record that they never claimed.
+        ...(preview.gpa !== null ? { gpa: preview.gpa } : {}),
         consent_version: CONSENT_VERSION,
         consent_at:      new Date().toISOString(),
         updated_at:      new Date().toISOString(),

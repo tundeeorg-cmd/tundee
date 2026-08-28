@@ -79,19 +79,40 @@ function rateLimited(ip: string): boolean {
 // ── Profile construction ──────────────────────────────────────────────────────
 
 /**
- * Builds a recommender profile from the three preview answers.
+ * With no GPA on file, a scholarship carrying a min_gpa cannot honestly be
+ * shown as a match — we do not know whether the visitor clears the bar.
  *
- * income_bracket defaults to 4, matching the default /api/recommend already uses
- * for logged-in users with no income on file — keeping the two paths consistent
- * matters more here than maximizing preview breadth. Everything else is left
- * neutral so no scholarship is dropped for data the visitor hasn't given us.
+ * These are excluded rather than optimistically included, so the count the
+ * visitor is shown is a floor and never an overclaim. Adding a GPA can only
+ * ever reveal MORE scholarships, never fewer, which is also the honest
+ * incentive to fill the optional field in.
+ */
+function filterForUnknownGpa(rows: TdScholarship[], gpa: number | null): TdScholarship[] {
+  if (gpa !== null) return rows;
+  return rows.filter(r => !r.min_gpa || Number(r.min_gpa) <= 0);
+}
+
+/**
+ * Builds a recommender profile from the preview answers.
+ *
+ * income_bracket is now the visitor's DECLARED bracket, not a hardcoded 4.
+ * The old default sat at roughly THB 15–20k/month, so a low-income rural
+ * student — the population this product exists for — was matched as though
+ * they were middle-income, and the awards targeted at them scored as if they
+ * did not qualify.
+ *
+ * GPA, when not given, is passed as 4.0 so the recommender's `profile.gpa <
+ * min_gpa` test never fires. Scholarships that actually carry a min_gpa are
+ * then removed separately in filterForUnknownGpa() — passing a top grade here
+ * and filtering there keeps the "unknown GPA" rule in one obvious place rather
+ * than pretending the visitor is a straight-A student.
  */
 function buildProfile(input: PreviewInput): RecommenderProfile {
   return {
     user_id:               'anonymous-preview',
     province_id:           input.province,
-    income_bracket:        4,
-    gpa:                   input.gpa,
+    income_bracket:        input.income,
+    gpa:                   input.gpa ?? 4,
     grade_level:           input.level,
     fields_of_interest:    [],
     welfare_card:          false,
@@ -164,7 +185,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'query_failed' }, { status: 503 });
   }
 
-  const scholarships = (data ?? []) as unknown as TdScholarship[];
+  // Drop GPA-gated awards when the visitor did not give a GPA, so every count
+  // and card below is something we can actually stand behind.
+  const scholarships = filterForUnknownGpa(
+    (data ?? []) as unknown as TdScholarship[],
+    input.gpa,
+  );
   const profile = buildProfile(input);
 
   // Fairness re-ranking off for anonymous visitors — they have no experiment

@@ -52,8 +52,25 @@ const VALID_PROVINCES = new Set<string>(PROVINCES_TH);
 
 export interface PreviewInput {
   level: string;
-  gpa: number;
   province: string;
+  /**
+   * Declared monthly household income bracket, 1–7 (PREREG §5.2).
+   *
+   * Previously the preview hardcoded income_bracket: 4 for everyone. That is
+   * roughly THB 15–20k/month, so a low-income rural student was matched as if
+   * they were middle-income — and the scholarships aimed squarely at them
+   * (targets_low_income, income_cap_thb) were scored as if they did not
+   * qualify. Asking is both a better preview and the stratification variable
+   * the study needs.
+   */
+  income: number;
+  /**
+   * Optional. GPA gates scholarships through min_gpa, so when it is absent we
+   * cannot honestly claim a student qualifies for a GPA-restricted award. The
+   * route excludes those rather than assuming a passing grade, which keeps the
+   * match count a floor rather than an overclaim.
+   */
+  gpa: number | null;
 }
 
 /** One preview card — a real, renderable scholarship. */
@@ -96,18 +113,27 @@ export function parsePreviewInput(raw: unknown): PreviewInput | null {
   const level = typeof body.level === 'string' ? body.level.trim() : '';
   if (!VALID_LEVELS.has(level)) return null;
 
-  const gpa = typeof body.gpa === 'number' ? body.gpa : parseFloat(String(body.gpa ?? ''));
-  if (!Number.isFinite(gpa) || gpa < 0 || gpa > 4) return null;
-
   const province = typeof body.province === 'string' ? body.province.trim() : '';
   if (!VALID_PROVINCES.has(province)) return null;
 
-  return { level, gpa: Math.round(gpa * 100) / 100, province };
+  const incomeRaw = typeof body.income === 'number' ? body.income : parseInt(String(body.income ?? ''), 10);
+  if (!Number.isInteger(incomeRaw) || incomeRaw < 1 || incomeRaw > 7) return null;
+
+  // GPA is optional. An absent or unparseable value is null, NOT a default:
+  // silently substituting a grade would make the match claim untrue.
+  let gpa: number | null = null;
+  if (body.gpa !== null && body.gpa !== undefined && body.gpa !== '') {
+    const parsed = typeof body.gpa === 'number' ? body.gpa : parseFloat(String(body.gpa));
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 4) return null;
+    gpa = Math.round(parsed * 100) / 100;
+  }
+
+  return { level, province, income: incomeRaw, gpa };
 }
 
 /** Serializes the visitor's answers for the cookie (base64url-encoded JSON). */
 export function encodePreviewInput(input: PreviewInput): string {
-  const json = JSON.stringify([input.level, input.gpa, input.province]);
+  const json = JSON.stringify([input.level, input.gpa, input.province, input.income]);
   const b64 = typeof Buffer !== 'undefined'
     ? Buffer.from(json, 'utf8').toString('base64')
     : btoa(unescape(encodeURIComponent(json)));
@@ -123,8 +149,17 @@ export function decodePreviewInput(value: string | null | undefined): PreviewInp
       ? Buffer.from(b64, 'base64').toString('utf8')
       : decodeURIComponent(escape(atob(b64)));
     const parsed = JSON.parse(json);
-    if (!Array.isArray(parsed) || parsed.length !== 3) return null;
-    return parsePreviewInput({ level: parsed[0], gpa: parsed[1], province: parsed[2] });
+    if (!Array.isArray(parsed)) return null;
+    // Length 3 is the pre-income format. A cookie issued before this change is
+    // still in some visitor's browser for up to PREVIEW_COOKIE_MAX_AGE, so it
+    // is read rather than discarded — the income question is simply re-asked.
+    if (parsed.length === 3) {
+      return parsePreviewInput({ level: parsed[0], gpa: parsed[1], province: parsed[2], income: 4 });
+    }
+    if (parsed.length !== 4) return null;
+    return parsePreviewInput({
+      level: parsed[0], gpa: parsed[1], province: parsed[2], income: parsed[3],
+    });
   } catch {
     return null;
   }
