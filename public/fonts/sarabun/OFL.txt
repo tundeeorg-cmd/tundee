@@ -1,0 +1,11 @@
+Sarabun is licensed under the SIL Open Font License, Version 1.1.
+
+Copyright (c) 2016, Cadson Demak (info@cadsondemak.com)
+
+The font files in this directory are subsets (thai, latin) of the Sarabun
+family, obtained from Google Fonts and vendored here so they are served from
+TunDee's own origin rather than fetched from a third party on the critical
+rendering path.
+
+Full licence text: https://scripts.sil.org/OFL
+Source: https://fonts.google.com/specimen/Sarabun
