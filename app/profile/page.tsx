@@ -7,6 +7,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
+import ResearchConsent from '@/components/ResearchConsent';
 import { uploadAvatar, getInitials } from '@/lib/profile';
 import Toast from '@/components/Toast';
 import StudentProfileForm from '@/components/StudentProfileForm';
@@ -817,7 +818,22 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* ── SECTION 5: Sign out ───────────────────────────────────── */}
+        {/* ── SECTION 5: Research participation ─────────────────────── */}
+        {/* Its own section, not a row inside Settings: this is a consent
+            decision, not a preference like theme or language, and it carries
+            an audit trail (version + timestamp + method). Placing it here also
+            gives the pilot users who consented under an earlier form version a
+            way to re-confirm themselves — the alternative was rewriting their
+            stored version, which would record agreement to wording they were
+            never shown. */}
+        <div>
+          <SectionLabel>
+            {lang === 'th' ? 'การเข้าร่วมงานวิจัย' : 'Research participation'}
+          </SectionLabel>
+          <ResearchConsent lang={lang} method="profile_settings" />
+        </div>
+
+        {/* ── SECTION 6: Sign out ───────────────────────────────────── */}
         <div className="pt-2">
           <button
             type="button"
