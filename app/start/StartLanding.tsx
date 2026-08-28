@@ -1,9 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { persistAdParams, buildSignupHref, trackCTAClick, type AdParams } from '@/lib/adTracking';
 import PreviewMatcher from './PreviewMatcher';
+import {
+  DEFAULT_LANDING_VARIANT,
+  landingCopy,
+} from '@/lib/landing/variants';
+import { logFunnelEvent } from '@/lib/research/funnel';
 
 /** Where a visitor lands after logging in — their full matched results. */
 const POST_LOGIN_DESTINATION = '/scholarships?from=preview';
@@ -55,16 +60,47 @@ function CtaButton({ href, location, children }: { href: string; location: strin
 export default function StartLanding({
   adParams,
   scholarshipCount,
+  landingVariant = DEFAULT_LANDING_VARIANT,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
   scholarshipCount: number | null;
+  /** Resolved server-side against the registry (PREREG §5.8 covariate). */
+  landingVariant?: string;
 }) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
+  const copy    = landingCopy(landingVariant);
+
+  // Sticky CTA appears once the hero has scrolled away, so there is never more
+  // than one primary call to action visible at a time.
+  const heroRef = useRef<HTMLElement | null>(null);
+  const [heroPassed, setHeroPassed] = useState(false);
 
   useEffect(() => {
     persistAdParams(adParams);
+
+    // landing_variant is logged as a covariate, NOT as a treatment. It records
+    // which headline recruited the visitor; it must never reach the ranking
+    // assignment path.
+    logFunnelEvent({
+      eventType: 'landing_view',
+      context: {
+        landing_variant: landingVariant,
+        utm_campaign:    adParams.utm_campaign ?? null,
+      },
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => setHeroPassed(!entry.isIntersecting),
+      { rootMargin: '-80px 0px 0px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
 
   return (
@@ -79,24 +115,24 @@ export default function StartLanding({
       {/* ── A) Hero + matcher ────────────────────────────────────────────────── */}
       {/* The matcher sits directly under the headline so it stays above the fold
           on a phone — cold ad traffic sees real matches before any signup ask. */}
-      <section id={MATCHER_ANCHOR} className="px-5 pt-6 pb-10 text-center scroll-mt-4">
+      <section ref={heroRef} id={MATCHER_ANCHOR} className="px-5 pt-6 pb-10 text-center scroll-mt-4">
         <p
           className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-xs font-semibold px-3 py-1.5 rounded-full mb-4"
           style={th}
         >
-          ฟรี · ไม่ต้องสมัครสมาชิกก่อนดู
+          {copy.badge}
         </p>
         <h1
           className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3 mx-auto"
           style={{ ...th, fontSize: 'clamp(1.5rem, 6vw, 2.2rem)', lineHeight: 1.4, maxWidth: 480 }}
         >
-          ดูทุนที่คุณ &ldquo;มีสิทธิ์จริง&rdquo; ใน 30 วินาที
+          {copy.h1}
         </h1>
         <p
           className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-6 mx-auto leading-relaxed"
           style={{ ...th, fontSize: 'clamp(0.95rem, 3.5vw, 1.05rem)', maxWidth: 420 }}
         >
-          ตอบแค่ 3 ข้อ แล้วดูผลลัพธ์ทันที — ไม่ต้องสมัครสมาชิก ไม่ต้องจ่ายอะไรเลย
+          {copy.sub}
         </p>
 
         <PreviewMatcher signupHref={ctaHref} />
@@ -104,20 +140,15 @@ export default function StartLanding({
 
       {/* ── B) Trust bar ─────────────────────────────────────────────────────── */}
       <section className="px-5 pb-10">
-        <div className="max-w-[500px] mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-center">
-          {['ตรวจสอบโดยคนจริงทุกทุน', 'ฟรีตลอดไป', 'ในภาษาที่คุณเข้าใจ'].map((item) => (
-            <span key={item} className="text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
-              ✓ {item}
-            </span>
-          ))}
+        {/* One line, assembled in lib/landing/variants.ts. The count comes from
+            the live query and is dropped entirely when that query failed —
+            never a literal, never a rounded-up "90+". */}
+        <div className="max-w-[500px] mx-auto text-center">
+          <span className="text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+            {copy.trust(scholarshipCount)}
+          </span>
         </div>
-        <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          {/* Was "ทุนที่ตรวจสอบแล้วกว่า 90 รายการ". Two problems: the count was a
-              literal, and "ตรวจสอบแล้ว" (verified) described all of them when 72 of
-              518 carry verification_status = 'verified'. "กว่า" is a "+" in words and
-              overstates a number the database knows exactly. */}
-          {scholarshipCount !== null && `ทุนการศึกษา ${scholarshipCount.toLocaleString('th-TH')} ทุน`}
-        </p>
+
       </section>
 
       {/* ── C) Problem ───────────────────────────────────────────────────────── */}
@@ -320,6 +351,33 @@ export default function StartLanding({
           </div>
         </div>
       </footer>
+
+      {/* ── Sticky CTA, mobile only ──────────────────────────────────────────
+          Appears only once the hero has scrolled out of view, so exactly one
+          primary call to action is on screen at any moment. It scrolls back to
+          the matcher rather than jumping to signup: the whole premise of the
+          page is that you see real matches BEFORE being asked for an account.
+
+          pb-[env(safe-area-inset-bottom)] keeps it clear of the iOS home
+          indicator, and the spacer below reserves its height so the footer is
+          never covered. */}
+      <div
+        aria-hidden={!heroPassed}
+        className={`md:hidden fixed inset-x-0 bottom-0 z-40 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-[#F5F7FA]/95 dark:bg-[#07111F]/95 backdrop-blur border-t border-[#E8ECF2] dark:border-[#1A2E4A] transition-transform duration-200 ${
+          heroPassed ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+        }`}
+      >
+        <a
+          href={`#${MATCHER_ANCHOR}`}
+          onClick={() => trackCTAClick('sticky_mobile')}
+          style={th}
+          className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 rounded-2xl font-bold text-base transition-colors active:opacity-90"
+        >
+          {copy.cta}
+        </a>
+      </div>
+      {/* Reserves the sticky bar's height so it never sits over the footer. */}
+      <div className="md:hidden h-24" aria-hidden="true" />
     </div>
   );
 }
