@@ -12,7 +12,21 @@ import { createClient } from '@/lib/supabase/client';
 export type ExperimentVariant = 'control' | 'treatment';
 export const RANKING_EXPERIMENT = 'ranking';
 
-/** Deterministic 50/50 split based on userId + experimentKey. */
+/**
+ * DEPRECATED — not used by the trial. Superseded by computeRankingVariant() in
+ * lib/research/assignment.ts (PREREG §4).
+ *
+ * Two defects, kept documented rather than silently deleted because
+ * experiment_assignment still holds pilot-era rows:
+ *
+ *  1. experimentKey never reaches the hash. seed.slice(0, 8) only ever reads
+ *     the 32-char hex UUID, so every experiment key returns the same arm.
+ *  2. It disagreed with profiles.ab_arm at chance (~50%), while ab_arm was the
+ *     label stamped on outcome events — so recorded arm and delivered treatment
+ *     were uncorrelated.
+ *
+ * Deterministic 50/50 split based on userId + experimentKey.
+ */
 export function computeVariant(userId: string, experimentKey: string): ExperimentVariant {
   const seed = userId.replace(/-/g, '') + experimentKey;
   // Sum of first 8 hex chars gives enough entropy for 50/50

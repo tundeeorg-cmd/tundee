@@ -9,7 +9,15 @@
 import { createClient } from '@/lib/supabase/client';
 import { getSessionId } from './session';
 
+/**
+ * Must stay in step with the funnel_event_type enum in PostgreSQL. Inserting a
+ * value the enum does not have fails at the database and is swallowed by the
+ * console.warn in writeFunnelEvent — which is exactly how 'profile_updated'
+ * went unnoticed. Added to the enum in
+ * scripts/20260828_v17_counterfactual_and_consent.sql.
+ */
 export type FunnelEventType =
+  // Original set
   | 'search'
   | 'view_list'
   | 'impression'
@@ -19,7 +27,19 @@ export type FunnelEventType =
   | 'track_remove'
   | 'status_change'
   | 'self_report_outcome'
-  | 'profile_updated';
+  | 'profile_updated'
+  // Pre-registered outcome chain (PREREG §6)
+  | 'application_started'
+  | 'application_submitted'
+  | 'award_reported'
+  // Anonymous acquisition funnel
+  | 'landing_view'
+  | 'quiz_started'
+  | 'quiz_completed'
+  | 'results_viewed'
+  | 'signup_started'
+  | 'signup_completed'
+  | 'signup_failed';
 
 export interface FunnelEventPayload {
   eventType: FunnelEventType;

@@ -147,11 +147,15 @@ export const logMatchingResultsViewed = (
   })
 }
 
-// ── Deterministic A/B arm assignment ─────────────────────────────────────────
-// Used when a user's profile has ab_arm = NULL (new user after migration backfill).
-// Stable: same UUID always → same arm.  ~50/50 split across random UUIDs.
-export function assignAbArm(userId: string): 'treatment' | 'control' {
-  // Use first two hex nibbles of UUID for stability
-  const nibble = parseInt(userId.replace(/-/g, '').slice(0, 2), 16)
-  return nibble % 2 === 0 ? 'treatment' : 'control'
-}
+// ── Arm assignment lives elsewhere now ───────────────────────────────────────
+// assignAbArm() was removed. It hashed the 2nd hex char of the UUID and wrote
+// profiles.ab_arm, while treatment was actually driven by experiment_assignment,
+// which hashes the 8th. The two agreed at chance (~50%), so every event this
+// module stamped carried an arm uncorrelated with the ranking the user saw.
+//
+// Randomization is now computeRankingVariant() in lib/research/assignment.ts —
+// HMAC-keyed, stratified, server-side, written once at profile completion.
+// See research/PREREGISTRATION.md §4 and §5.6.
+//
+// ab_arm itself is deliberately left in the schema, unmodified, as pilot-era
+// history (§9.1). Nothing writes it any more.

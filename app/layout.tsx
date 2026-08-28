@@ -94,12 +94,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Sarabun for Thai text */}
+        {/* Sarabun is self-hosted from /public/fonts (see app/globals.css).
+            The Google Fonts <link> and both preconnects are gone: they cost a
+            DNS lookup and TLS handshake to a third party on the critical path,
+            for a font we now serve from our own origin.
+
+            Only the Thai 400 subset is preloaded — it is what the body text of
+            every page paints with. Preloading more would compete for bandwidth
+            on exactly the slow connections this is meant to help. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/sarabun/sarabun-thai-400.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </head>
       <body className="min-h-screen flex flex-col bg-[#F5F7FA] dark:bg-[#07111F]">

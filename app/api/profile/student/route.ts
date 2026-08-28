@@ -11,7 +11,15 @@ import {
   isMinor, BIRTH_YEAR_MIN, BIRTH_YEAR_MAX,
 } from '@/lib/studentProfile';
 
-const CURRENT_CONSENT_VERSION = '2026-01-v1';
+// Imported, not redeclared. This file previously defined its own
+// '2026-01-v1' while lib/research/consentGate.ts gated on '2026-07-v1', so
+// consent written here could never satisfy isResearchConsented() — every
+// consenting user would have been silently excluded from the research dataset.
+import { CURRENT_CONSENT_VERSION } from '@/lib/research/consentGate';
+
+/** Where the consent decision was captured (PREREG §12.4). */
+const CONSENT_METHODS = ['signup_inline', 'profile_settings', 'line_optin'] as const;
+type ConsentMethod = (typeof CONSENT_METHODS)[number];
 
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -88,6 +96,13 @@ export async function POST(request: NextRequest) {
   }
   const consentChanged = !existing || existing.consent_research !== consentResearch;
 
+  // Validated against the closed set rather than trusted as free text; the
+  // column's CHECK constraint would reject anything else anyway.
+  const consentMethod: ConsentMethod =
+    CONSENT_METHODS.includes(body.consent_method as ConsentMethod)
+      ? (body.consent_method as ConsentMethod)
+      : 'profile_settings';
+
   const preferredTypes = Array.isArray(body.preferred_scholarship_types)
     ? (body.preferred_scholarship_types as unknown[]).filter((v): v is string => typeof v === 'string')
     : null;
@@ -118,6 +133,7 @@ export async function POST(request: NextRequest) {
     ...(consentChanged ? {
       consent_version: CURRENT_CONSENT_VERSION,
       consent_at:      new Date().toISOString(),
+      consent_method:  consentMethod,
     } : {}),
   };
 

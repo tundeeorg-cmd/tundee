@@ -25,6 +25,7 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
+import RecruitmentProgress from '@/components/admin/RecruitmentProgress';
 import type { Scholarship, FunderType, AmountType } from '@/lib/types';
 import { parseImportFile, type ImportParseResult, type ParsedRow, type ConflictResolution } from '@/lib/admin/importEngine';
 import { executeImport, type ImportProgress } from '@/lib/admin/importActions';
@@ -55,7 +56,7 @@ function provinceName(id: string): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'list' | 'add' | 'analytics' | 'import' | 'td-list' | 'td-import' | 'awards';
+type Tab = 'list' | 'add' | 'analytics' | 'import' | 'td-list' | 'td-import' | 'awards' | 'recruitment';
 
 const OUTCOME_PILL: Record<string, string> = {
   awarded:     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -884,6 +885,7 @@ export default function AdminPage() {
             { key: 'td-list',   label: '🗂️ Scholarships' },
             { key: 'td-import', label: '📤 Import' },
             { key: 'awards',    label: '🎓 Awards / ผลการได้ทุน' },
+            { key: 'recruitment', label: '📊 Recruitment' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button
               key={key}
@@ -1991,6 +1993,15 @@ export default function AdminPage() {
             "Add outcome" form, the consent-gated CSV export, and the LINE
             survey trigger.
         ════════════════════════════════════════════════════════════════ */}
+        {/* Recruitment — enrollment counts only. Deliberately separate from the
+            Awards tab, which DOES show outcomes: keeping them apart makes it
+            obvious that nothing on this tab is split by arm (PREREG §8). */}
+        {tab === 'recruitment' && (
+          <div className="bg-white dark:bg-[#1D1D1F] border border-[#E5E5EA] dark:border-[#3A3A3C] rounded-xl p-5">
+            <RecruitmentProgress />
+          </div>
+        )}
+
         {tab === 'awards' && (
           <div className="space-y-6">
 

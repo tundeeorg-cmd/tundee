@@ -16,8 +16,9 @@
  *   8  Recruitment source (research) + save
  *
  * Preview prefill: visitors who matched on /start arrive with a tundee_preview
- * cookie holding the level/GPA/province they already typed. Those three steps
- * are then answered and skipped, so nobody is asked the same question twice.
+ * cookie holding the level/province/income they already chose, plus GPA if they
+ * gave one. Those steps are then answered and skipped, so nobody is asked the
+ * same question twice.
  * Consent (step 0) is never skipped — PDPA requires it explicitly.
  */
 
@@ -27,7 +28,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
-import { trackSignupComplete } from '@/lib/adTracking';
+import { trackSignupComplete, readAdParams } from '@/lib/adTracking';
 import { signupMethodFrom } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
@@ -70,10 +71,14 @@ const RECRUITMENT_SOURCE_OPTIONS = [
 ];
 
 /**
- * Steps 3–5 (grade level, GPA, province) are exactly what the /start preview
- * already collected, so when it prefilled them the wizard jumps step 2 → 6.
+ * Steps 3–6 (grade level, GPA, province, income) are exactly what the /start
+ * preview now collects, so when it prefilled them the wizard jumps step 2 → 7.
+ *
+ * Income moved into the preview alongside level and province because those
+ * three are the study's stratification variables (PREREG §5.1–5.3) — asking
+ * them before signup serves both the funnel and the research design.
  */
-const PREFILLED_STEPS = { before: 2, after: 6 } as const;
+const PREFILLED_STEPS = { before: 2, after: 7 } as const;
 
 /** Reads a non-httpOnly cookie in the browser. */
 function readCookie(name: string): string | null {
@@ -254,8 +259,13 @@ export default function ProfileSetupPage() {
     const preview = decodePreviewInput(readCookie(PREVIEW_COOKIE));
     if (preview) {
       setGradeLevel(preview.level);
-      setGpa(String(preview.gpa));
       setProvince(preview.province);
+      // Income is now asked on /start too, so it must replay here — otherwise
+      // the visitor answers the same question twice and we look like we
+      // weren't listening.
+      setIncomeBracket(preview.income);
+      // GPA is optional on /start; only prefill when they actually gave one.
+      if (preview.gpa !== null) setGpa(String(preview.gpa));
       setPrefilled(true);
     }
 
@@ -341,7 +351,12 @@ export default function ProfileSetupPage() {
         fields_of_interest:          selectedFields.length > 0 ? selectedFields : ['any'],
         // Research fields
         prior_scholarship_knowledge: priorKnowledge !== null ? priorKnowledge : null,
-        recruitment_source:          recruitmentSource || 'unknown',
+        // Renamed in v16: this is the self-reported "how did you hear about
+        // TunDee?" answer. The pre-registered recruitment_source (§5.4) is a
+        // different variable, derived from utm_campaign and written server-side
+        // by /api/experiment/assign. Writing a self-report slug into that
+        // column now violates its CHECK constraint, by design.
+        heard_about_us:              recruitmentSource || 'unknown',
         signup_cohort:               province ? determineSignupCohort(province) : undefined,
         // Consent (PDPA). undefined when unticked here, because consent may
         // already have been recorded on /auth — never downgrade it to null.
@@ -379,6 +394,52 @@ export default function ProfileSetupPage() {
         console.log('[TunDee Setup] saved via update fallback');
       } else {
         console.log('[TunDee Setup] saved via upsert');
+      }
+
+      // ── Randomize into a ranking arm (PREREG §4) ──────────────────────────
+      // Awaited, unlike the baseline snapshot below: the arm decides which
+      // ranking the user is about to see, so it must be settled before the
+      // redirect. Server-side because RANDOMIZATION_SALT must never reach the
+      // browser. Idempotent — safe if this runs twice.
+      //
+      // utm_campaign is sent raw and validated server-side against the closed
+      // set in §5.4; it is never trusted as a free-text value.
+      try {
+        const res = await fetch('/api/experiment/assign', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ utm_campaign: readAdParams().utm_campaign ?? null }),
+        });
+        if (!res.ok) {
+          // Non-fatal for the student: they get the product either way. It is a
+          // research defect, so it is logged loudly rather than swallowed.
+          console.error('[TunDee Setup] arm assignment failed:', res.status);
+        }
+      } catch (err) {
+        console.error('[TunDee Setup] arm assignment request failed:', err);
+      }
+
+      // ── Record the research consent decision where the gate reads it ──────
+      // The checkbox above wrote only profiles.research_opt_in. Every research
+      // export and isResearchConsented() gate on student_profile.consent_research
+      // instead, so a student who ticked the box was still excluded from the
+      // dataset. This propagates the decision — including an explicit FALSE,
+      // which is a recorded decision and not an absence of one (PREREG §12.4).
+      try {
+        const res = await fetch('/api/profile/student', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consent_research: researchOptIn,
+            guardian_consent: guardianAcknowledged,
+            consent_method:   'signup_inline',
+          }),
+        });
+        if (!res.ok) {
+          console.error('[TunDee Setup] research consent not recorded:', res.status);
+        }
+      } catch (err) {
+        console.error('[TunDee Setup] research consent request failed:', err);
       }
 
       // ── Write immutable baseline snapshot (fire-and-forget, non-blocking) ──
@@ -484,9 +545,26 @@ export default function ProfileSetupPage() {
             className="mt-0.5 w-4 h-4 rounded border-[#d1d1d6] accent-[#2E6BE6] flex-shrink-0"
           />
           <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
-            {lang === 'th'
-              ? 'ฉันยินยอมให้ใช้ข้อมูลโปรไฟล์ที่ไม่ระบุตัวตนเพื่องานวิจัยด้านการเข้าถึงทุนการศึกษา (ไม่บังคับ)'
-              : 'I consent to my anonymised profile data being used for scholarship-access research. (Optional)'}
+            {/* PREREG §12.4 copy: plain Thai at secondary-school reading level,
+                because participants include minors. States plainly that
+                declining costs nothing. */}
+            {lang === 'th' ? (
+              <>
+                <span className="font-semibold">ช่วยงานวิจัยเรื่องความเป็นธรรมทางการศึกษา</span>
+                <br />
+                เราเก็บข้อมูลการใช้งานแบบไม่ระบุตัวตน เพื่อศึกษาว่านักเรียนต่างจังหวัดเข้าถึงทุนได้ยากกว่าจริงหรือไม่ ข้อมูลของคุณจะไม่ถูกเปิดเผยเป็นรายบุคคล
+                <br />
+                <span className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">ไม่ยินยอมก็ใช้งานได้ทุกฟีเจอร์ตามปกติ</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">Help with research on educational fairness</span>
+                <br />
+                We collect anonymized usage data to study whether students outside Bangkok have less access to scholarships. Your individual data is never published.
+                <br />
+                <span className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">You can decline and still use every feature normally.</span>
+              </>
+            )}
           </span>
         </label>
 

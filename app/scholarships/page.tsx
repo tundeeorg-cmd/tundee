@@ -8,9 +8,13 @@ import { useLang } from '@/lib/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
 import { translations } from '@/lib/translations';
 import type { User } from '@supabase/supabase-js';
-import { logMatchingResultsViewed, logSearchPerformed, setUserResearchContext, assignAbArm } from '@/lib/research/events';
+import { logMatchingResultsViewed, logSearchPerformed, setUserResearchContext } from '@/lib/research/events';
 import { logFunnelEvent, logImpressions } from '@/lib/research/funnel';
-import { getOrAssignVariant, RANKING_EXPERIMENT } from '@/lib/research/experiment';
+import { logRecommendationRequest } from '@/lib/research/recommendationLog';
+// getOrAssignVariant / RANKING_EXPERIMENT are no longer imported. That path
+// assigned a second, conflicting arm from experiment_assignment; the arm is now
+// read from profiles.ranking_variant, assigned once server-side at profile
+// completion (PREREG §4).
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
 import type { TdCardMatchInfo } from '@/components/TdScholarshipCard';
@@ -31,7 +35,11 @@ interface StudentProfile {
   fields_of_interest: string[];
   welfare_card: boolean;
   grade_level: string;
-  ab_arm: 'treatment' | 'control' | null;
+  // PREREG §5.6. Replaces ab_arm, which is pilot-era history: it was hashed
+  // from a different byte of the UUID than the mechanism that actually drove
+  // treatment, so the two agreed only at chance.
+  ranking_variant: 'baseline' | 'fairness_adjusted' | null;
+  fairness_eligible: boolean;
 }
 
 type ScoredTdScholarship = TdScholarship & {
@@ -339,8 +347,10 @@ export default function BrowsePage() {
 
   const [user, setUser]                             = useState<User | null>(null);
   const [activeTab, setActiveTab]                   = useState<Tab>('browse');
-  const [experimentVariant, setExperimentVariant]   = useState<string | null>(null);
+  const [rankingVariant, setRankingVariant]         = useState<'baseline' | 'fairness_adjusted' | null>(null);
+  const [fairnessEligible, setFairnessEligible]     = useState<boolean>(false);
   const loggedImpressions                           = useRef<Set<string>>(new Set());
+  const loggedRecRequest                            = useRef<string | null>(null);
 
   // Matches tab state
   const [matchSortBy, setMatchSortBy]               = useState<MatchSortKey>('match');
@@ -405,14 +415,21 @@ export default function BrowsePage() {
           .maybeSingle();
 
         if (profile) {
-          let arm = (profile.ab_arm ?? null) as 'treatment' | 'control' | null;
-          if (!arm) {
-            arm = assignAbArm(authUser.id);
-            void supabase.from('profiles').update({ ab_arm: arm, ab_assigned_at: new Date().toISOString() }).eq('id', authUser.id);
-          }
+          // The arm is READ here, never assigned. Randomization happens once,
+          // server-side, at profile completion (/api/experiment/assign) — this
+          // page previously assigned it client-side on first view, which is
+          // both the wrong moment and the wrong place for a salted hash.
+          const variant = (profile.ranking_variant ?? null) as
+            'baseline' | 'fairness_adjusted' | null;
+          const eligible = profile.fairness_eligible === true;
+
           const incomeBracket = profile.income_bracket ?? 4;
-          setUserResearchContext(arm, incomeBracket);
-          getOrAssignVariant(authUser.id, RANKING_EXPERIMENT).then(v => setExperimentVariant(v));
+          // ab_arm is no longer stamped on events: its value is uncorrelated
+          // with delivered treatment. funnel_events.ranking_variant is the
+          // research record of truth (v17).
+          setUserResearchContext(null, incomeBracket);
+          setRankingVariant(variant);
+          setFairnessEligible(eligible);
           setUserProfile({
             province_id:        profile.province         ?? '',
             income_bracket:     incomeBracket,
@@ -420,7 +437,8 @@ export default function BrowsePage() {
             fields_of_interest: profile.fields_of_interest ?? ['any'],
             welfare_card:       profile.welfare_card     ?? false,
             grade_level:        profile.grade_level      ?? '',
-            ab_arm:             arm,
+            ranking_variant:    variant,
+            fairness_eligible:  eligible,
           });
         }
       } catch { /* silently ignore */ }
@@ -443,9 +461,14 @@ export default function BrowsePage() {
       region:                null, area_type: null,
       household_income_band: null, intended_level: null, intended_field: null,
     };
-    const fairnessMode: FairnessMode = experimentVariant === 'treatment' ? 'on' : 'off';
+    // PREREG §5.5. Eligibility is a property of the person; treatment is an
+    // assignment. The adjustment fires only where BOTH hold — an eligible user
+    // in the baseline arm receives an unmodified ranking, which is what makes
+    // the arms comparable.
+    const fairnessMode: FairnessMode =
+      rankingVariant === 'fairness_adjusted' && fairnessEligible ? 'on' : 'off';
     const result = recommend(tdScholarships, recProfile, {
-      fairness_mode: fairnessMode, variant: experimentVariant ?? 'control', limit: 50,
+      fairness_mode: fairnessMode, variant: rankingVariant ?? 'baseline', limit: 50,
     });
     return result.items.map(item => ({
       ...item.scholarship,
@@ -458,7 +481,32 @@ export default function BrowsePage() {
       explanation_en: item.explanation_en,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile, tdScholarships, experimentVariant]);
+  }, [userProfile, tdScholarships, rankingVariant]);
+
+  // ── Counterfactual: persist BOTH rankings per request (PREREG §4) ──────────
+  // Logged from allMatches — the recommender's own output — rather than from
+  // visibleMatches, which carries the student's filter and sort choices. Those
+  // are interactions, captured separately by impressions with served_rank.
+  useEffect(() => {
+    if (!allMatches.length || !userProfile) return;
+    // One row per computed ranking, not one per render.
+    const key = `${rankingVariant}|${allMatches.length}|${allMatches[0]?.scholarship_id ?? ''}`;
+    if (loggedRecRequest.current === key) return;
+    loggedRecRequest.current = key;
+
+    logRecommendationRequest({
+      userId:           user?.id ?? null,
+      rankingVariant,
+      fairnessEligible,
+      items: allMatches.map(s => ({
+        scholarship_id: s.scholarship_id,
+        raw_score:      s.rawScore,
+        fairness_score: s.fairnessScore,
+      })),
+      surface: 'matches',
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allMatches]);
 
   const visibleMatches = useMemo((): (ScoredTdScholarship & { displayRank: number })[] => {
     const filtered = allMatches.filter(s => s.fairnessScore >= matchMinScore);
@@ -563,7 +611,7 @@ export default function BrowsePage() {
   }, [allMatches]);
 
   useEffect(() => {
-    logFunnelEvent({ eventType: 'view_list', userId: user?.id ?? null, context: { tab: activeTab, variant: experimentVariant } });
+    logFunnelEvent({ eventType: 'view_list', userId: user?.id ?? null, context: { tab: activeTab, variant: rankingVariant } });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -575,8 +623,8 @@ export default function BrowsePage() {
     fresh.forEach(s => loggedImpressions.current.add(s.scholarship_id));
     logImpressions(
       fresh.map(s => ({ scholarshipId: s.scholarship_id, rank: s.displayRank, rawScore: s.rawScore, fairnessScore: s.fairnessScore })),
-      user?.id ?? null, experimentVariant, 'matches',
-      experimentVariant === 'treatment' ? 'on' : 'off',
+      user?.id ?? null, rankingVariant, 'matches',
+      rankingVariant === 'fairness_adjusted' && fairnessEligible ? 'on' : 'off',
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleMatches]);
@@ -589,7 +637,7 @@ export default function BrowsePage() {
     fresh.forEach(s => loggedImpressions.current.add(s.scholarship_id));
     logImpressions(
       fresh.map((s, i) => ({ scholarshipId: s.scholarship_id, rank: i + 1 })),
-      user?.id ?? null, experimentVariant, 'browse',
+      user?.id ?? null, rankingVariant, 'browse',
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [browseVisible, activeTab]);
@@ -723,7 +771,7 @@ export default function BrowsePage() {
                         scholarship={s}
                         matchInfo={{ score: s.fairnessScore, reasons: s.reasons, reasons_en: s.reasons_en }}
                         userId={user?.id ?? null}
-                        variant={experimentVariant}
+                        variant={rankingVariant}
                       />
                     ))}
                   </div>
@@ -750,7 +798,7 @@ export default function BrowsePage() {
                   onChange={e => {
                     setTdSearch(e.target.value);
                     if (e.target.value.length >= 2) {
-                      logFunnelEvent({ eventType: 'search', userId: user?.id ?? null, context: { query: e.target.value, tab: 'browse', variant: experimentVariant } });
+                      logFunnelEvent({ eventType: 'search', userId: user?.id ?? null, context: { query: e.target.value, tab: 'browse', variant: rankingVariant } });
                       logSearchPerformed(e.target.value, tdScholarships.length);
                     }
                   }}
@@ -884,7 +932,7 @@ export default function BrowsePage() {
                     key={s.scholarship_id}
                     scholarship={s}
                     userId={user?.id ?? null}
-                    variant={experimentVariant}
+                    variant={rankingVariant}
                   />
                 ))}
               </div>

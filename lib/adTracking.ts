@@ -15,6 +15,7 @@
  */
 
 import * as analytics from './analytics';
+import { logFunnelEvent } from './research/funnel';
 
 export type AdParams = {
   utm_source?: string;
@@ -33,6 +34,30 @@ export function persistAdParams(params: AdParams) {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(params));
   } catch {
     // sessionStorage unavailable (private browsing, etc.) — fail silently
+  }
+}
+
+/**
+ * Read back the stashed ad params. Nothing read them before this — they were
+ * only ever forwarded on the signup href — so utm_campaign was lost by the time
+ * the profile was saved.
+ *
+ * PREREG §5.4 needs utm_campaign at profile completion to derive
+ * recruitment_source, so /profile/setup reads it here.
+ *
+ * Best-effort by nature: sessionStorage is tab-scoped, so an email magic link
+ * opened in a different browser arrives with nothing and resolves to 'organic'.
+ */
+export function readAdParams(): AdParams {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as AdParams;
+  } catch {
+    return {};
   }
 }
 
@@ -85,4 +110,11 @@ export function trackPreviewResults(matchCount: number, scholarshipIds: string[]
  */
 export function trackSignupComplete(method: 'google' | 'line' | 'email' = 'email') {
   analytics.completeRegistration(method);
+
+  // signup_completed rides along here rather than being wired separately at
+  // both call sites. The two paths above are already mutually exclusive and
+  // already cover every route into an account, so hanging the funnel event off
+  // the same call makes it impossible for the two signals to drift apart or
+  // for one path to be forgotten.
+  logFunnelEvent({ eventType: 'signup_completed', context: { method } });
 }

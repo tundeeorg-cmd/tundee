@@ -10,6 +10,7 @@
 import type { Metadata } from 'next';
 import StartLanding from './StartLanding';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
+import { resolveLandingVariant } from '@/lib/landing/variants';
 
 // The opengraph-image.tsx in this directory is auto-resolved by Next.js for
 // og:image. We declare the other tags here.
@@ -17,7 +18,7 @@ import { getScholarshipStats } from '@/lib/scholarships/counts';
 const SITE_URL = 'https://www.tundee.org';
 
 export const metadata: Metadata = {
-  title: 'หาทุนการศึกษาที่คุณมีสิทธิ์จริง ใน 3 นาที | TunDee',
+  title: 'หาทุนการศึกษาที่คุณมีสิทธิ์ ใน 2 นาที | TunDee',
   description:
     'TunDee ใช้ AI ช่วยค้นหา จัดอันดับ และแนะแนวคุณผ่านทุกทุนที่คุณมีสิทธิ์สมัคร ฟรีทั้งหมด ไม่มีโฆษณา ไม่มีข้อมูลหมดอายุ',
   metadataBase: new URL(SITE_URL),
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: `${SITE_URL}/start`,
-    title: 'หาทุนการศึกษาที่คุณมีสิทธิ์จริง ใน 3 นาที',
+    title: 'หาทุนการศึกษาที่คุณมีสิทธิ์ ใน 2 นาที',
     description: 'ฟรีทั้งหมด ไม่มีโฆษณา ไม่มีข้อมูลหมดอายุ • ตรวจสอบโดยคนจริงทุกทุน',
     siteName: 'TunDee ทุนดี',
     locale: 'th_TH',
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'หาทุนการศึกษาที่คุณมีสิทธิ์จริง ใน 3 นาที',
+    title: 'หาทุนการศึกษาที่คุณมีสิทธิ์ ใน 2 นาที',
     description: 'TunDee ใช้ AI ช่วยค้นหาทุนที่คุณมีสิทธิ์ ฟรีตลอด',
   },
   alternates: {
@@ -52,7 +53,11 @@ export const metadata: Metadata = {
 export default async function StartPage({
   searchParams,
 }: {
-  searchParams: { utm_source?: string; utm_medium?: string; utm_campaign?: string; src?: string };
+  searchParams: {
+    utm_source?: string; utm_medium?: string; utm_campaign?: string; src?: string;
+    /** Landing headline variant (PREREG §5.8). Recruitment-side only. */
+    v?: string;
+  };
 }) {
   const adParams = {
     utm_source: typeof searchParams.utm_source === 'string' ? searchParams.utm_source : undefined,
@@ -60,6 +65,18 @@ export default async function StartPage({
     utm_campaign: typeof searchParams.utm_campaign === 'string' ? searchParams.utm_campaign : undefined,
     src: typeof searchParams.src === 'string' ? searchParams.src : undefined,
   };
+  // Resolved server-side against the registry, so the value that reaches the
+  // client (and the event log) is always a known key, never raw query input.
+  const landingVariant = resolveLandingVariant(
+    typeof searchParams.v === 'string' ? searchParams.v : undefined,
+  );
+
   const stats = await getScholarshipStats();
-  return <StartLanding adParams={adParams} scholarshipCount={stats.ok ? stats.scholarships : null} />;
+  return (
+    <StartLanding
+      adParams={adParams}
+      scholarshipCount={stats.ok ? stats.scholarships : null}
+      landingVariant={landingVariant}
+    />
+  );
 }

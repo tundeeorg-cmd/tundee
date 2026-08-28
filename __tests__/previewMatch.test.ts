@@ -74,7 +74,7 @@ function match(scholarships: TdScholarship[], profile = previewProfile()) {
 // ─── Input contract ───────────────────────────────────────────────────────────
 
 describe('parsePreviewInput', () => {
-  const valid = { level: 'M4-M6', gpa: 3.25, province: 'ขอนแก่น' };
+  const valid = { level: 'M4-M6', province: 'ขอนแก่น', income: 2, gpa: 3.25 };
 
   it('accepts every level offered on /start', () => {
     for (const level of PREVIEW_LEVELS) {
@@ -96,6 +96,44 @@ describe('parsePreviewInput', () => {
     expect(parsePreviewInput({ ...valid, gpa: 'abc' })).toBeNull();
   });
 
+  it('requires an income bracket — it is a stratification variable', () => {
+    const { income: _drop, ...noIncome } = valid;
+    expect(parsePreviewInput(noIncome)).toBeNull();
+  });
+
+  it('rejects an income bracket outside the 1-7 scale', () => {
+    for (const income of [0, 8, -1, 2.5, 'abc']) {
+      expect(parsePreviewInput({ ...valid, income })).toBeNull();
+    }
+  });
+
+  it('treats a blank GPA as null, not as a default grade', () => {
+    // Substituting a grade the visitor never gave would make the match claim
+    // untrue, so absence stays absence.
+    for (const gpa of [undefined, null, '']) {
+      const parsed = parsePreviewInput({ ...valid, gpa });
+      expect(parsed).not.toBeNull();
+      expect(parsed?.gpa).toBeNull();
+    }
+  });
+
+  it('round-trips a null GPA through the cookie', () => {
+    const input = { level: 'uni', province: 'เชียงใหม่', income: 1, gpa: null };
+    expect(decodePreviewInput(encodePreviewInput(input))).toEqual(input);
+  });
+
+  it('reads a pre-income cookie rather than discarding the visitor answers', () => {
+    // Cookies issued before income was asked are still in browsers for up to
+    // PREVIEW_COOKIE_MAX_AGE. They decode, defaulting income so the question is
+    // simply asked again rather than the whole draft being thrown away.
+    const legacy = Buffer.from(JSON.stringify(['uni', 3.0, 'เชียงใหม่']), 'utf8')
+      .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const decoded = decodePreviewInput(legacy);
+    expect(decoded).not.toBeNull();
+    expect(decoded?.level).toBe('uni');
+    expect(decoded?.province).toBe('เชียงใหม่');
+  });
+
   it('rejects a province that is not one of the 77', () => {
     expect(parsePreviewInput({ ...valid, province: 'Atlantis' })).toBeNull();
   });
@@ -109,7 +147,7 @@ describe('parsePreviewInput', () => {
 
 describe('preview cookie', () => {
   it('round-trips the visitor answers', () => {
-    const input = { level: 'uni', gpa: 2.75, province: 'เชียงใหม่' };
+    const input = { level: 'uni', province: 'เชียงใหม่', income: 5, gpa: 2.75 };
     expect(decodePreviewInput(encodePreviewInput(input))).toEqual(input);
   });
 
@@ -118,7 +156,7 @@ describe('preview cookie', () => {
     expect(decodePreviewInput('')).toBeNull();
     expect(decodePreviewInput('not-base64!!')).toBeNull();
     // Well-formed encoding, invalid contents — must not survive validation
-    expect(decodePreviewInput(encodePreviewInput({ level: 'M9', gpa: 9, province: 'X' }))).toBeNull();
+    expect(decodePreviewInput(encodePreviewInput({ level: 'M9', province: 'X', income: 9, gpa: 9 }))).toBeNull();
   });
 });
 
