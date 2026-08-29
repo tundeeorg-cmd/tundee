@@ -208,13 +208,42 @@ function AuthForm() {
     setError('');
     recordConsent();
 
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: {
-        emailRedirectTo: buildCallbackUrl(),
-        shouldCreateUser: true,
-      },
-    });
+    const callbackUrl = buildCallbackUrl();
+
+    // Try our own Thai email first. It falls back to Supabase's built-in send
+    // on ANY failure — missing keys, generateLink error, Resend outage — so a
+    // problem there costs a user the Thai copy, never the ability to sign in.
+    let otpError: { message: string } | null = null;
+    let usedFallback = false;
+
+    try {
+      const res = await fetch('/api/auth/email-link', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: trimmed, redirectTo: callbackUrl, lang }),
+      });
+      const body = await res.json().catch(() => ({ fallback: true }));
+
+      if (res.status === 400 && body?.error === 'invalid_email') {
+        setLoading(false);
+        setError(lang === 'th' ? 'กรุณากรอกอีเมลให้ถูกต้อง' : 'Please enter a valid email address.');
+        return;
+      }
+      usedFallback = body?.fallback !== false;
+    } catch {
+      usedFallback = true;
+    }
+
+    if (usedFallback) {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: {
+          emailRedirectTo: callbackUrl,
+          shouldCreateUser: true,
+        },
+      });
+      otpError = error;
+    }
 
     setLoading(false);
     if (otpError) {
@@ -344,7 +373,13 @@ function AuthForm() {
               </button>
 
               <p className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5">
-                {lang === 'th' ? 'ลิงก์หมดอายุใน 1 ชั่วโมง' : 'This link expires in 1 hour'}
+                {/* Generic on purpose. "1 ชั่วโมง" was hardcoded here and matches
+                    Supabase's DEFAULT OTP expiry, but nobody has read the value
+                    configured on this project — so it was a guess presented to
+                    users as fact. Restore a number only after reading
+                    Authentication -> Providers -> Email -> Email OTP Expiration,
+                    and change the email template to match at the same time. */}
+                {lang === 'th' ? 'ลิงก์หมดอายุในไม่ช้า' : 'This link expires shortly'}
               </p>
             </div>
           </div>
