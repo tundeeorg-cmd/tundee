@@ -9,6 +9,7 @@
 
 import type { Metadata } from 'next';
 import StartLanding from './StartLanding';
+import { getRegisteredUserCount } from '@/lib/social/userCount';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { resolveLandingVariant } from '@/lib/landing/variants';
 
@@ -71,11 +72,15 @@ export default async function StartPage({
     typeof searchParams.v === 'string' ? searchParams.v : undefined,
   );
 
-  const stats = await getScholarshipStats();
+  const [stats, registeredCount] = await Promise.all([
+    getScholarshipStats(),
+    getRegisteredUserCount(),
+  ]);
   return (
     <StartLanding
       adParams={adParams}
       scholarshipCount={stats.ok ? stats.scholarships : null}
+      registeredCount={registeredCount}
       landingVariant={landingVariant}
     />
   );

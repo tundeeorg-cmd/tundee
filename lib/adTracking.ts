@@ -82,6 +82,21 @@ export function trackCTAClick(location: string) {
 }
 
 /**
+ * The signup gate under the /start preview results.
+ *
+ * Distinct from trackCTAClick because this tap means something the other CTAs do not:
+ * the visitor has already seen real matched scholarships and is choosing to unlock the
+ * rest. It fires Lead *and* InitiateCheckout — Lead to keep the existing ad-set
+ * optimisation intact, InitiateCheckout because that is the funnel step the platforms
+ * report on. `matchCount` travels with it so drop-off can be read against how much was
+ * actually behind the gate.
+ */
+export function trackGateCTA(location: string, matchCount: number) {
+  analytics.lead({ location });
+  analytics.initiateCheckout({ location, numItems: matchCount });
+}
+
+/**
  * The visitor submitted the /start match form.
  * Separate from the results render below: Search is the intent, ViewContent is
  * the payoff, and the platforms need both to model the funnel.

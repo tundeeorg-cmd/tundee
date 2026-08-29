@@ -124,6 +124,13 @@ function buildProfile(input: PreviewInput): RecommenderProfile {
   };
 }
 
+/** A usable https link, or null. Guards against the importer's CHECK_WEBSITE sentinel. */
+function normaliseApplyUrl(raw: string | null | undefined): string | null {
+  const value = (raw ?? '').trim();
+  if (!value || value === 'CHECK_WEBSITE') return null;
+  return /^https?:\/\//i.test(value) ? value : null;
+}
+
 function toCard(item: {
   scholarship: TdScholarship;
   fairness_score: number;
@@ -140,6 +147,9 @@ function toCard(item: {
     deadline_date:       s.deadline_date,
     deadline_is_rolling: Boolean(s.deadline_is_rolling),
     status:              s.status_effective || s.status,
+    // Both columns are already in the select list; only one is usually populated.
+    // 'CHECK_WEBSITE' is a sentinel the legacy importer wrote, not a URL.
+    apply_url:           normaliseApplyUrl(s.application_url) ?? normaliseApplyUrl(s.application_link),
     explanation:         item.explanation,
     reasons:             item.reasons.slice(0, 3),
     score:               Math.round(item.fairness_score * 1000) / 1000,
