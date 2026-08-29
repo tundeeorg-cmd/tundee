@@ -258,8 +258,39 @@ function AuthForm() {
   }
 
   const busy = loading || googleLoading || lineLoading;
-  /** Every signup path is gated on consent — PDPA, and the callback writes a row. */
-  const blocked = busy || !consent;
+  /**
+   * Disabled only while a request is in flight — NOT on missing consent.
+   *
+   * Consent used to disable all four sign-in controls, so a visitor arriving from the
+   * /start gate met two greyed-out buttons and a warning before doing anything wrong.
+   * A dead button gives no feedback when tapped; people conclude the page is broken and
+   * leave, which on paid traffic is the most expensive failure mode there is.
+   *
+   * The buttons are live now and `requireConsent()` below stops the action instead. That
+   * is also stricter than what it replaces: consent was enforced by nothing but a
+   * `disabled` attribute, which any devtools user could remove.
+   */
+  const blocked = busy;
+
+  /** Set once a visitor tries to continue without ticking, so the hint is a response
+   *  to something they did rather than a scold shown pre-emptively. */
+  const [consentAttempted, setConsentAttempted] = useState(false);
+  const consentRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * The consent gate. Every sign-in path calls this first and bails if it returns false.
+   * PDPA, and the callback writes consent_version + consent_at onto the profile.
+   */
+  function requireConsent(): boolean {
+    if (consent) return true;
+    setConsentAttempted(true);
+    setError(lang === 'th'
+      ? 'กรุณายอมรับข้อกำหนดก่อนเข้าสู่ระบบ'
+      : 'Please accept the terms before continuing.');
+    consentRef.current?.focus();
+    consentRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
 
   useEffect(() => {
     // Already logged in → redirect
@@ -305,6 +336,7 @@ function AuthForm() {
   // ── Send magic link ──────────────────────────────────────────────────────────
   async function sendMagicLink(e: React.FormEvent) {
     e.preventDefault();
+    if (!requireConsent()) return;
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
       setError(lang === 'th' ? 'กรุณากรอกอีเมลให้ถูกต้อง' : 'Please enter a valid email address.');
@@ -453,6 +485,7 @@ function AuthForm() {
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
   async function signInWithGoogle() {
+    if (!requireConsent()) return;
     setGoogleLoading(true);
     setError('');
     recordConsent();
@@ -481,6 +514,7 @@ function AuthForm() {
   // (app/api/auth/line/*), which mints a Supabase session from a verified LINE
   // identity and then hands off to the same /auth/callback as every other method.
   function signInWithLine() {
+    if (!requireConsent()) return;
     setLineLoading(true);
     setError('');
     recordConsent();
@@ -635,10 +669,19 @@ function AuthForm() {
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
               <input
+                ref={consentRef}
                 type="checkbox"
                 checked={consent}
-                onChange={(e) => { setConsent(e.target.checked); setError(''); }}
-                className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
+                onChange={(e) => {
+                  setConsent(e.target.checked);
+                  setError('');
+                  if (e.target.checked) setConsentAttempted(false);
+                }}
+                className={`mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded ${
+                  consentAttempted && !consent
+                    ? 'ring-2 ring-offset-2 ring-red-500 dark:ring-offset-[#0A1628]'
+                    : ''
+                }`}
               />
               <span className="text-sm leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
                 ฉันยอมรับ{' '}
@@ -662,12 +705,18 @@ function AuthForm() {
                 {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
               </span>
             </label>
-            {!consent && (
+            {/* Shown only after a blocked attempt. It used to render whenever the box
+                was unticked — i.e. immediately on arrival — so the first thing a visitor
+                from an ad read was an instruction they had not yet had a chance to
+                disobey, above two buttons that looked broken. */}
+            {consentAttempted && !consent && (
               <p
-                className="mb-4 text-xs text-[#8A96A8] dark:text-[#7A8FA8]"
+                className="mb-4 text-xs font-semibold text-red-600 dark:text-red-400"
                 style={{ fontFamily: 'Sarabun, sans-serif' }}
               >
-                กรุณายอมรับข้อกำหนดก่อนดำเนินการต่อ
+                {lang === 'th'
+                  ? 'กรุณายอมรับข้อกำหนดก่อนเข้าสู่ระบบ'
+                  : 'Please accept the terms before continuing.'}
               </p>
             )}
 
