@@ -72,10 +72,27 @@ function authErrorMessage(code: string, lang: string): string {
       return th
         ? 'สร้างบัญชีจาก LINE ไม่สำเร็จ กรุณาลองใหม่ หรือใช้ Google/อีเมลแทน'
         : "Couldn't finish LINE sign-in. Please try again, or use Google or email.";
+    // The link reached us but Supabase rejected the token. It reports expiry
+    // and reuse identically, so this covers both without asserting which.
+    case 'link_invalid':
+      return th
+        ? 'ลิงก์นี้หมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง'
+        : 'This link has expired. Please request a new one.';
+
+    // The callback was reached with nothing usable — no token_hash, no code.
+    // Emphatically NOT an expired link, and saying so sent users round a loop
+    // requesting fresh links that failed identically.
+    case 'no_credentials':
+    case 'exchange_failed':
+    case 'session_lost':
+      return th
+        ? 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        : 'Sign-in failed. Please try again.';
+
     default:
       return th
-        ? 'ลิงก์หมดอายุหรือใช้ไปแล้ว กรุณาขอลิงก์ใหม่'
-        : 'Link expired or already used. Please try again.';
+        ? 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        : 'Sign-in failed. Please try again.';
   }
 }
 
