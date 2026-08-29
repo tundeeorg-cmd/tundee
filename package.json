@@ -10,7 +10,8 @@
     "export-scholarships": "node -e \"require('dotenv').config({path:'.env.local'}); require('child_process').execSync('python3 scripts/export_scholarships.py', {stdio:'inherit', env: {...process.env}})\"",
     "hide-scholarships": "node -e \"require('dotenv').config({path:'.env.local'}); require('child_process').execSync('python3 scripts/hide_all_scholarships.py', {stdio:'inherit', env: {...process.env}})\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "analyze": "vitest run --config vitest.analysis.config.ts --reporter=verbose"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

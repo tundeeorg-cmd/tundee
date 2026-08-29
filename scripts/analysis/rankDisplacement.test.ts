@@ -10,11 +10,19 @@
  * synthetic profiles drawn from the target population (PREREG §5.3). Reads the
  * database with the anon key; writes nothing.
  *
- * Not part of the unit suite — it needs network. Run explicitly:
- *   npx vitest run scripts/analysis/rankDisplacement.test.ts
+ * Not part of the unit suite — it needs network and live credentials, so
+ * vitest.config.ts excludes it. Run it with its own config:
+ *
+ *   npm run analyze
  */
 
+import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
 import { describe, it } from 'vitest';
+
+// Credentials come from .env.local, the same file the app uses, so this runs
+// with no environment prefixing.
+loadEnv({ path: '.env.local' });
 import { createClient } from '@supabase/supabase-js';
 import { recommend } from '@/lib/recommender';
 import type { RecommenderProfile } from '@/lib/recommender/types';
