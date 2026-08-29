@@ -75,13 +75,39 @@ export function computeStatusEffective(
     open_date: string | null | undefined;
     deadline_date: string | null | undefined;
     status: string | null | undefined;
+    /**
+     * The deadline text means "apply any time", with no future intake and no flag that
+     * the entry needs rechecking. See `isUnqualifiedRolling` in the deadline parser.
+     */
+    rolling_open?: boolean;
   },
   todayBkk: Date,
 ): TdStatus {
   if (row.open_date && row.deadline_date) {
     return statusFromDates(row.open_date, row.deadline_date, todayBkk);
   }
-  return normalizeStatusValue(row.status);
+
+  const stored = normalizeStatusValue(row.status);
+  if (stored) return stored;
+
+  /*
+   * Rolling scholarships with a blank status.
+   *
+   * The master sheet computes `status` with a formula whose every branch is guarded by
+   * ISNUMBER on the deadline cell, so a scholarship whose deadline is the word "Rolling"
+   * can never get a status from the sheet — not because anyone forgot, but because the
+   * formula has nothing to test. 22 genuinely open scholarships were invisible for that
+   * reason alone.
+   *
+   * A rolling deadline states its own status: applications are accepted continuously.
+   * Deriving Open from it is reading the data, not guessing at it.
+   *
+   * Deliberately below the stored status, never above: if the sheet says Closed for a
+   * rolling row, a person decided that and it stands.
+   */
+  if (row.rolling_open) return 'Open';
+
+  return stored;
 }
 
 /**
@@ -103,6 +129,7 @@ export function isDisplayable(
     deadline_date: string | null | undefined;
     status: string | null | undefined;
     last_verified: string | null | undefined;
+    rolling_open?: boolean;
   },
   todayBkk: Date,
 ): DisplayGateResult {

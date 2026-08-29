@@ -100,6 +100,29 @@ function extractDate(s: string): string | null {
   return null;
 }
 
+/**
+ * Text that qualifies a rolling deadline with a period, so "rolling" alone no longer
+ * means "open today": a year ("Rolling (Fall 2027)", "Rolling; next intake Jan 2027"),
+ * or an explicit instruction that the entry is unverified ("Recheck (rolling by intake)").
+ */
+const ROLLING_QUALIFIER = /\b(19|20|25|26)\d{2}\b|recheck|confirm|varies|tbc|tba/i;
+
+/**
+ * True when the deadline text means "you can apply right now" and nothing more.
+ *
+ * The distinction matters because `deadline_is_rolling` alone is too broad to act on.
+ * "Rolling / ongoing" is open today. "Rolling (Fall 2027)" is a future intake, and
+ * telling a student it is open would send them to a form that is not accepting yet —
+ * so anything carrying a year, or flagged for rechecking, is deliberately excluded and
+ * stays for a human to decide.
+ */
+export function isUnqualifiedRolling(raw: string | null | undefined): boolean {
+  const text = (raw ?? '').trim();
+  if (!text) return false;
+  if (!ROLLING_RE.test(text)) return false;
+  return !ROLLING_QUALIFIER.test(text);
+}
+
 export function parseDeadline(raw: string | null | undefined): ParsedDeadline {
   const note = (raw ?? '').trim();
 

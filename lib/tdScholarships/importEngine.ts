@@ -8,7 +8,7 @@ import type {
   TdLevel,
   TdSourceLanguage,
 } from './types';
-import { parseDeadline, parseDeadlineFromDate, parseOpenDate } from './deadlineParser';
+import { parseDeadline, parseDeadlineFromDate, parseOpenDate, isUnqualifiedRolling } from './deadlineParser';
 import { normalizeStatusValue, computeStatusEffective, bangkokMidnight } from './displayGate';
 
 // ── Column header mapping (28-field canonical schema) ────────────────────────
@@ -311,7 +311,12 @@ export async function parseTdImportFile(file: File): Promise<TdImportReport> {
 
       status:                   normalizedStatus,
       status_effective:         computeStatusEffective(
-                                   { open_date: openDate, deadline_date: deadlineParsed.deadline_date, status: normalizedStatus },
+                                   {
+                                     open_date:     openDate,
+                                     deadline_date: deadlineParsed.deadline_date,
+                                     status:        normalizedStatus,
+                                     rolling_open:  isUnqualifiedRolling(deadlineParsed.deadline_note),
+                                   },
                                    bangkokMidnight(),
                                  ),
 

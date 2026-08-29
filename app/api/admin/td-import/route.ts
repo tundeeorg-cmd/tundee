@@ -23,7 +23,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import type { TdImportRow } from '@/lib/tdScholarships/types';
-import { parseDeadline } from '@/lib/tdScholarships/deadlineParser';
+import { parseDeadline, isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 
 function fmtErr(err: unknown): string {
@@ -144,6 +144,10 @@ export async function POST(request: NextRequest) {
             deadline_date: dp.deadline_date,
             status:        row.status,
             last_verified: effectiveLastVerified,
+            // Recomputed here rather than trusted from the client payload: this route
+            // decides visibility, and it should not take the browser's word for the one
+            // input that can turn a blank status into a displayed scholarship.
+            rolling_open:  isUnqualifiedRolling(row.deadline_raw ?? null),
           },
           todayBkk,
         );
