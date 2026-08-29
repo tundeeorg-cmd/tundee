@@ -145,6 +145,13 @@ interface MatchControlsProps {
   lang: string;
 }
 
+/**
+ * Cards painted before the student asks for more. The recommender still scores
+ * all 518 scholarships and still returns its full top 50 — this bounds the DOM,
+ * nothing else.
+ */
+const MATCH_PAGE = 20;
+
 function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
   const lo = lang as 'th' | 'en';
   const font = lo === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
@@ -374,24 +381,39 @@ export default function BrowsePage() {
   const [tdBondObligation, setTdBondObligation]     = useState(false);
   const [tdSortBy, setTdSortBy]                     = useState<BrowseSortKey>('deadline');
   const [filtersOpen, setFiltersOpen]               = useState(false);
+  /**
+   * How many matched cards are PAINTED. Not how many are scored, and not how
+   * many are logged — see matchesToRender below.
+   */
+  const [matchPageSize, setMatchPageSize]           = useState(MATCH_PAGE);
 
   // ── Data load ──────────────────────────────────────────────────────────────
   useEffect(() => {
     void supabase
       .from('td_scholarships')
+      // Exactly the union of three sets: every field the recommender scores on,
+      // every field the card renders, and every field browse filters or sorts
+      // by. Nine columns that were fetched but never read are gone.
+      //
+      // Dropping a column the SCORER reads would not throw — it would score as
+      // null and quietly reorder the results, which in an experiment is
+      // indistinguishable from a real treatment effect. So this list is not
+      // reasoned about, it is proven: scripts/analysis/matchFixtures.test.ts
+      // ranks ten profiles across both arms against the full column set and
+      // this one and asserts the ids AND scores are identical. Run `npm run
+      // analyze` before changing anything here.
       .select([
         'scholarship_id',
         'scholarship_name_en', 'scholarship_name_th', 'scholarship_name',
         'funder_en', 'funder_th', 'funder',
         'funder_type', 'level', 'field_of_study',
-        'award_value_tier', 'award_amount_thb_numeric', 'award_type',
+        'award_value_tier',
         'renewable', 'bond_obligation',
         'region_eligibility', 'targets_low_income', 'welfare_card_priority',
-        'income_cap_thb', 'num_recipients', 'min_gpa', 'english_requirement',
-        'open_date', 'date_confidence',
-        'deadline_raw', 'deadline_date', 'deadline_is_rolling', 'deadline_note',
+        'income_cap_thb', 'num_recipients', 'min_gpa',
+        'deadline_raw', 'deadline_date', 'deadline_is_rolling',
         'status', 'status_effective', 'application_url', 'application_link',
-        'is_displayed', 'stale', 'source_language', 'translation_review',
+        'is_displayed',
       ].join(', '))
       .eq('is_displayed', true)
       .order('scholarship_name_en')
@@ -528,6 +550,28 @@ export default function BrowsePage() {
     return sorted.map((s, i) => ({ ...s, displayRank: i + 1 }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allMatches, matchSortBy, matchMinScore, lo]);
+
+  /**
+   * The painted subset.
+   *
+   * Deliberately NOT folded into visibleMatches, because visibleMatches is what
+   * the impression logger reads. Rendering fewer cards must not silently change
+   * what the experiment records: impressions still cover the full ranked set
+   * with unchanged served_rank, exactly as before this pagination existed.
+   *
+   * That keeps the logged data continuous across this deploy, at the cost of an
+   * impression meaning "was in the ranked list" rather than "was painted" — the
+   * semantics it already had, since a 50-card grid put most cards far below the
+   * fold where nobody saw them either.
+   */
+  const matchesToRender = useMemo(
+    () => visibleMatches.slice(0, matchPageSize),
+    [visibleMatches, matchPageSize],
+  );
+
+  // Filtering or re-sorting is a new list; showing it half-expanded would be
+  // surprising.
+  useEffect(() => { setMatchPageSize(MATCH_PAGE); }, [matchSortBy, matchMinScore]);
 
   // ── Browse filter + sort (memoized) ───────────────────────────────────────
   const browseVisible = useMemo((): TdScholarship[] => {
@@ -743,7 +787,7 @@ export default function BrowsePage() {
             ) : (
               <>
                 <MatchControls
-                  total={allMatches.length} visibleCount={visibleMatches.length}
+                  total={allMatches.length} visibleCount={matchesToRender.length}
                   sortBy={matchSortBy} setSortBy={setMatchSortBy}
                   minScore={matchMinScore} setMinScore={setMatchMinScore}
                   lang={lang}
@@ -765,7 +809,7 @@ export default function BrowsePage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {visibleMatches.map(s => (
+                    {matchesToRender.map(s => (
                       <TdScholarshipCard
                         key={s.scholarship_id}
                         scholarship={s}
@@ -774,6 +818,28 @@ export default function BrowsePage() {
                         variant={rankingVariant}
                       />
                     ))}
+                  </div>
+                )}
+
+                {/* Nothing here claims speed. It states what is on screen and
+                    what remains, which is the only thing a student on a stalled
+                    connection can actually act on. */}
+                {visibleMatches.length > 0 && (
+                  <div className="mt-6 text-center">
+                    {matchesToRender.length < visibleMatches.length ? (
+                      <button
+                        type="button"
+                        onClick={() => setMatchPageSize(n => n + MATCH_PAGE)}
+                        className="min-h-[48px] px-6 bg-white dark:bg-[#0A1628] border-2 border-[#1B3A6B] text-[#1B3A6B] dark:text-[#8FB4FF] rounded-full text-sm font-semibold"
+                        style={{ fontFamily: font }}>
+                        ดูทุนเพิ่มเติม
+                      </button>
+                    ) : (
+                      <p className="text-sm text-[#8A96A8]"
+                         style={{ fontFamily: font, lineHeight: 1.8 }}>
+                        แสดงทุนครบทุกรายการแล้ว
+                      </p>
+                    )}
                   </div>
                 )}
               </>
