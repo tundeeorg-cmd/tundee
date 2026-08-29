@@ -726,20 +726,37 @@ function AuthForm() {
                 : (lang === 'th' ? 'เข้าสู่ระบบด้วย LINE' : 'Continue with LINE')}
             </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 mb-4 order-2">
-              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-              <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium">
-                {lang === 'th' ? 'หรือ' : 'or'}
-              </span>
-              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-            </div>
+            {/* Divider — order-3, so it separates the two reliable methods above from
+                Google below, and rendered ONLY when Google is. Inside an embedded
+                webview Google is hidden, and a "หรือ" with nothing beneath it reads as a
+                broken page rather than a choice. */}
+            {!iab.googleBlocked && (
+              <div className="flex items-center gap-3 mb-4 order-3">
+                <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+                <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium">
+                  {lang === 'th' ? 'หรือ' : 'or'}
+                </span>
+                <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+              </div>
+            )}
 
-            {/* Magic link form */}
-            <form onSubmit={sendMagicLink} noValidate className="order-3">
+            {/* Magic link — order-2, immediately under LINE.
+                It used to sit below a "หรือ" divider, which framed it as the fallback.
+                It is not: email is the only method that completes reliably inside the
+                Facebook and TikTok webviews this traffic arrives in, where Google is
+                hidden outright. Same visual weight as LINE, no separator above it. */}
+            <form onSubmit={sendMagicLink} noValidate className="order-2 mb-4">
               <label className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
-                {lang === 'th' ? 'อีเมลของคุณ' : 'Your email'}
+                {lang === 'th' ? 'หรือใช้อีเมล' : 'Or use your email'}
               </label>
+              <p
+                className="text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-2.5"
+                style={{ fontFamily: 'Sarabun, sans-serif' }}
+              >
+                {lang === 'th'
+                  ? 'ไม่ต้องตั้งรหัสผ่าน เราส่งลิงก์เข้าสู่ระบบให้ทางอีเมล'
+                  : 'No password — we email you a sign-in link'}
+              </p>
               <input
                 type="email"
                 value={email}
@@ -747,8 +764,9 @@ function AuthForm() {
                 placeholder="you@example.com"
                 autoComplete="email"
                 inputMode="email"
-                // No autoFocus: email is now the fallback method, and stealing
-                // focus here would pop the phone keyboard over the one-tap buttons.
+                // Still no autoFocus, even though email is now promoted: stealing focus
+                // pops the phone keyboard over the LINE button directly above it, which
+                // costs the one-tap path more than it gains this one.
                 disabled={blocked}
                 style={{ fontSize: '16px' }}
                 className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#aeaeb2] focus:outline-none focus:border-[#1B3A6B] focus:ring-2 focus:ring-[#1B3A6B]/20 transition-colors mb-4 disabled:opacity-50"
