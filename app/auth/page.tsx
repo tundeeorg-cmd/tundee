@@ -22,7 +22,6 @@ import AuthShell from './AuthShell';
 /** Flattened for the funnel event context — one shape, logged identically
  *  on signup_started and signup_failed so the two are directly comparable. */
 /** Verified against the live project: Supabase issues 6-digit codes. */
-const OTP_LENGTH = 6;
 
 /**
  * Resend cooldown, derived rather than guessed. The project allows 30 emails
@@ -156,12 +155,12 @@ function authErrorMessage(code: string, lang: string): string {
 
     case 'rate_limited':
       return th
-        ? 'ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
+        ? 'ขอลิงก์บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
         : 'Too many requests. Please wait a moment and try again.';
 
     case 'send_failed':
       return th
-        ? 'ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        ? 'ส่งลิงก์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
         : 'Could not send. Please try again.';
 
     case 'no_credentials':
@@ -193,9 +192,6 @@ function AuthForm() {
   const [lineLoading,   setLineLoading]   = useState(false);
   const [error,         setError]         = useState('');
   const [cooldown,      setCooldown]      = useState(0);
-  const [code,          setCode]          = useState('');
-  const [verifying,     setVerifying]     = useState(false);
-  const codeInputRef = useRef<HTMLInputElement | null>(null);
   const [consent,       setConsent]       = useState(false);
 
   // Embedded-webview state. Starts as "normal browser" so server and first
@@ -403,12 +399,12 @@ function AuthForm() {
         setCooldown(retry);
         setSent(true);
         setError(lang === 'th'
-          ? 'ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
+          ? 'ขอลิงก์บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
           : 'Too many requests. Please wait a moment and try again.');
         return;
       }
       setError(lang === 'th'
-        ? 'ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        ? 'ส่งลิงก์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
         : 'Could not send. Please try again.');
       return;
     }
@@ -421,7 +417,6 @@ function AuthForm() {
     if (cooldown > 0 || loading) return;
     setLoading(true);
     setError('');
-    setCode('');
 
     try {
       const { error: resendError } = await withTimeout(supabase.auth.signInWithOtp({
@@ -436,9 +431,9 @@ function AuthForm() {
         // project's rate limit changes later.
         if (resendError.status === 429) {
           setCooldown(retryAfterSeconds(resendError.message) ?? RESEND_COOLDOWN_SECONDS);
-          setError('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
+          setError('ขอลิงก์บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
         } else {
-          setError('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+          setError('ส่งลิงก์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
         }
         setLoading(false);
         return;
@@ -495,86 +490,17 @@ function AuthForm() {
   // ════════════════════════════════════════════════════════════════════════════
   // SUCCESS STATE email sent
   // ════════════════════════════════════════════════════════════════════════════
-  /**
-   * Digits only, capped at OTP_LENGTH. Auto-submits on the sixth digit, which
-   * also makes paste work: pasting six digits fires the same path as typing
-   * the last one.
-   */
-  function onCodeChange(raw: string) {
-    const digits = raw.replace(/\D/g, '').slice(0, OTP_LENGTH);
-    setCode(digits);
-    if (error) setError('');
-    if (digits.length === OTP_LENGTH && !verifying) void submitCode(digits);
-  }
-
-  async function submitCode(value: string) {
-    if (verifying || value.length !== OTP_LENGTH) return;
-    setVerifying(true);
-    setError('');
-
-    if (isDefinitelyOffline()) {
-      setVerifying(false);
-      setError(lang === 'th'
-        ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
-        : 'No internet connection. Please connect and try again.');
-      return;
-    }
-
-    try {
-      // Timed out rather than left hanging: the code stays in the field, so a
-      // retry costs one tap instead of a re-read of the email.
-      const { error: verifyError } = await withTimeout(supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: value,
-        type: 'email',
-      }));
-
-      if (verifyError) {
-        // Never log the code itself. The status and message are enough to
-        // debug and carry no secret.
-        console.error('[TunDee] verifyOtp:', verifyError.status, verifyError.message);
-        logFunnelEvent({
-          eventType: 'signup_failed',
-          context: { reason: `otp_verify:${verifyError.status ?? 'err'}`, method: 'email_code', ...inAppContext(iab) },
-        });
-
-        const msg = (verifyError.message || '').toLowerCase();
-        // Supabase reports expiry and a wrong code with similar shapes, so the
-        // distinction is drawn only where the message is explicit.
-        if (msg.includes('expired')) {
-          setError('รหัสหมดอายุแล้ว กรุณากดส่งรหัสใหม่');
-        } else if (verifyError.status === 429) {
-          setError('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
-        } else {
-          setError('รหัสไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
-        }
-        // Leave the code in the field: clearing it on a slow connection makes
-        // the user retype something they already read correctly.
-        setVerifying(false);
-        codeInputRef.current?.focus();
-        return;
-      }
-
-      logFunnelEvent({ eventType: 'signup_completed', context: { method: 'email_code' } });
-      // Full navigation, not router.push: the session cookie was just written
-      // and a soft navigation can render against stale auth state.
-      window.location.href = next;
-    } catch (err) {
-      console.error('[TunDee] verifyOtp threw:', err);
-      setError(
-        !navigator.onLine
-          ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
-          : 'การเชื่อมต่อช้าเกินไป กรุณาตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง',
-      );
-      setVerifying(false);
-    }
-  }
 
   // ── Code entry ──────────────────────────────────────────────────────────────
   // Replaces the old "check your email" screen. A link forces the user out of
   // this browser and into Gmail's WebView, and that switch is what broke
   // sign-in: PKCE's code_verifier lives in the browser that asked for the link.
   // A code typed into the tab they are already on has no switch to break.
+  // ── "check your email" ──────────────────────────────────────────────────────
+  // A link, not a code. Asking a student to transcribe six digits from a mail
+  // app back into a browser tab is a step where people stop; the link removes
+  // it. The link is safe to open in ANY browser because /auth/callback verifies
+  // a token_hash server-side and needs nothing from the device that asked.
   if (sent) {
     return (
       <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07111F] flex items-center justify-center px-4 py-12">
@@ -582,70 +508,60 @@ function AuthForm() {
           <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
             <div className="h-1 bg-[#1B3A6B]" />
             <div className="px-6 py-8">
-              <h1 className="text-center text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={THAI}>
-                กรอกรหัส 6 หลัก
-              </h1>
-              <p
-                className="text-center text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mb-6"
+              <h1
+                className="text-center text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3"
                 style={{ ...THAI, lineHeight: 1.8 }}
               >
-                เราส่งรหัส 6 หลักไปที่ {email} แล้ว กรอกรหัสด้านล่างเพื่อเข้าสู่ระบบ
+                เราส่งลิงก์ไปที่อีเมลของคุณแล้ว
+              </h1>
+
+              <p
+                className="text-center text-base text-[#3C4A5A] dark:text-[#aeaeb2] mb-6"
+                style={{ ...THAI, lineHeight: 1.9 }}
+              >
+                เปิดอีเมล {email} แล้วกดลิงก์เพื่อเข้าสู่ระบบ
               </p>
 
-              <form onSubmit={(e) => { e.preventDefault(); void submitCode(code); }}>
-                <input
-                  ref={codeInputRef}
-                  value={code}
-                  onChange={(e) => onCodeChange(e.target.value)}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={OTP_LENGTH}
-                  aria-label="รหัส 6 หลัก"
-                  disabled={verifying}
-                  // 28px and wide tracking so the digits are legible on a small,
-                  // possibly cracked screen; 16px minimum would be the floor.
-                  style={{ ...THAI, fontSize: '28px', letterSpacing: '0.4em' }}
-                  className="w-full min-h-[64px] text-center border-2 border-[#E8ECF2] dark:border-[#1A2E4A] rounded-xl px-4 text-[#0A2342] dark:text-[#E8EDF5] bg-white dark:bg-[#0D1F35] focus:outline-none focus:border-[#1B3A6B] disabled:opacity-60 mb-4"
-                />
-
-                {error && (
-                  <p className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-sm text-red-600 dark:text-red-400" style={{ ...THAI, lineHeight: 1.8 }} role="alert">
-                    {error}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={verifying || code.length !== OTP_LENGTH}
-                  className="w-full min-h-[56px] bg-[#1B3A6B] text-white rounded-xl font-bold text-base disabled:opacity-50"
-                  style={THAI}
+              {error && (
+                <p
+                  className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-sm text-red-600 dark:text-red-400"
+                  style={{ ...THAI, lineHeight: 1.8 }}
+                  role="alert"
                 >
-                  {verifying ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
-                </button>
-              </form>
+                  {error}
+                </p>
+              )}
 
+              {/* 48px minimum height on every control: Android accessibility
+                  guidance, and these are thumbs on a phone in a classroom. */}
               <button
                 type="button"
-                onClick={() => { if (cooldown <= 0) void resend(); }}
+                onClick={resend}
                 disabled={cooldown > 0 || loading}
-                className="w-full min-h-[48px] mt-3 text-base text-[#1B3A6B] dark:text-[#8FB4FF] disabled:text-[#8A96A8] disabled:cursor-default"
+                className="w-full min-h-[56px] rounded-xl border-2 border-[#1B3A6B] text-[#1B3A6B] dark:text-[#8FB4FF] dark:border-[#8FB4FF] font-bold text-base disabled:opacity-50"
                 style={THAI}
               >
-                {cooldown > 0 ? `ส่งรหัสใหม่ได้ในอีก ${cooldown} วินาที` : 'ส่งรหัสใหม่'}
+                {loading
+                  ? 'กำลังส่ง...'
+                  : cooldown > 0
+                    ? `ส่งลิงก์อีกครั้ง (${cooldown})`
+                    : 'ส่งลิงก์อีกครั้ง'}
               </button>
 
               <button
                 type="button"
-                onClick={() => { setSent(false); setCode(''); setError(''); }}
-                className="w-full min-h-[48px] text-base text-[#6E7A8A] dark:text-[#8e9bb0]"
+                onClick={() => { setSent(false); setError(''); }}
+                className="w-full min-h-[48px] mt-2 text-base text-[#6E7A8A] dark:text-[#8e9bb0]"
                 style={THAI}
               >
                 ใช้อีเมลอื่น
               </button>
 
-              <p className="mt-4 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={{ ...THAI, lineHeight: 1.8 }}>
-                ไม่ได้รับรหัส? กรุณาตรวจสอบในโฟลเดอร์จดหมายขยะ (Spam)
+              <p
+                className="mt-4 text-center text-sm text-[#6E7A8A] dark:text-[#8e9bb0]"
+                style={{ ...THAI, lineHeight: 1.8 }}
+              >
+                ไม่พบอีเมล? กรุณาตรวจสอบในโฟลเดอร์จดหมายขยะ (Spam)
               </p>
             </div>
           </div>
@@ -770,7 +686,7 @@ function AuthForm() {
               type="button"
               onClick={signInWithGoogle}
               disabled={blocked}
-              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-4 px-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-3 order-1"
+              className="w-full flex items-center justify-center gap-3 border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl py-4 px-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] transition-colors disabled:opacity-50 mb-3 order-4"
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
               {googleLoading ? (
@@ -795,7 +711,7 @@ function AuthForm() {
               type="button"
               onClick={signInWithLine}
               disabled={blocked}
-              className={`w-full flex items-center justify-center gap-3 bg-[#06C755] hover:bg-[#05B34C] rounded-xl py-4 px-4 text-base font-semibold text-white transition-colors disabled:opacity-50 mb-4 ${iab.googleBlocked ? 'order-3' : 'order-2'}`}
+              className={`w-full flex items-center justify-center gap-3 bg-[#06C755] hover:bg-[#05B34C] rounded-xl py-4 px-4 text-base font-semibold text-white transition-colors disabled:opacity-50 mb-4 order-1`}
               style={{ fontFamily: 'Sarabun, sans-serif' }}
             >
               {lineLoading ? (
@@ -811,18 +727,16 @@ function AuthForm() {
             </button>
 
             {/* Divider */}
-            <div className={`flex items-center gap-3 mb-4 ${iab.googleBlocked ? 'order-2' : 'order-3'}`}>
+            <div className="flex items-center gap-3 mb-4 order-2">
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
               <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium">
-                {iab.googleBlocked
-                  ? (lang === 'th' ? 'หรือใช้วิธีอื่น' : 'or use another method')
-                  : (lang === 'th' ? 'หรือใช้อีเมล' : 'or use email')}
+                {lang === 'th' ? 'หรือ' : 'or'}
               </span>
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
             </div>
 
             {/* Magic link form */}
-            <form onSubmit={sendMagicLink} noValidate className={iab.googleBlocked ? 'order-1' : 'order-4'}>
+            <form onSubmit={sendMagicLink} noValidate className="order-3">
               <label className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5">
                 {lang === 'th' ? 'อีเมลของคุณ' : 'Your email'}
               </label>
@@ -849,8 +763,6 @@ function AuthForm() {
                     <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     {lang === 'th' ? 'กำลังส่ง...' : 'Sending…'}
                   </>
-                ) : isSignup ? (
-                  lang === 'th' ? 'สร้างบัญชีด้วยอีเมล' : 'Create account with email'
                 ) : (
                   lang === 'th' ? 'ส่งลิงก์เข้าสู่ระบบ' : 'Send sign-in link'
                 )}
@@ -862,7 +774,7 @@ function AuthForm() {
                 Safari is not launchable from inside a webview — so it gets
                 instructions instead of a link that would do nothing. */}
             {iab.googleBlocked && (
-              <div className="order-4 mt-4 rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] bg-[#F7F9FC] dark:bg-[#0D1F35] px-4 py-3">
+              <div className="order-5 mt-4 rounded-xl border border-[#e0e0e0] dark:border-[#3a3a3c] bg-[#F7F9FC] dark:bg-[#0D1F35] px-4 py-3">
                 <p
                   className="text-xs text-[#6e6e73] dark:text-[#aeaeb2] leading-relaxed"
                   style={{ fontFamily: 'Sarabun, sans-serif' }}

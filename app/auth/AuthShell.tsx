@@ -104,7 +104,7 @@ export default function AuthShell({ next = '/scholarships' }: { next?: string })
                 className="w-full min-h-[56px] bg-[#1B3A6B] text-white rounded-xl font-bold text-base px-4"
                 style={THAI}
               >
-                ขอรหัสเข้าสู่ระบบ
+                ส่งลิงก์เข้าสู่ระบบ
               </button>
             </form>
 
