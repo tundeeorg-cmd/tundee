@@ -2,7 +2,7 @@
      Supabase Auth → Email Templates → Magic Link
      Paste the block below into the "Message body" field.
 
-     Variable: {{ .ConfirmationURL }} — valid for the Magic Link template.
+     Variable: {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink — valid for the Magic Link template.
      Do NOT use the .Token variable here (written without braces on purpose, so
      this comment cannot itself be substituted): it belongs to the OTP template,
      which is disabled on this project (phone: false, and no code path asks for
@@ -54,7 +54,7 @@
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td align="center" bgcolor="#1b3a6b" style="border-radius:12px;">
-                  <a href="{{ .ConfirmationURL }}"
+                  <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink"
                      style="display:inline-block;padding:16px 40px;font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif;font-size:17px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:12px;line-height:1.7;">
                     เข้าสู่ระบบ
                   </a>
@@ -79,7 +79,7 @@
         </tr>
         <tr>
           <td align="center" style="padding:8px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1b3a6b;line-height:1.6;word-break:break-all;">
-            <a href="{{ .ConfirmationURL }}" style="color:#1b3a6b;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+            <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink" style="color:#1b3a6b;text-decoration:underline;">{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink</a>
           </td>
         </tr>
 

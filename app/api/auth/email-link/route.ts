@@ -129,13 +129,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const actionLink = link.data?.properties?.action_link;
-    if (link.error || !actionLink) {
+    const hashedToken = link.data?.properties?.hashed_token;
+    if (link.error || !hashedToken) {
       console.error('[auth/email-link] generateLink failed:', link.error?.message);
       return FALLBACK('generate_failed');
     }
 
-    const { subject, html, text } = magicLinkEmail(actionLink, lang);
+    // Deliberately NOT properties.action_link. That points at Supabase's
+    // /auth/v1/verify, which returns the session in the URL FRAGMENT — and a
+    // fragment is never sent to the server, so our /auth/callback route
+    // handler receives an empty query string and cannot sign anyone in.
+    //
+    // Linking straight to our own callback with token_hash avoids that, and
+    // avoids PKCE's other trap: `code` requires a code_verifier stored by the
+    // browser that requested the link, but magic links are routinely opened in
+    // a DIFFERENT browser. verifyOtp with a token_hash needs nothing from the
+    // originating device, so the link works wherever it is opened.
+    const target = redirectTo || `${siteUrl}/auth/callback`;
+    const joiner = target.includes('?') ? '&' : '?';
+    const signInUrl =
+      `${target}${joiner}token_hash=${encodeURIComponent(hashedToken)}&type=magiclink`;
+
+    const { subject, html, text } = magicLinkEmail(signInUrl, lang);
 
     const res = await fetch(RESEND_API, {
       method: 'POST',

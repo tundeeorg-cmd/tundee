@@ -39,5 +39,13 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
-  }
+  },
+  "browserslist": [
+    "chrome >= 80",
+    "and_chr >= 80",
+    "android >= 80",
+    "firefox >= 78",
+    "safari >= 13",
+    "not dead"
+  ]
 }

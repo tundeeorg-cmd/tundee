@@ -1,25 +1,3 @@
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     Supabase Auth → Email Templates → Confirm signup
-     Paste the block below into the "Message body" field.
-
-     NOT CURRENTLY SENT. This project runs with mailer_autoconfirm: true, so
-     Supabase confirms addresses without emailing. Localised anyway so that the
-     day autoconfirm is turned off, users do not suddenly receive English.
-
-     Variable: {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup — valid for the Magic Link template.
-     Do NOT use the .Token variable here (written without braces on purpose, so
-     this comment cannot itself be substituted): it belongs to the OTP template,
-     which is disabled on this project (phone: false, and no code path asks for
-     a code).
-
-     Constraints this markup satisfies:
-       • tables + inline CSS only — no flexbox, grid, or external stylesheets
-       • max-width 600px, single column, renders in Gmail on Android
-       • line-height 1.7+ on every Thai run: Thai tone marks and vowels stack
-         above and below the baseline and clip at tighter values
-       • Thai-first; English is a smaller secondary line, not a variant
-       • no emoji
-     ═══════════════════════════════════════════════════════════════════════ -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#f5f7fa;">
   <tr>
     <td align="center" style="padding:24px 12px;">
@@ -41,14 +19,14 @@
         <!-- Heading -->
         <tr>
           <td align="center" style="padding:8px 24px 0 24px;font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif;font-size:22px;font-weight:bold;color:#0a2342;line-height:1.8;">
-            ยืนยันอีเมลของคุณ
+            ลิงก์เข้าสู่ระบบของคุณ
           </td>
         </tr>
 
         <!-- Body (Thai) -->
         <tr>
           <td align="center" style="padding:16px 32px 0 32px;font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif;font-size:16px;color:#3c4a5a;line-height:1.9;">
-            กดปุ่มด้านล่างเพื่อยืนยันอีเมล จากนั้นคุณจะเริ่มค้นหาทุนการศึกษาที่ตรงกับคุณได้ทันที
+            กดปุ่มด้านล่างเพื่อเข้าสู่ระบบ ลิงก์นี้ใช้ได้เพียงครั้งเดียว และจะหมดอายุในไม่ช้า
           </td>
         </tr>
 
@@ -58,9 +36,9 @@
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td align="center" bgcolor="#1b3a6b" style="border-radius:12px;">
-                  <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup"
+                  <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink"
                      style="display:inline-block;padding:16px 40px;font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif;font-size:17px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:12px;line-height:1.7;">
-                    ยืนยันอีเมล
+                    เข้าสู่ระบบ
                   </a>
                 </td>
               </tr>
@@ -71,7 +49,7 @@
         <!-- English secondary -->
         <tr>
           <td align="center" style="padding:12px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8a96a8;line-height:1.6;">
-            Tap the button above to confirm your email address.
+            Tap the button above to sign in. This link works once only.
           </td>
         </tr>
 
@@ -83,14 +61,14 @@
         </tr>
         <tr>
           <td align="center" style="padding:8px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1b3a6b;line-height:1.6;word-break:break-all;">
-            <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup" style="color:#1b3a6b;text-decoration:underline;">{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup</a>
+            <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink" style="color:#1b3a6b;text-decoration:underline;">{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink</a>
           </td>
         </tr>
 
         <!-- Not-you -->
         <tr>
           <td align="center" style="padding:24px 32px 0 32px;font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif;font-size:13px;color:#8a96a8;line-height:1.9;">
-            หากคุณไม่ได้สมัครใช้งานทุนดี คุณสามารถละเว้นอีเมลฉบับนี้ได้
+            หากคุณไม่ได้ขอลิงก์นี้ คุณสามารถละเว้นอีเมลฉบับนี้ได้
           </td>
         </tr>
 

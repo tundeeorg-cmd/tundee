@@ -1,25 +1,3 @@
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     Supabase Auth → Email Templates → Confirm signup
-     Paste the block below into the "Message body" field.
-
-     NOT CURRENTLY SENT. This project runs with mailer_autoconfirm: true, so
-     Supabase confirms addresses without emailing. Localised anyway so that the
-     day autoconfirm is turned off, users do not suddenly receive English.
-
-     Variable: {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup — valid for the Magic Link template.
-     Do NOT use the .Token variable here (written without braces on purpose, so
-     this comment cannot itself be substituted): it belongs to the OTP template,
-     which is disabled on this project (phone: false, and no code path asks for
-     a code).
-
-     Constraints this markup satisfies:
-       • tables + inline CSS only — no flexbox, grid, or external stylesheets
-       • max-width 600px, single column, renders in Gmail on Android
-       • line-height 1.7+ on every Thai run: Thai tone marks and vowels stack
-         above and below the baseline and clip at tighter values
-       • Thai-first; English is a smaller secondary line, not a variant
-       • no emoji
-     ═══════════════════════════════════════════════════════════════════════ -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#f5f7fa;">
   <tr>
     <td align="center" style="padding:24px 12px;">
