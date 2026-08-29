@@ -26,6 +26,7 @@ export type MetaEventName =
   | 'Search'
   | 'ViewContent'
   | 'Lead'
+  | 'InitiateCheckout'
   | 'CompleteRegistration'
   | 'SubmitApplication';
 
@@ -35,6 +36,7 @@ export type MetaEventName =
  * delivery optimizes against and what browser blockers most often drop.
  */
 const CAPI_EVENTS: ReadonlySet<MetaEventName> = new Set<MetaEventName>([
+  'InitiateCheckout',
   'Lead',
   'CompleteRegistration',
   'SubmitApplication',
@@ -222,6 +224,22 @@ export function trackViewContent(input: {
 /** Pre-account intent — the visitor reached the signup gate. */
 export function trackLead(input: { location: string }): void {
   send('Lead', { content_category: 'signup_gate', content_name: input.location });
+}
+
+/**
+ * The visitor tapped the signup gate under their preview results.
+ *
+ * Fired alongside Lead rather than instead of it. Lead is what the existing ad sets
+ * have been optimising against since launch, and swapping the event would reset that
+ * learning; InitiateCheckout adds the funnel step Meta reports on separately. The two
+ * carry different eventIDs, so CAPI dedup treats them as the distinct events they are.
+ */
+export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
+  send('InitiateCheckout', {
+    content_category: 'signup_gate',
+    content_name:     input.location,
+    ...(input.numItems !== undefined ? { num_items: input.numItems } : {}),
+  });
 }
 
 export function trackCompleteRegistration(input: { method: 'google' | 'line' | 'email' }): void {

@@ -61,12 +61,15 @@ export default function StartLanding({
   adParams,
   scholarshipCount,
   landingVariant = DEFAULT_LANDING_VARIANT,
+  registeredCount,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
   scholarshipCount: number | null;
   /** Resolved server-side against the registry (PREREG §5.8 covariate). */
   landingVariant?: string;
+  /** Rounded signup count for the social-proof line; null hides it. */
+  registeredCount: number | null;
 }) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
   const copy    = landingCopy(landingVariant);
@@ -135,7 +138,7 @@ export default function StartLanding({
           {copy.sub}
         </p>
 
-        <PreviewMatcher signupHref={ctaHref} />
+        <PreviewMatcher signupHref={ctaHref} registeredCount={registeredCount} />
       </section>
 
       {/* ── B) Trust bar ─────────────────────────────────────────────────────── */}

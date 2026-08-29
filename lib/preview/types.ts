@@ -83,6 +83,15 @@ export interface PreviewMatchCard {
   deadline_date: string | null;
   deadline_is_rolling: boolean;
   status: string | null;
+  /**
+   * The funder's application page, or null when the row has neither URL.
+   *
+   * Deliberately exposed to logged-out visitors: a card that cannot be acted on is a
+   * screenshot, not a match. It does mean a visitor can apply without ever signing up —
+   * accepted, because a student who gets a scholarship without an account is still the
+   * outcome this exists for.
+   */
+  apply_url: string | null;
   /** Thai "why you match" sentence straight from the recommender. */
   explanation: string;
   reasons: string[];

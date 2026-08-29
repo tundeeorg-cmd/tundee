@@ -41,7 +41,14 @@ const PREVIEW_INCOME_OPTIONS: { value: number; th: string }[] = [
 
 type Status = 'idle' | 'loading' | 'done' | 'error';
 
-export default function PreviewMatcher({ signupHref }: { signupHref: string }) {
+export default function PreviewMatcher({
+  signupHref,
+  registeredCount,
+}: {
+  signupHref: string;
+  /** Resolved on the server — see lib/social/userCount.ts. Null hides the line. */
+  registeredCount: number | null;
+}) {
   const [level,    setLevel]    = useState('');
   const [province, setProvince] = useState('');
   const [income,   setIncome]   = useState<number | null>(null);
@@ -171,6 +178,7 @@ export default function PreviewMatcher({ signupHref }: { signupHref: string }) {
         <PreviewResults
           results={results}
           signupHref={signupHref}
+          registeredCount={registeredCount}
           onReset={() => { setStatus('idle'); setResults(null); }}
         />
       </div>

@@ -8,6 +8,7 @@
  *   search()                 fbq Search               ttq Search              ga search
  *   viewContent()            fbq ViewContent          ttq ViewContent         ga view_search_results
  *   lead()                   fbq Lead                 ttq SubmitForm          ga generate_lead
+ *   initiateCheckout()       fbq InitiateCheckout     ttq InitiateCheckout    ga begin_checkout
  *   completeRegistration()   fbq CompleteRegistration ttq CompleteRegistration ga sign_up
  *   submitApplication()      fbq SubmitApplication    ttq SubmitForm          ga submit_application
  *
@@ -80,6 +81,20 @@ export function lead(input: { location: string }): void {
   meta.trackLead(input);
   tiktok.trackLead(input);
   ga.trackLead(input);
+}
+
+/**
+ * The visitor tapped the signup gate beneath their preview results.
+ *
+ * Fires alongside lead(), not instead of it: Lead is the event the live ad sets have
+ * been optimising against, and replacing it would discard that learning. This adds the
+ * mid-funnel step the platforms report separately.
+ */
+export function initiateCheckout(input: { location: string; numItems?: number }): void {
+  if (!allowed()) return;
+  meta.trackInitiateCheckout(input);
+  tiktok.trackInitiateCheckout(input);
+  ga.trackInitiateCheckout(input);
 }
 
 /** A real, completed signup. Never fire this optimistically. */

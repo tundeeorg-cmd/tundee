@@ -12,11 +12,12 @@
  * toggle (unlike the main app, which is bilingual).
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { formatUserDate } from '@/lib/formatDate';
 import { getDeadlineInfo } from '@/lib/deadline';
-import { trackCTAClick, trackPreviewResults } from '@/lib/adTracking';
+import { trackGateCTA, trackPreviewResults } from '@/lib/adTracking';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 
@@ -49,7 +50,7 @@ function deadlineLabel(card: PreviewMatchCard): string {
 
 // ── One real card ─────────────────────────────────────────────────────────────
 
-function MatchCard({ card }: { card: PreviewMatchCard }) {
+function MatchCard({ card, onApply }: { card: PreviewMatchCard; onApply: (c: PreviewMatchCard) => void }) {
   return (
     <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5 text-left">
       <p className="font-bold text-[#0A2342] dark:text-[#E8EDF5] leading-snug" style={{ ...th, fontSize: '1rem' }}>
@@ -84,6 +85,26 @@ function MatchCard({ card }: { card: PreviewMatchCard }) {
           {card.explanation}
         </p>
       </div>
+
+      {/* The card is only a real card if it can be acted on. Anonymous visitors get the
+          working link — the proof that these scholarships exist is the point of the
+          whole preview, and a dead card proves nothing. */}
+      {card.apply_url && (
+        <a
+          href={card.apply_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onApply(card)}
+          style={th}
+          className="mt-3 flex items-center justify-center gap-1.5 w-full min-h-[48px] rounded-xl border-2 border-[#1B3A6B] dark:border-[#8FB4FF] text-[#1B3A6B] dark:text-[#8FB4FF] font-bold text-sm active:opacity-90"
+        >
+          ไปที่เว็บไซต์ทุน
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      )}
     </div>
   );
 }
@@ -112,10 +133,13 @@ export default function PreviewResults({
   results,
   signupHref,
   onReset,
+  registeredCount,
 }: {
   results: PreviewResponse;
   signupHref: string;
   onReset: () => void;
+  /** Rounded signup count for the social-proof line; null hides it entirely. */
+  registeredCount: number | null;
 }) {
   const tracked = useRef(false);
 
@@ -142,29 +166,51 @@ export default function PreviewResults({
   }, [results]);
 
   const lockedPlaceholders = Math.min(results.lockedCount, 2);
+  const hasLocked = results.lockedCount > 0;
+
+  // The portal below needs document.body, which does not exist during SSR.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  /** An anonymous visitor clicking through to a funder. Logged, never blocked. */
+  function handleApply(card: PreviewMatchCard) {
+    logFunnelEvent({
+      eventType:     'click_apply',
+      scholarshipId: card.scholarship_id,
+      context:       { source: 'preview_card', logged_in: false },
+    });
+  }
+
+  const GATE_BULLETS = [
+    'ดูทุนทั้งหมดที่คุณมีสิทธิ์สมัคร',
+    'แจ้งเตือนก่อนวันปิดรับ ไม่พลาดแน่นอน',
+    'บันทึกทุนที่สนใจไว้ดูทีหลัง',
+  ];
 
   return (
     <div className="text-left">
       <div className="text-center mb-5">
         <h2 className="font-bold text-[#0A2342] dark:text-[#E8EDF5]" style={{ ...th, fontSize: 'clamp(1.15rem, 5vw, 1.4rem)' }}>
+          {/* The broadened branch keeps its own wording: these are near-misses, and
+              claiming "you are eligible for N" over them would be false. */}
           {results.broadened
             ? 'ยังไม่มีทุนที่ตรงเป๊ะ แต่เรามีทุนที่น่าสนใจให้คุณ'
-            : `เจอ ${results.total} ทุนที่คุณมีสิทธิ์สมัคร`}
+            : `เจอ ${results.total} ทุนที่คุณมีสิทธิ์สมัคร 🎓`}
         </h2>
         <p className="text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mt-1.5" style={th}>
           {results.broadened
             ? 'ลองดูทุนเหล่านี้ก่อน — หลายทุนผ่อนปรนเรื่องเกรด และมีทุนใหม่เพิ่มเข้ามาทุกสัปดาห์'
-            : 'นี่คือตัวอย่างทุนที่ตรงกับคุณมากที่สุด'}
+            : 'ตรวจสอบโดยคนจริง · ไม่มีทุนหมดอายุ'}
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         {results.preview.map((card) => (
-          <MatchCard key={card.scholarship_id} card={card} />
+          <MatchCard key={card.scholarship_id} card={card} onApply={handleApply} />
         ))}
       </div>
 
-      {results.lockedCount > 0 && (
+      {hasLocked && (
         <div className="relative mt-3">
           <div className="flex flex-col gap-3" aria-hidden="true">
             {Array.from({ length: lockedPlaceholders }, (_, i) => <LockedCard key={i} />)}
@@ -172,24 +218,79 @@ export default function PreviewResults({
 
           <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#F5F7FA]/80 to-[#F5F7FA] dark:via-[#07111F]/80 dark:to-[#07111F]">
             <p className="font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center px-5" style={{ ...th, fontSize: '1rem' }}>
-              คุณมีสิทธิ์สมัครทุนอีก {results.lockedCount} ทุน
+              อีก {results.lockedCount} ทุนที่คุณมีสิทธิ์ รออยู่
             </p>
           </div>
         </div>
       )}
 
+      {/* Sticky CTA, phones only.
+          Three full cards plus the blurred pair put the inline CTA ~2.5 screens down on a
+          375px viewport, and this traffic is almost entirely small-phone; the brief
+          requires the primary action stay reachable without pinch-zoom.
+
+          Portalled to <body> deliberately. /start's root wrapper computes a
+          `transform: matrix(1,0,0,1,0,0)` — an identity transform, but any transform
+          other than `none` makes an element the containing block for its `fixed`
+          descendants, so an in-tree bar positioned itself against the page instead of
+          the viewport and landed 4,700px down, further away than the button it was
+          meant to replace. The portal is immune to whatever the wrapper does next. */}
+      {mounted && createPortal(
+        <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-[#F5F7FA] via-[#F5F7FA] to-transparent dark:from-[#07111F] dark:via-[#07111F]">
+          <Link
+            href={signupHref}
+            onClick={() => trackGateCTA('preview_gate_sticky', results.total)}
+            style={th}
+            className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
+          >
+            ดูทุนทั้งหมด — ฟรี
+          </Link>
+        </div>,
+        document.body,
+      )}
+
+      {/* Clears the sticky bar so it never covers the last card or the reset link. */}
+      <div className="sm:hidden h-20" aria-hidden="true" />
+
       <div className="mt-5">
+        {/* With three or fewer matches there is nothing behind the gate, so the ask is
+            reframed around the reminder rather than around locked cards. This block used
+            to be hidden entirely when nothing was locked, so those visitors reached the
+            end of their results and were never asked to sign up at all. */}
+        {!hasLocked && (
+          <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
+            รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
+          </p>
+        )}
+
+        <ul className="flex flex-col gap-2 mb-4">
+          {GATE_BULLETS.map((bullet) => (
+            <li key={bullet} className="flex items-start gap-2.5 text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   className="mt-0.5 shrink-0 text-[#1B3A6B] dark:text-[#8FB4FF]" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+              {bullet}
+            </li>
+          ))}
+        </ul>
+
         <Link
           href={signupHref}
-          onClick={() => trackCTAClick('preview_gate')}
+          onClick={() => trackGateCTA('preview_gate', results.total)}
           style={th}
           className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
         >
-          ดูทุนทั้งหมดของฉัน ฟรี →
+          ดูทุนทั้งหมด — ฟรี
         </Link>
         <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          สมัครฟรีเพื่อดูทั้งหมด และรับแจ้งเตือนก่อนหมดเขต
+          ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา
         </p>
+        {registeredCount !== null && (
+          <p className="mt-2 text-center text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+            นักเรียน {registeredCount.toLocaleString('th-TH')}+ คนใช้ TunDee หาทุนแล้ว
+          </p>
+        )}
         <button
           type="button"
           onClick={onReset}

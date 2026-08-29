@@ -57,6 +57,14 @@ export function trackLead(input: { location: string }): void {
   send('generate_lead', { link_id: input.location });
 }
 
+/** GA4's nearest equivalent of the gate tap. */
+export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
+  send('begin_checkout', {
+    link_id: input.location,
+    ...(input.numItems !== undefined ? { num_items: input.numItems } : {}),
+  });
+}
+
 export function trackCompleteRegistration(input: { method: string }): void {
   send('sign_up', { method: input.method });
 }

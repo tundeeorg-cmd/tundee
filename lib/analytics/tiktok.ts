@@ -33,6 +33,7 @@ export type TikTokEventName =
   | 'Search'
   | 'ViewContent'
   | 'SubmitForm'
+  | 'InitiateCheckout'
   | 'CompleteRegistration';
 
 export function getTikTokPixelId(): string | undefined {
@@ -91,6 +92,15 @@ export function trackViewContent(input: {
 /** Pre-account intent — the visitor reached the signup gate. */
 export function trackLead(input: { location: string }): void {
   track('SubmitForm', { content_type: 'signup_gate', content_name: input.location });
+}
+
+/** Gate CTA. Mirrors meta.trackInitiateCheckout — see the note there on why both fire. */
+export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
+  track('InitiateCheckout', {
+    content_type: 'product',
+    description:  input.location,
+    ...(input.numItems !== undefined ? { quantity: input.numItems } : {}),
+  });
 }
 
 export function trackCompleteRegistration(input: { method: 'google' | 'line' | 'email' }): void {
