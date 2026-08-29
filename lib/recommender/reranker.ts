@@ -30,18 +30,38 @@
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import type { RecommenderProfile, FairnessMode, ScoredItem } from './types';
 import { computeBiasPrior } from './scorer';
+import { regionGroupFromProvince } from '@/lib/geography/thaiRegions';
 
 const DISADVANTAGED_REGIONS = new Set([
   'northeast', 'อีสาน', 'ภาคตะวันออกเฉียงเหนือ',
   'south', 'ใต้', 'ภาคใต้',
 ]);
 
-/** Classify a student into the protected group for fairness re-ranking. */
+/**
+ * Classify a student into the protected group for fairness re-ranking.
+ *
+ * region is FALLEN BACK to the declared province when absent. Without that
+ * fallback the correction never fired in production: /scholarships builds its
+ * RecommenderProfile with `region: null` and relies on province_id, so
+ * DISADVANTAGED_REGIONS.has('') was false for every user, every user
+ * classified 'advantaged', and applyCorrection below was permanently false.
+ * The treatment arm was therefore serving rankings identical to the control
+ * arm — an experiment guaranteed to measure nothing.
+ *
+ * Callers that DO supply region keep their existing behaviour, including the
+ * South, which the explicit set covers but the province fallback does not.
+ * That asymmetry is intentional and currently harmless: /scholarships gates
+ * fairness_mode on profiles.fairness_eligible, which is northeast-only per
+ * PREREG §5.5, so the effective protected set is the intersection —
+ * northeast AND income_bracket <= 3, exactly as pre-registered.
+ */
 export function classifyProtectedGroup(
   profile: RecommenderProfile,
 ): 'disadvantaged' | 'advantaged' {
-  const region = (profile.region ?? '').toLowerCase().trim();
-  const isTargetedRegion = DISADVANTAGED_REGIONS.has(region);
+  const declared = (profile.region ?? '').toLowerCase().trim();
+  const derived  = declared ? '' : (regionGroupFromProvince(profile.province_id) ?? '');
+
+  const isTargetedRegion = DISADVANTAGED_REGIONS.has(declared || derived);
   const isLowIncome      = profile.income_bracket <= 3;
   return (isTargetedRegion && isLowIncome) ? 'disadvantaged' : 'advantaged';
 }
