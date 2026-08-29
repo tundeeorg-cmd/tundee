@@ -25,19 +25,12 @@ import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getLineAuthRedirectUri } from '@/lib/line/redirectUri';
 import { LINE_AUTH_STATE_COOKIE, LINE_AUTH_NEXT_COOKIE } from '@/lib/line/authCookies';
+import { syntheticEmail } from '@/lib/line/syntheticEmail';
 
 const TOKEN_URL  = 'https://api.line.me/oauth2/v2.1/token';
 const VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
 
-/**
- * Placeholder address for LINE users whose email we can't see. `.invalid` is
- * reserved by RFC 2606 and can never resolve, so these addresses are inert.
- * Once the LINE channel's Email address permission is approved, new logins pick
- * up the real address; existing rows keep working and can be migrated later.
- */
-function syntheticEmail(lineUserId: string): string {
-  return `line_${lineUserId.replace(/[^A-Za-z0-9_-]/g, '')}@line.tundee.invalid`;
-}
+
 
 interface LineIdentity {
   sub: string;

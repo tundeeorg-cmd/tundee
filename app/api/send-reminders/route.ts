@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { formatUserDate } from '@/lib/formatDate';
+import { isSyntheticEmail } from '@/lib/line/syntheticEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,8 @@ export async function GET(request: NextRequest) {
 
     let sent = 0;
     let failed = 0;
+    /** LINE accounts with no deliverable address — skipped, not failed. */
+    let skippedNoRealEmail = 0;
     const errors: string[] = [];
 
     for (const [userId, userApps] of Array.from(byUser.entries())) {
@@ -94,6 +97,17 @@ export async function GET(request: NextRequest) {
       }
 
       const email = adminUser.user.email;
+
+      // LINE signups have no real address until LINE grants the channel its Email
+      // address permission; until then they carry a synthetic @…invalid one. Sending
+      // there is not a failure that surfaces — Resend accepts the request and the
+      // bounce happens later, against a domain that cannot exist, which is precisely
+      // the traffic that wrecks a sender's reputation. 11 of ~70 accounts are in this
+      // state today, so this is roughly one in six sends.
+      if (isSyntheticEmail(email)) {
+        skippedNoRealEmail++;
+        continue;
+      }
 
       // Build scholarship list for this user
       const schList = userApps.map((a) => {
@@ -199,8 +213,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[send-reminders] sent=${sent} failed=${failed}`);
-    return NextResponse.json({ ok: true, sent, failed, errors: errors.slice(0, 10) });
+    console.log(
+      `[send-reminders] sent=${sent} failed=${failed} ` +
+      `skipped_no_real_email=${skippedNoRealEmail}`,
+    );
+    return NextResponse.json({
+      ok: true, sent, failed,
+      // Surfaced rather than swallowed: this number is the count of students the
+      // platform currently cannot reach by email at all, which is worth watching.
+      skipped_no_real_email: skippedNoRealEmail,
+      errors: errors.slice(0, 10),
+    });
 
   } catch (err) {
     console.error('[send-reminders] Unexpected error:', err);
