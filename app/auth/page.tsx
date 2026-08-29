@@ -118,7 +118,11 @@ export default function AuthPage() {
 function authErrorMessage(code: string, lang: string): string {
   const th = lang === 'th';
   switch (code) {
-    case 'line_cancelled':
+        case 'consent_required':
+      return lang === 'th'
+        ? 'กรุณายอมรับข้อกำหนดก่อนเข้าสู่ระบบ'
+        : 'Please accept the terms before continuing.';
+case 'line_cancelled':
       return th ? 'ยกเลิกการเข้าสู่ระบบด้วย LINE' : 'LINE sign-in was cancelled.';
     case 'line_not_configured':
       return th
@@ -373,6 +377,14 @@ function AuthForm() {
       });
       clearTimeout(abort);
       const body = await res.json().catch(() => ({ fallback: true }));
+
+      // A consent refusal is final. It shares the 400 shape with invalid_email rather
+      // than the fallback path, precisely so it cannot be retried around.
+      if (res.status === 400 && body?.error === 'consent_required') {
+        setLoading(false);
+        requireConsent();
+        return;
+      }
 
       if (res.status === 400 && body?.error === 'invalid_email') {
         setLoading(false);

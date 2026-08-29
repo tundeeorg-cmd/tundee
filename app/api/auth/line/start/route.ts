@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
 import { getLineAuthRedirectUri, getLineBotPrompt } from '@/lib/line/redirectUri';
+import { CONSENT_COOKIE, CONSENT_PARAM, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION, hasValidConsent } from '@/lib/consent';
 import {
   LINE_AUTH_STATE_COOKIE,
   LINE_AUTH_NEXT_COOKIE,
@@ -40,6 +41,24 @@ export async function GET(request: NextRequest) {
   if (!channelId) {
     console.error('[auth/line/start] LINE_LOGIN_CHANNEL_ID is not set');
     return NextResponse.redirect(`${siteUrl}/auth?error=line_not_configured`);
+  }
+
+  /*
+   * PDPA consent, enforced here rather than only in the browser.
+   *
+   * The hydrated page sets the consent cookie before navigating here; the no-JS shell
+   * submits it as a query param from a form whose checkbox is `required`. Either is
+   * accepted. Neither present means the visitor never ticked the box — or never saw it,
+   * because they came straight to this URL — and this route starts an OAuth flow whose
+   * callback writes a profile row for a minor. It refuses.
+   */
+  const consentParam  = searchParams.get(CONSENT_PARAM);
+  const consentCookie = request.cookies.get(CONSENT_COOKIE)?.value;
+  if (!hasValidConsent(consentParam, consentCookie)) {
+    const back = new URL(`${siteUrl}/auth`);
+    back.searchParams.set('error', 'consent_required');
+    back.searchParams.set('next', next);
+    return NextResponse.redirect(back);
   }
 
   let redirectUri: string;
@@ -73,6 +92,20 @@ export async function GET(request: NextRequest) {
   };
   response.cookies.set(LINE_AUTH_STATE_COOKIE, state, cookieOptions);
   response.cookies.set(LINE_AUTH_NEXT_COOKIE, next, cookieOptions);
+
+  // Consent arriving as a query param means the no-JS form sent it, so no cookie was
+  // ever written in the browser. Persist it here or /auth/callback would see an
+  // unconsented signup and route the student through the wizard it exists to skip.
+  // Not httpOnly: /auth/callback reads it server-side, but the hydrated page also
+  // writes and reads this same cookie from JavaScript.
+  if (!hasValidConsent(consentCookie) && hasValidConsent(consentParam)) {
+    response.cookies.set(CONSENT_COOKIE, CONSENT_VERSION, {
+      sameSite: 'lax',
+      secure:   process.env.NODE_ENV === 'production',
+      path:     '/',
+      maxAge:   CONSENT_COOKIE_MAX_AGE,
+    });
+  }
 
   return response;
 }
