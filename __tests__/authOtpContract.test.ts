@@ -39,7 +39,12 @@ describe('resend countdown is derived, not guessed', () => {
   });
 
   it('prefers the remaining seconds Supabase reports over the constant', () => {
-    expect(page).toMatch(/after \(\\d\+\) seconds/);
+    // Asserts the BEHAVIOUR, not a particular regex literal. The parser lives
+    // in one helper now; pinning its exact pattern made this fail on a refactor
+    // that only widened it (singular "second", variable whitespace).
+    expect(page).toMatch(/after\s*\(\\d\+\)/);          // a retry-after parser exists
+    expect(page).toContain('retryAfterSeconds(');         // and it is actually called
+    expect(page).toMatch(/setCooldown\(\s*retryAfterSeconds/); // feeding the countdown
   });
 });
 

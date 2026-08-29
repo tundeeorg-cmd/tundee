@@ -31,6 +31,44 @@ const OTP_LENGTH = 6;
  */
 const RESEND_COOLDOWN_SECONDS = 120;
 
+/**
+ * Give up on any auth call after 20 seconds.
+ *
+ * A request that hangs forever behind a spinner is the worst outcome on a
+ * congested mobile connection: the user cannot tell whether it is working, so
+ * they wait, then leave. Failing in 20s with a Thai message that names the
+ * cause is strictly better than an indefinite wait.
+ */
+const AUTH_TIMEOUT_MS = 20_000;
+
+/** Rejects with Error('timeout') so callers can show connection-specific copy. */
+function withTimeout<T>(work: PromiseLike<T>, ms: number = AUTH_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    Promise.resolve(work).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+/** navigator.onLine is unreliable as proof of connectivity, but a definite
+ *  `false` is worth trusting: it saves a 20-second wait for a certain failure. */
+function isDefinitelyOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+/**
+ * Supabase reports its own remaining cooldown in a 429 message, e.g.
+ * "you can only request this after 45 seconds". Prefer that over our constant:
+ * it is the truth, and ours is only a derived opening bid.
+ */
+function retryAfterSeconds(message: string | undefined | null): number | null {
+  const m = message?.match(/after (\d+)\s*seconds?/i);
+  const n = m ? parseInt(m[1], 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Every network call gets one. A spinner that never resolves is the worst
  *  outcome on a congested connection — worse than a clear failure. */
 const NETWORK_TIMEOUT_MS = 15_000;
@@ -273,9 +311,17 @@ function AuthForm() {
     e.preventDefault();
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
-      setError(lang === 'th' ? 'กรุณากรอกอีเมลที่ถูกต้อง' : 'Please enter a valid email');
+      setError(lang === 'th' ? 'กรุณากรอกอีเมลให้ถูกต้อง' : 'Please enter a valid email address.');
       return;
     }
+    // A definite offline reading saves a 20-second wait for a certain failure.
+    if (isDefinitelyOffline()) {
+      setError(lang === 'th'
+        ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
+        : 'No internet connection. Please connect and try again.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     recordConsent();
@@ -289,11 +335,15 @@ function AuthForm() {
     let usedFallback = false;
 
     try {
+      const controller = new AbortController();
+      const abort = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
       const res = await fetch('/api/auth/email-link', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: trimmed, redirectTo: callbackUrl, lang }),
+        signal:  controller.signal,
       });
+      clearTimeout(abort);
       const body = await res.json().catch(() => ({ fallback: true }));
 
       if (res.status === 400 && body?.error === 'invalid_email') {
@@ -303,28 +353,63 @@ function AuthForm() {
       }
       usedFallback = body?.fallback !== false;
     } catch {
+      // Includes the abort. Falling through to Supabase's own mailer is the
+      // right move either way — it is a different host, so a stall on ours
+      // does not imply a stall on theirs.
       usedFallback = true;
     }
 
+    let timedOut = false;
     if (usedFallback) {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: {
-          emailRedirectTo: callbackUrl,
-          shouldCreateUser: true,
-        },
-      });
-      otpError = error;
+      try {
+        const { error } = await withTimeout(supabase.auth.signInWithOtp({
+          email: trimmed,
+          options: {
+            emailRedirectTo: callbackUrl,
+            shouldCreateUser: true,
+          },
+        }));
+        otpError = error;
+      } catch {
+        timedOut = true;
+      }
     }
 
     setLoading(false);
+
+    if (timedOut) {
+      // The email is still in the field — never cleared on error. On these
+      // connections a lost form field is a lost signup.
+      setError(lang === 'th'
+        ? 'การเชื่อมต่อช้าเกินไป กรุณาตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง'
+        : 'The connection is too slow. Check your internet and try again.');
+      logFunnelEvent({
+        eventType: 'signup_failed',
+        context: { reason: 'timeout', method: 'email', ...inAppContext(iab) },
+      });
+      return;
+    }
+
     if (otpError) {
       console.error('[TunDee] signInWithOtp:', otpError.message);
       logFunnelEvent({
         eventType: 'signup_failed',
         context: { reason: `otp:${otpError.message}`, method: 'email', ...inAppContext(iab) },
       });
-      setError(lang === 'th' ? 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่' : 'Failed to send. Please try again.');
+      // A 429 is a cooldown, not a failure the user caused. Show the wait and
+      // start the countdown from Supabase's own number rather than ours.
+      const retry = retryAfterSeconds(otpError.message);
+      if (retry !== null) {
+        setCooldown(retry);
+        setSent(true);
+        setError(lang === 'th'
+          ? 'ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
+          : 'Too many requests. Please wait a moment and try again.');
+        return;
+      }
+      setError(lang === 'th'
+        ? 'ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        : 'Could not send. Please try again.');
       return;
     }
     setSent(true);
@@ -339,19 +424,18 @@ function AuthForm() {
     setCode('');
 
     try {
-      const { error: resendError } = await supabase.auth.signInWithOtp({
+      const { error: resendError } = await withTimeout(supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { emailRedirectTo: buildCallbackUrl(), shouldCreateUser: true },
-      });
+      }));
 
       if (resendError) {
         console.error('[TunDee] resend:', resendError.status, resendError.message);
         // Supabase puts the real remaining seconds in the message. Showing that
         // number beats inventing one, and keeps the countdown honest if the
         // project's rate limit changes later.
-        const m = resendError.message?.match(/after (\d+) seconds/);
         if (resendError.status === 429) {
-          setCooldown(m ? parseInt(m[1], 10) : RESEND_COOLDOWN_SECONDS);
+          setCooldown(retryAfterSeconds(resendError.message) ?? RESEND_COOLDOWN_SECONDS);
           setError('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
         } else {
           setError('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
@@ -428,12 +512,22 @@ function AuthForm() {
     setVerifying(true);
     setError('');
 
+    if (isDefinitelyOffline()) {
+      setVerifying(false);
+      setError(lang === 'th'
+        ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
+        : 'No internet connection. Please connect and try again.');
+      return;
+    }
+
     try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      // Timed out rather than left hanging: the code stays in the field, so a
+      // retry costs one tap instead of a re-read of the email.
+      const { error: verifyError } = await withTimeout(supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: value,
         type: 'email',
-      });
+      }));
 
       if (verifyError) {
         // Never log the code itself. The status and message are enough to
