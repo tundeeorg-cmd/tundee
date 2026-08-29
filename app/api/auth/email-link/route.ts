@@ -31,6 +31,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { magicLinkEmail, AUTH_EMAIL_FROM } from '@/lib/email/authEmails';
 import type { Language } from '@/lib/types';
+import { CONSENT_COOKIE, CONSENT_PARAM, CONSENT_VERSION, hasValidConsent } from '@/lib/consent';
 
 const RESEND_API = 'https://api.resend.com/emails';
 
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
   let email = '';
   let redirectTo = '';
   let lang: Language = 'th';
+  let consentValue = '';
+  let consentMethod = '';
 
   // AuthShell posts a real <form> so email sign-in works with no JavaScript at
   // all — the case that matters on an old handset over congested 3G, where our
@@ -77,6 +80,8 @@ export async function POST(request: NextRequest) {
       const form = await request.formData();
       email = String(form.get('email') ?? '').trim().toLowerCase();
       noscript = form.get('noscript') === '1';
+      consentValue = String(form.get(CONSENT_PARAM) ?? '');
+      consentMethod = String(form.get('method') ?? '');
       const rawNext = String(form.get('next') ?? '');
       // Same-origin paths only: this value ends up in a redirect.
       if (rawNext.startsWith('/') && !rawNext.startsWith('//')) nextPath = rawNext;
@@ -85,6 +90,7 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
       email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
       redirectTo = typeof body?.redirectTo === 'string' ? body.redirectTo : '';
+      if (typeof body?.[CONSENT_PARAM] === 'string') consentValue = body[CONSENT_PARAM];
       if (body?.lang === 'en' || body?.lang === 'th') lang = body.lang;
     }
   } catch {
@@ -101,6 +107,44 @@ export async function POST(request: NextRequest) {
     const qs = new URLSearchParams({ ...params, email });
     return NextResponse.redirect(`${siteOrigin}/auth?${qs.toString()}`, 303);
   };
+
+  /*
+   * The no-JS shell is a single form with two submit buttons, because React drops
+   * `formAction` and a button that cannot name its own target would post the LINE
+   * choice to this route. The button carries `method=line` instead and is handed
+   * straight to the LINE start route — after the consent check below, so the hand-off
+   * cannot be used to skip it.
+   */
+  if (isFormPost && consentMethod === 'line') {
+    if (!hasValidConsent(consentValue, request.cookies.get(CONSENT_COOKIE)?.value)) {
+      return formRedirect({ error: 'consent_required' });
+    }
+    const target = new URL(`${siteOrigin}/api/auth/line/start`);
+    target.searchParams.set('next', nextPath);
+    target.searchParams.set(CONSENT_PARAM, consentValue || CONSENT_VERSION);
+    return NextResponse.redirect(target, 303);
+  }
+
+  /*
+   * PDPA consent, enforced server-side.
+   *
+   * Deliberately NOT a `fallback` outcome. Every other failure here returns
+   * fallback:true so the client retries with supabase.auth.signInWithOtp() — which is
+   * exactly right for a Resend outage and exactly wrong for this: falling back would
+   * send the sign-in link anyway and route straight around the check. A refusal has to
+   * refuse.
+   *
+   * Accepted from the cookie the hydrated page sets before posting, or from the form
+   * field the no-JS shell submits. This runs before the email-shape check so that an
+   * unconsented request is turned away before it can probe address validity.
+   */
+  if (!hasValidConsent(consentValue, request.cookies.get(CONSENT_COOKIE)?.value)) {
+    if (isFormPost) return formRedirect({ error: 'consent_required' });
+    return NextResponse.json(
+      { ok: false, fallback: false, error: 'consent_required' },
+      { status: 400 },
+    );
+  }
 
   if (!email || !email.includes('@') || email.length > 320) {
     // Shape validation only — never "no such user".

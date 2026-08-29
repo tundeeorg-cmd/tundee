@@ -1,3 +1,4 @@
+import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 /**
  * Server-rendered shell for /auth.
  *
@@ -50,33 +51,62 @@ export default function AuthShell({ next = '/scholarships' }: { next?: string })
               ใช้เวลาไม่ถึง 1 นาที ไม่มีค่าใช้จ่าย
             </p>
 
-            {/* LINE first: these users live in LINE, and this anchor needs no
-                JavaScript at all — it is a plain navigation to the OAuth start
-                route. On a slow connection this is the one control that is
-                guaranteed to work the moment the HTML lands. */}
-            <a
-              href={`/api/auth/line/start?next=${encodeURIComponent(next)}`}
-              className="flex items-center justify-center gap-3 w-full min-h-[56px] bg-[#06C755] rounded-xl text-white font-bold text-base px-4"
-              style={THAI}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-              </svg>
-              เข้าสู่ระบบด้วย LINE
-            </a>
+            {/* One form, one consent checkbox, two submit buttons.
+                Both routes now enforce PDPA consent server-side, so this shell has to
+                carry it or the no-JS path — the whole reason this component exists —
+                would be turned away at both doors. A single `required` checkbox does it
+                with no JavaScript: browsers refuse to submit either button until it is
+                ticked, and native validation is not something we have to ship 240 KB to
+                get. Two buttons rather than two forms so there is one checkbox, not two.
 
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-              <span className="text-xs text-[#8A96A8]" style={THAI}>หรือ</span>
-              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-            </div>
-
-            {/* A real form POST, not a JS handler. /api/auth/email-link accepts
-                form-encoded bodies and redirects back here, so email sign-in
-                completes on a device where our JavaScript never runs. */}
+                The email input is deliberately NOT `required`: it would otherwise block
+                the LINE button, which needs no address. An empty address is validated by
+                the route, which redirects back here with the field echoed. */}
             <form method="POST" action="/api/auth/email-link">
               <input type="hidden" name="next" value={next} />
               <input type="hidden" name="noscript" value="1" />
+
+              <label className="flex items-start gap-3 mb-5 cursor-pointer select-none" style={THAI}>
+                <input
+                  type="checkbox"
+                  name={CONSENT_PARAM}
+                  value={CONSENT_VERSION}
+                  required
+                  className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
+                />
+                <span className="text-sm leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
+                  ฉันยอมรับ{' '}
+                  <a href="/terms" className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">ข้อกำหนดการใช้งาน</a>
+                  {' '}และ{' '}
+                  <a href="/privacy" className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">นโยบายความเป็นส่วนตัว</a>
+                  {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
+                </span>
+              </label>
+
+              {/* LINE stays the primary method.
+                  A submit button posts its own name/value, so one form can serve both
+                  methods and the route dispatches on `method`. formAction would have been
+                  the obvious tool and React drops it — the rendered HTML came out with no
+                  formaction at all, which silently pointed this button at the email
+                  route. name/value is plain HTML and survives. */}
+              <button
+                type="submit"
+                name="method"
+                value="line"
+                className="flex items-center justify-center gap-3 w-full min-h-[56px] bg-[#06C755] rounded-xl text-white font-bold text-base px-4"
+                style={THAI}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+                </svg>
+                เข้าสู่ระบบด้วย LINE
+              </button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+                <span className="text-xs text-[#8A96A8]" style={THAI}>หรือ</span>
+                <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+              </div>
 
               <label
                 htmlFor="auth-email"
@@ -89,7 +119,6 @@ export default function AuthShell({ next = '/scholarships' }: { next?: string })
                 id="auth-email"
                 type="email"
                 name="email"
-                required
                 autoComplete="email"
                 inputMode="email"
                 placeholder="you@example.com"
