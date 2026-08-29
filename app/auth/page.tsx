@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
@@ -17,9 +17,37 @@ import {
   type InAppBrowserInfo,
 } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import AuthShell from './AuthShell';
 
 /** Flattened for the funnel event context — one shape, logged identically
  *  on signup_started and signup_failed so the two are directly comparable. */
+/** Verified against the live project: Supabase issues 6-digit codes. */
+const OTP_LENGTH = 6;
+
+/**
+ * Resend cooldown, derived rather than guessed. The project allows 30 emails
+ * per hour, i.e. 3600/30 = 120s between sends at the sustained rate. Supabase
+ * separately enforces a ~60s per-address cooldown, which this clears.
+ */
+const RESEND_COOLDOWN_SECONDS = 120;
+
+/** Every network call gets one. A spinner that never resolves is the worst
+ *  outcome on a congested connection — worse than a clear failure. */
+const NETWORK_TIMEOUT_MS = 15_000;
+
+const THAI = { fontFamily: 'Sarabun, sans-serif' } as const;
+
+/** fetch with an explicit deadline, so a hung request surfaces as Thai copy. */
+async function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function inAppContext(info: InAppBrowserInfo) {
   return {
     in_app_browser: info.isInApp,
@@ -30,17 +58,18 @@ function inAppContext(info: InAppBrowserInfo) {
 }
 
 // ─── Suspense wrapper ─────────────────────────────────────────────────────────
-// useSearchParams() REQUIRES Suspense without a fallback prop the page is blank
+// useSearchParams() makes Next bail out of SSR for this subtree and render the
+// fallback on the server instead. That fallback used to be a spinner, so the
+// served HTML contained zero inputs and zero buttons: a student on a stalled
+// 3G connection watched a spinner while ~240 KB of gzipped JavaScript arrived.
+//
+// AuthShell is a real, server-rendered page. Without any JavaScript the LINE
+// button works (a plain <a>) and the email form works (a real POST to
+// /api/auth/email-link). Hydration then replaces it with the richer form.
 
 export default function AuthPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07111F] flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-[#2E6BE6] border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthShell />}>
       <AuthForm />
     </Suspense>
   );
@@ -82,6 +111,21 @@ function authErrorMessage(code: string, lang: string): string {
     // The callback was reached with nothing usable — no token_hash, no code.
     // Emphatically NOT an expired link, and saying so sent users round a loop
     // requesting fresh links that failed identically.
+    case 'invalid_email':
+      return th
+        ? 'กรุณากรอกอีเมลให้ถูกต้อง'
+        : 'Please enter a valid email address.';
+
+    case 'rate_limited':
+      return th
+        ? 'ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
+        : 'Too many requests. Please wait a moment and try again.';
+
+    case 'send_failed':
+      return th
+        ? 'ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+        : 'Could not send. Please try again.';
+
     case 'no_credentials':
     case 'exchange_failed':
     case 'session_lost':
@@ -111,6 +155,9 @@ function AuthForm() {
   const [lineLoading,   setLineLoading]   = useState(false);
   const [error,         setError]         = useState('');
   const [cooldown,      setCooldown]      = useState(0);
+  const [code,          setCode]          = useState('');
+  const [verifying,     setVerifying]     = useState(false);
+  const codeInputRef = useRef<HTMLInputElement | null>(null);
   const [consent,       setConsent]       = useState(false);
 
   // Embedded-webview state. Starts as "normal browser" so server and first
@@ -185,6 +232,14 @@ function AuthForm() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace(next);
     });
+
+    // The no-JS form path (AuthShell -> /api/auth/email-link) redirects back
+    // here with ?sent=1&email=... Recognise it, or a user whose JavaScript
+    // arrives late sees an empty login form and assumes nothing was sent.
+    const sentParam = searchParams.get('sent');
+    const emailParam = searchParams.get('email');
+    if (emailParam) setEmail(emailParam);
+    if (sentParam === '1') setSent(true);
 
     // Handle error params from callback
     const err = searchParams.get('error');
@@ -273,19 +328,48 @@ function AuthForm() {
       return;
     }
     setSent(true);
-    setCooldown(60);
+    setCooldown(RESEND_COOLDOWN_SECONDS);
   }
 
   // ── Resend ───────────────────────────────────────────────────────────────────
   async function resend() {
-    if (cooldown > 0) return;
+    if (cooldown > 0 || loading) return;
     setLoading(true);
-    await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: buildCallbackUrl(), shouldCreateUser: true },
-    });
-    setLoading(false);
-    setCooldown(60);
+    setError('');
+    setCode('');
+
+    try {
+      const { error: resendError } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: { emailRedirectTo: buildCallbackUrl(), shouldCreateUser: true },
+      });
+
+      if (resendError) {
+        console.error('[TunDee] resend:', resendError.status, resendError.message);
+        // Supabase puts the real remaining seconds in the message. Showing that
+        // number beats inventing one, and keeps the countdown honest if the
+        // project's rate limit changes later.
+        const m = resendError.message?.match(/after (\d+) seconds/);
+        if (resendError.status === 429) {
+          setCooldown(m ? parseInt(m[1], 10) : RESEND_COOLDOWN_SECONDS);
+          setError('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
+        } else {
+          setError('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        }
+        setLoading(false);
+        return;
+      }
+
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch {
+      setError(
+        !navigator.onLine
+          ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
+          : 'การเชื่อมต่อช้าเกินไป กรุณาตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง',
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
@@ -327,85 +411,150 @@ function AuthForm() {
   // ════════════════════════════════════════════════════════════════════════════
   // SUCCESS STATE email sent
   // ════════════════════════════════════════════════════════════════════════════
+  /**
+   * Digits only, capped at OTP_LENGTH. Auto-submits on the sixth digit, which
+   * also makes paste work: pasting six digits fires the same path as typing
+   * the last one.
+   */
+  function onCodeChange(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    setCode(digits);
+    if (error) setError('');
+    if (digits.length === OTP_LENGTH && !verifying) void submitCode(digits);
+  }
+
+  async function submitCode(value: string) {
+    if (verifying || value.length !== OTP_LENGTH) return;
+    setVerifying(true);
+    setError('');
+
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: value,
+        type: 'email',
+      });
+
+      if (verifyError) {
+        // Never log the code itself. The status and message are enough to
+        // debug and carry no secret.
+        console.error('[TunDee] verifyOtp:', verifyError.status, verifyError.message);
+        logFunnelEvent({
+          eventType: 'signup_failed',
+          context: { reason: `otp_verify:${verifyError.status ?? 'err'}`, method: 'email_code', ...inAppContext(iab) },
+        });
+
+        const msg = (verifyError.message || '').toLowerCase();
+        // Supabase reports expiry and a wrong code with similar shapes, so the
+        // distinction is drawn only where the message is explicit.
+        if (msg.includes('expired')) {
+          setError('รหัสหมดอายุแล้ว กรุณากดส่งรหัสใหม่');
+        } else if (verifyError.status === 429) {
+          setError('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง');
+        } else {
+          setError('รหัสไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
+        }
+        // Leave the code in the field: clearing it on a slow connection makes
+        // the user retype something they already read correctly.
+        setVerifying(false);
+        codeInputRef.current?.focus();
+        return;
+      }
+
+      logFunnelEvent({ eventType: 'signup_completed', context: { method: 'email_code' } });
+      // Full navigation, not router.push: the session cookie was just written
+      // and a soft navigation can render against stale auth state.
+      window.location.href = next;
+    } catch (err) {
+      console.error('[TunDee] verifyOtp threw:', err);
+      setError(
+        !navigator.onLine
+          ? 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่อแล้วลองใหม่'
+          : 'การเชื่อมต่อช้าเกินไป กรุณาตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง',
+      );
+      setVerifying(false);
+    }
+  }
+
+  // ── Code entry ──────────────────────────────────────────────────────────────
+  // Replaces the old "check your email" screen. A link forces the user out of
+  // this browser and into Gmail's WebView, and that switch is what broke
+  // sign-in: PKCE's code_verifier lives in the browser that asked for the link.
+  // A code typed into the tab they are already on has no switch to break.
   if (sent) {
     return (
       <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07111F] flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-[420px]">
           <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
             <div className="h-1 bg-[#1B3A6B]" />
-            <div className="px-8 py-10 text-center">
-              <div className="w-20 h-20 bg-[#EBF2FF] rounded-full flex items-center justify-center mx-auto mb-6 text-[#1B3A6B]">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/>
-                  <path d="m2 7 10 7 10-7"/>
-                </svg>
-              </div>
-              <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2"
-                  style={{ fontFamily: 'Sarabun, sans-serif' }}>
-                {lang === 'th' ? 'ตรวจสอบอีเมลของคุณ' : 'Check your email'}
+            <div className="px-6 py-8">
+              <h1 className="text-center text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={THAI}>
+                กรอกรหัส 6 หลัก
               </h1>
-              <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93] mb-3">
-                {lang === 'th' ? 'เราส่งลิงก์เข้าสู่ระบบไปที่' : 'We sent a login link to'}
+              <p
+                className="text-center text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mb-6"
+                style={{ ...THAI, lineHeight: 1.8 }}
+              >
+                เราส่งรหัส 6 หลักไปที่ {email} แล้ว กรอกรหัสด้านล่างเพื่อเข้าสู่ระบบ
               </p>
-              <div className="inline-block bg-[#EBF2FF] dark:bg-[#162552] border border-[#2E6BE6]/30 text-[#1E57CC] dark:text-[#5B8EF0] font-semibold text-sm px-5 py-2.5 rounded-full mb-6 break-all">
-                {email}
-              </div>
 
-              {/* Steps */}
-              <div className="text-left bg-[#F7F9FC] dark:bg-[#0D1F35] rounded-xl p-4 mb-6 space-y-3">
-                {[
-                  { n: 1, th: 'เปิดแอป Gmail หรือ Email ของคุณ', en: 'Open your Gmail or email app' },
-                  { n: 2, th: 'หาอีเมลจาก TunDee ทุนดี',         en: 'Find the email from TunDee' },
-                  { n: 3, th: 'กดปุ่ม "เข้าสู่ระบบ" ในอีเมล',    en: 'Tap the "Log in" button in the email' },
-                ].map((s) => (
-                  <div key={s.n} className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-[#1B3A6B] text-white rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      {s.n}
-                    </div>
-                    <p className="text-xs text-[#3a3a3c] dark:text-[#aeaeb2] leading-relaxed">
-                      {lang === 'th' ? s.th : s.en}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <form onSubmit={(e) => { e.preventDefault(); void submitCode(code); }}>
+                <input
+                  ref={codeInputRef}
+                  value={code}
+                  onChange={(e) => onCodeChange(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={OTP_LENGTH}
+                  aria-label="รหัส 6 หลัก"
+                  disabled={verifying}
+                  // 28px and wide tracking so the digits are legible on a small,
+                  // possibly cracked screen; 16px minimum would be the floor.
+                  style={{ ...THAI, fontSize: '28px', letterSpacing: '0.4em' }}
+                  className="w-full min-h-[64px] text-center border-2 border-[#E8ECF2] dark:border-[#1A2E4A] rounded-xl px-4 text-[#0A2342] dark:text-[#E8EDF5] bg-white dark:bg-[#0D1F35] focus:outline-none focus:border-[#1B3A6B] disabled:opacity-60 mb-4"
+                />
 
-              <button
-                onClick={resend}
-                disabled={cooldown > 0 || loading}
-                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] text-[#6e6e73] dark:text-[#8e8e93] text-sm font-medium py-3 rounded-xl hover:bg-[#F7F9FC] dark:hover:bg-[#2c2c2e] disabled:opacity-40 transition-colors mb-3 flex items-center justify-center gap-2"
-              >
-                {loading && (
-                  <div className="w-4 h-4 border-2 border-[#e0e0e0] border-t-[#1B3A6B] rounded-full animate-spin" />
+                {error && (
+                  <p className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-sm text-red-600 dark:text-red-400" style={{ ...THAI, lineHeight: 1.8 }} role="alert">
+                    {error}
+                  </p>
                 )}
-                {cooldown > 0
-                  ? (lang === 'th' ? `ส่งอีกครั้งใน ${cooldown} วินาที` : `Resend in ${cooldown} seconds`)
-                  : (lang === 'th' ? 'ส่งลิงก์ใหม่' : 'Resend link')}
+
+                <button
+                  type="submit"
+                  disabled={verifying || code.length !== OTP_LENGTH}
+                  className="w-full min-h-[56px] bg-[#1B3A6B] text-white rounded-xl font-bold text-base disabled:opacity-50"
+                  style={THAI}
+                >
+                  {verifying ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => { if (cooldown <= 0) void resend(); }}
+                disabled={cooldown > 0 || loading}
+                className="w-full min-h-[48px] mt-3 text-base text-[#1B3A6B] dark:text-[#8FB4FF] disabled:text-[#8A96A8] disabled:cursor-default"
+                style={THAI}
+              >
+                {cooldown > 0 ? `ส่งรหัสใหม่ได้ในอีก ${cooldown} วินาที` : 'ส่งรหัสใหม่'}
               </button>
 
               <button
-                onClick={() => { setSent(false); setError(''); setCooldown(0); }}
-                className="text-sm text-[#1B3A6B] hover:underline"
+                type="button"
+                onClick={() => { setSent(false); setCode(''); setError(''); }}
+                className="w-full min-h-[48px] text-base text-[#6E7A8A] dark:text-[#8e9bb0]"
+                style={THAI}
               >
-                {lang === 'th' ? 'เปลี่ยนอีเมล' : 'Change email'}
+                ใช้อีเมลอื่น
               </button>
 
-              <p className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5">
-                {/* Generic on purpose. "1 ชั่วโมง" was hardcoded here and matches
-                    Supabase's DEFAULT OTP expiry, but nobody has read the value
-                    configured on this project — so it was a guess presented to
-                    users as fact. Restore a number only after reading
-                    Authentication -> Providers -> Email -> Email OTP Expiration,
-                    and change the email template to match at the same time. */}
-                {lang === 'th' ? 'ลิงก์หมดอายุในไม่ช้า' : 'This link expires shortly'}
+              <p className="mt-4 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={{ ...THAI, lineHeight: 1.8 }}>
+                ไม่ได้รับรหัส? กรุณาตรวจสอบในโฟลเดอร์จดหมายขยะ (Spam)
               </p>
             </div>
           </div>
-
-          <p className="text-center mt-4">
-            <a href="/" className="text-sm text-[#6e6e73] dark:text-[#8e8e93] hover:text-[#1D1D1F] dark:hover:text-white transition-colors">
-              ← {lang === 'th' ? 'กลับหน้าแรก' : 'Back to home'}
-            </a>
-          </p>
         </div>
       </div>
     );
