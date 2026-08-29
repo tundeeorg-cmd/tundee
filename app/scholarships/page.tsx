@@ -152,6 +152,19 @@ interface MatchControlsProps {
  */
 const MATCH_PAGE = 20;
 
+/**
+ * Cards painted in the browse grid before the student asks for more.
+ *
+ * This is the tab a signed-out visitor lands on, so it is the first thing
+ * recruitment traffic renders. It previously painted every result at once:
+ * 518 cards and 12,748 DOM nodes measured on production, which is the single
+ * largest render cost on the page and lands hardest on exactly the low-end
+ * handsets this product exists for.
+ *
+ * 24 keeps the 3-column desktop grid and the 2-column tablet grid both full.
+ */
+const BROWSE_PAGE = 24;
+
 function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
   const lo = lang as 'th' | 'en';
   const font = lo === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
@@ -386,6 +399,7 @@ export default function BrowsePage() {
    * many are logged — see matchesToRender below.
    */
   const [matchPageSize, setMatchPageSize]           = useState(MATCH_PAGE);
+  const [browsePageSize, setBrowsePageSize]         = useState(BROWSE_PAGE);
 
   // ── Data load ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -629,6 +643,27 @@ export default function BrowsePage() {
     return items;
   }, [tdScholarships, tdSearch, tdStatusFilter, tdLevelFilter, tdFunderFilter, tdAwardTierFilter,
       tdTargetsLowIncome, tdWelfareCard, tdRenewable, tdBondObligation, tdSortBy, lo]);
+
+  /**
+   * The painted subset of the browse grid.
+   *
+   * Kept separate from browseVisible for the same reason matchesToRender is:
+   * browseVisible feeds the impression logger, and narrowing what gets logged
+   * would change user_events partway through the study. Impressions still cover
+   * the full filtered result set.
+   */
+  const browseToRender = useMemo(
+    () => browseVisible.slice(0, browsePageSize),
+    [browseVisible, browsePageSize],
+  );
+
+  // Any change to the query is a new result set; carrying an expanded page size
+  // across it would show an arbitrary slice of something the student never
+  // scrolled through.
+  useEffect(() => { setBrowsePageSize(BROWSE_PAGE); }, [
+    tdSearch, tdStatusFilter, tdLevelFilter, tdFunderFilter, tdAwardTierFilter,
+    tdTargetsLowIncome, tdWelfareCard, tdRenewable, tdBondObligation, tdSortBy,
+  ]);
 
   // ── Active filter chips ────────────────────────────────────────────────────
   const activeFilters: { key: string; label: string; clear: () => void }[] = [
@@ -992,16 +1027,38 @@ export default function BrowsePage() {
               </div>
 
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {browseVisible.map(s => (
-                  <TdScholarshipCard
-                    key={s.scholarship_id}
-                    scholarship={s}
-                    userId={user?.id ?? null}
-                    variant={rankingVariant}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {browseToRender.map(s => (
+                    <TdScholarshipCard
+                      key={s.scholarship_id}
+                      scholarship={s}
+                      userId={user?.id ?? null}
+                      variant={rankingVariant}
+                    />
+                  ))}
+                </div>
+
+                {/* States what is on screen and what is left. The total is
+                    already shown above as "พบ N ทุน", so nothing here needs to
+                    repeat it — and nothing here claims the page is fast. */}
+                <div className="mt-6 text-center">
+                  {browseToRender.length < browseVisible.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setBrowsePageSize(n => n + BROWSE_PAGE)}
+                      className="min-h-[48px] px-6 bg-white dark:bg-[#0A1628] border-2 border-[#1B3A6B] text-[#1B3A6B] dark:text-[#8FB4FF] rounded-full text-sm font-semibold"
+                      style={{ fontFamily: font }}>
+                      ดูทุนเพิ่มเติม
+                    </button>
+                  ) : (
+                    <p className="text-sm text-[#8A96A8]"
+                       style={{ fontFamily: font, lineHeight: 1.8 }}>
+                      แสดงทุนครบทุกรายการแล้ว
+                    </p>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
