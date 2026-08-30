@@ -25,6 +25,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { TdImportRow } from '@/lib/tdScholarships/types';
 import { parseDeadline, isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
+import { chunk } from '@/lib/supabase/fetchAll';
 
 function fmtErr(err: unknown): string {
   if (!err) return 'Unknown error';
@@ -94,11 +95,33 @@ export async function POST(request: NextRequest) {
 
     // Fetch existing rows for insert-vs-update counts and verified-row protection.
     const ids = toUpsert.map(r => r.scholarship_id);
-    const { data: rawExistingRows } = await adminClient
-      .from('td_scholarships')
-      .select('scholarship_id, verification_status, last_verified, verified_by, application_url, application_link, scholarship_name_en, scholarship_name_th, funder_en, funder_th')
-      .in('scholarship_id', ids);
-    const existingRows = (rawExistingRows ?? []) as unknown as ExistingRow[];
+
+    /**
+     * Chunked, and the error is no longer discarded.
+     *
+     * A single `.in()` over a whole master sheet does not work: 1,575 ids
+     * exceeded the URL length and came back as a bare "fetch failed", while the
+     * old code destructured `data` only. A failed lookup therefore became an
+     * empty existingRows, every row looked new, and verification protection
+     * silently switched itself off for the entire import — overwriting curated
+     * verification_status and verified_by from whatever the sheet happened to
+     * carry. Losing that data quietly is far worse than refusing to import.
+     */
+    const existingRows: ExistingRow[] = [];
+    for (const idChunk of chunk(ids)) {
+      const { data, error } = await adminClient
+        .from('td_scholarships')
+        .select('scholarship_id, verification_status, last_verified, verified_by, application_url, application_link, scholarship_name_en, scholarship_name_th, funder_en, funder_th')
+        .in('scholarship_id', idChunk);
+
+      if (error) {
+        return NextResponse.json(
+          { ok: false, error: `existing-row lookup failed, import aborted: ${error.message}` },
+          { status: 502 },
+        );
+      }
+      existingRows.push(...((data ?? []) as unknown as ExistingRow[]));
+    }
 
     const existingIds = new Set(existingRows.map(r => r.scholarship_id));
     const verifiedDbRows = new Map<string, ExistingRow>();
