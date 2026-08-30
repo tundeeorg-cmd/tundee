@@ -255,10 +255,16 @@ export default function AboutContent({ scholarshipCount }: Props) {
           <div className="divide-y divide-[#E8ECF2] dark:divide-[#1A2E4A]">
             {[
               {
-                headingTh: 'เฉพาะทุนที่ผ่านการตรวจสอบโดยมนุษย์',
-                headingEn: 'Human-verified scholarships',
-                descTh: 'ทุกทุนในทุนดีผ่านการตรวจสอบโดยทีมงานมนุษย์ก่อนนำขึ้นระบบ เราไม่ใช้ AI สร้างข้อมูลทุน ไม่แสดงทุนที่หมดอายุ และไม่นำทุนที่ยังไม่ผ่านการยืนยันขึ้นแสดง นี่คือสิ่งที่ทำให้ทุนดีแตกต่างจากเว็บรวมทุนทั่วไป',
-                descEn: 'Every scholarship on TunDee is verified by a human before it goes live. We do not show expired listings, and do not surface unconfirmed information. This is what sets TunDee apart from general scholarship aggregators.',
+                // Was "เฉพาะทุนที่ผ่านการตรวจสอบโดยมนุษย์ / Every scholarship is verified by
+                // a human before it goes live". Of the 491 displayed, 76 are verified —
+                // 15%. The section below now describes what the pipeline actually does,
+                // and leaving this as it stood would have the page contradict itself two
+                // screens apart. The withholding is the truthful version of the same
+                // claim, and a stronger one: 1,084 of the 1,575 collected are held back.
+                headingTh: 'ข้อมูลไม่ครบ เราไม่แสดง',
+                headingEn: 'Incomplete listings are withheld',
+                descTh: 'ทุกทุนมาจากประกาศจริง เราไม่ได้สร้างข้อมูลทุนขึ้นเอง ทุนที่วันปิดรับหรือเงื่อนไขยังไม่ชัดเจนจะถูกกันไว้ไม่แสดง และทุนที่ปิดรับแล้วจะถูกนำออกโดยอัตโนมัติ ตอนนี้เรากันทุนที่ข้อมูลยังไม่ครบไว้มากกว่าจำนวนที่แสดงอยู่',
+                descEn: 'Every listing comes from a real announcement; we do not generate scholarship data. Those whose closing date or conditions cannot be resolved are held back rather than shown, and closed ones are removed automatically. We currently withhold more scholarships than we display.',
               },
               {
                 headingTh: 'ระบบจับคู่ที่เป็นธรรมสำหรับนักเรียนต่างจังหวัด',

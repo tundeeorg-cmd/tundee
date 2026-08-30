@@ -58,8 +58,13 @@ export const WHY_FREE_POINTS: readonly Point[] = [
     en: 'Scholarships on TunDee are grants, not loans. Nothing has to be paid back.',
   },
   {
-    th: 'TunDee ไม่ใช่ผู้ให้ทุน เราเป็นตัวกลางรวบรวมข้อมูล การสมัครทำที่เว็บของผู้ให้ทุนโดยตรงเสมอ',
-    en: 'TunDee is not a funder. We collect and organise information; you always apply on the funder’s own website.',
+    // Reworded from "การสมัครทำที่เว็บของผู้ให้ทุนโดยตรงเสมอ". That claimed every
+    // application link leads straight to the funder, and it does not: application_url
+    // is a third-party aggregator for 373 of the 491 displayed scholarships. What is
+    // true — and is the part that actually answers the doubt — is that TunDee never
+    // takes the application itself, so it can never take a fee for one.
+    th: 'TunDee ไม่ใช่ผู้ให้ทุน เราเป็นตัวกลางรวบรวมข้อมูล และไม่รับสมัครแทนผู้ให้ทุน การสมัครทำนอก TunDee เสมอ',
+    en: 'TunDee is not a funder. We collect and organise information, and never take applications on a funder’s behalf — applying always happens outside TunDee.',
   },
 ] as const;
 

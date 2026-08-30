@@ -7,25 +7,16 @@
  * being asked to trust a claim. That only works if the steps describe what actually
  * happens, so the wording is worth more scrutiny than ordinary copy.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * OPEN QUESTION ON STEP 2 — measured 30 Aug 2026, awaiting a decision.
+ * Step 2 is not the brief's wording, and the difference is deliberate. As written it
+ * said "ตรวจสอบเงื่อนไขและวันปิดรับโดยคนจริงก่อนขึ้นเว็บ" — every scholarship checked by a
+ * person before going live. Measured 30 Aug 2026, of the 491 displayed: 410 are
+ * Auto-extracted, 76 verified, 5 in review. The claim was true of 15% of the page.
  *
- * Of the 491 scholarships currently displayed, verification_status is:
- *
- *     410  Auto-extracted (confirm deadline + link)   84%
- *      76  verified                                   15%
- *       3  Needs review                                1%
- *       2  In progress                                 0%
- *
- * As written, step 2 says every scholarship is checked by a person before it goes on the
- * site. That is true of 15% of them. The wording is the brief's, kept verbatim pending a
- * decision, and this comment exists so the discrepancy cannot be lost. Either the copy
- * softens to match the data ("ทุนส่วนหนึ่ง…" or a description of the auto-extraction step
- * followed by human review), or the 410 get reviewed and the claim becomes true.
- *
- * Steps 1 and 3 hold up: rows carry a source URL for the announcement they came from, and
- * the nightly cron in app/api/cron recomputes status_effective and removes closed rounds.
- * ─────────────────────────────────────────────────────────────────────────────
+ * What is true, and is a stronger signal anyway, is the withholding: 1,084 of the 1,575
+ * scholarships collected are held back because their closing date or conditions could not
+ * be resolved. A site that shows everything it has is easy; one that shows two thirds
+ * fewer than it holds is making a choice a scam site would not make. So step 2 now
+ * describes that, and can be checked against the database by anyone who asks.
  *
  * Thai copy is verbatim from the brief. English is a faithful translation of the same
  * claims, because /about renders in both languages.
@@ -53,9 +44,8 @@ export const VERIFICATION_STEPS: readonly Step[] = [
   },
   {
     num: '02',
-    // See the OPEN QUESTION above before changing or shipping this line.
-    th: 'ตรวจสอบเงื่อนไขและวันปิดรับโดยคนจริงก่อนขึ้นเว็บ',
-    en: 'Conditions and closing dates checked by a person before going live.',
+    th: 'ตรวจสอบวันปิดรับและเงื่อนไขก่อนขึ้นเว็บ ทุนที่ข้อมูลไม่ครบจะไม่ถูกแสดง',
+    en: 'Closing dates and conditions are checked before a scholarship goes live. Those with incomplete information are not shown.',
   },
   {
     num: '03',
