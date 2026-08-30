@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
-import type { TdScholarship } from '@/lib/tdScholarships/types';
+import { isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { fetchAllRows } from '@/lib/supabase/fetchAll';
 
 /** Exactly the columns the status recompute reads. */
 interface TdStatusRow {
   scholarship_id:   string;
+  deadline_raw:     string | null;
   open_date:        string | null;
   deadline_date:    string | null;
   status:           string | null;
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
   const { data: allRows, error: fetchErr } = await fetchAllRows<TdStatusRow>((from, to) =>
     adminClient
       .from('td_scholarships')
-      .select('scholarship_id, open_date, deadline_date, status, status_effective, last_verified, is_displayed, stale')
+      .select('scholarship_id, deadline_raw, open_date, deadline_date, status, status_effective, last_verified, is_displayed, stale')
       .order('scholarship_id')
       .range(from, to));
 
@@ -90,8 +91,19 @@ export async function GET(request: NextRequest) {
   let tdChanged = 0;
   const tdErrors: string[] = [];
 
-  for (const row of (allRows ?? []) as Pick<TdScholarship, 'scholarship_id' | 'open_date' | 'deadline_date' | 'status' | 'status_effective' | 'last_verified' | 'is_displayed' | 'stale'>[]) {
-    const gate = isDisplayable(row, todayBkk);
+  for (const row of allRows) {
+    /**
+     * rolling_open is derived, not stored — the importer computes it from
+     * deadline_raw and nothing writes it to a column. Recomputing it here is
+     * what keeps this job from undoing the importer's work: without it a
+     * genuinely rolling scholarship resolves to no status and the gate hides
+     * it, so the nightly run quietly re-hid what the rolling rule had opened.
+     * Same call as the importer, so the two cannot drift.
+     */
+    const gate = isDisplayable(
+      { ...row, rolling_open: isUnqualifiedRolling(row.deadline_raw) },
+      todayBkk,
+    );
 
     // Skip rows where nothing changed (avoid unnecessary writes)
     if (gate.is_displayed === row.is_displayed && gate.stale === row.stale && gate.status_effective === row.status_effective) continue;

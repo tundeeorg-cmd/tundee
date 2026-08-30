@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { isUnqualifiedRolling, parseDeadline } from '@/lib/tdScholarships/deadlineParser';
-import { computeStatusEffective } from '@/lib/tdScholarships/displayGate';
+import { computeStatusEffective, isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 
 const TODAY = new Date(Date.UTC(2026, 7, 29));
 
@@ -82,5 +82,44 @@ describe('computeStatusEffective — the rolling rule', () => {
     // Both dates present means the sheet's own logic applies and the deadline has passed.
     const dated = { open_date: '2026-01-01', deadline_date: '2026-08-01', status: '', rolling_open: true };
     expect(computeStatusEffective(dated, TODAY)).toBe('Closed');
+  });
+});
+
+/**
+ * The nightly cron recomputes status_effective for the whole table. rolling_open
+ * is derived at import time from deadline_raw and never stored in a column, so
+ * a job that reloads rows from the database has to derive it again — otherwise
+ * it resolves rolling scholarships to no status and the gate hides them, quietly
+ * undoing the importer's work on its next run.
+ */
+describe('a job that reloads rows must re-derive rolling_open', () => {
+  const rolling = {
+    scholarship_id: 'TD-TEST',
+    deadline_raw:   'Rolling / ongoing',
+    deadline_date:  null,
+    open_date:      null,
+    status:         null,
+    last_verified:  '2026-08-01',
+    is_displayed:   true,
+    stale:          false,
+  };
+  const today = bangkokMidnight(new Date('2026-08-30T00:00:00Z'));
+
+  it('hides a rolling scholarship when rolling_open is not supplied', () => {
+    // The bug: exactly what the cron did before it derived the flag.
+    expect(isDisplayable(rolling as never, today).is_displayed).toBe(false);
+  });
+
+  it('keeps it visible once the flag is derived from deadline_raw', () => {
+    const withFlag = { ...rolling, rolling_open: isUnqualifiedRolling(rolling.deadline_raw) };
+    const gate = isDisplayable(withFlag as never, today);
+    expect(gate.is_displayed).toBe(true);
+    expect(gate.status_effective).toBe('Open');
+  });
+
+  it('does not open a scholarship whose rolling text is qualified', () => {
+    const qualified = { ...rolling, deadline_raw: 'Rolling (Fall 2027)' };
+    const withFlag = { ...qualified, rolling_open: isUnqualifiedRolling(qualified.deadline_raw) };
+    expect(isDisplayable(withFlag as never, today).is_displayed).toBe(false);
   });
 });
