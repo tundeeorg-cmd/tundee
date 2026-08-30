@@ -55,13 +55,26 @@ export function isEligible(
   }
 
   // 5. Income cap (scholarship stores annual THB; convert profile bracket to annual)
-  if (s.income_cap_thb != null) {
-    const monthlyBracketCeiling  = INCOME_CEILING_MONTHLY[profile.income_bracket] ?? 999_999;
-    const annualBracketCeiling   = monthlyBracketCeiling * 12;
-    // Student is ineligible only when even their bracket's FLOOR exceeds the cap.
-    // Conservative: treat the bracket ceiling as the student's income.
-    if (annualBracketCeiling > s.income_cap_thb) {
-      return { eligible: false, reason: 'income_exceeds_cap' };
+  //
+  // An unknown bracket does not disqualify. The old fallback resolved missing
+  // income to 999,999/month — the richest bracket there is — so a student who
+  // simply had not answered the question was ruled out of the scholarships with
+  // an income ceiling. Those are the need-based ones, and the students who leave
+  // income blank are disproportionately the ones they exist for.
+  //
+  // Not knowing is not the same as knowing they earn too much. A cap is
+  // something a student can read and check for themselves; a scholarship they
+  // were never shown is not.
+  if (s.income_cap_thb != null && profile.income_bracket != null) {
+    const monthlyBracketCeiling = INCOME_CEILING_MONTHLY[profile.income_bracket];
+    // An out-of-range bracket is unknown too, not rich.
+    if (monthlyBracketCeiling != null) {
+      const annualBracketCeiling = monthlyBracketCeiling * 12;
+      // Student is ineligible only when even their bracket's FLOOR exceeds the cap.
+      // Conservative: treat the bracket ceiling as the student's income.
+      if (annualBracketCeiling > s.income_cap_thb) {
+        return { eligible: false, reason: 'income_exceeds_cap' };
+      }
     }
   }
 

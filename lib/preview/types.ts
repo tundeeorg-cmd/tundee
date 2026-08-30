@@ -173,3 +173,26 @@ export function decodePreviewInput(value: string | null | undefined): PreviewInp
     return null;
   }
 }
+
+/**
+ * Would writing this preview produce a profile the app considers complete?
+ *
+ * The auth callback skips the setup wizard when it can write the profile
+ * itself. That is only sound if what it writes actually finishes the job —
+ * otherwise the visitor is sent past the one screen that would have collected
+ * the missing field, and lands with a half-filled profile and no prompt.
+ *
+ * That happened: five accounts created 23–26 Aug 2026 have a grade, a province
+ * and a GPA but no income, because the preview carried no income field until
+ * 29 Aug and the callback wrote it as null anyway. They are only re-asked if
+ * they sign in again, and none of the five ever has.
+ *
+ * The condition mirrors the completeness test in app/auth/callback/route.ts
+ * (`income_bracket == null` means incomplete). Today parsePreviewInput always
+ * yields a bracket, so this is redundant — deliberately. It makes the invariant
+ * checkable at the point that depends on it, rather than an assumption about a
+ * validator two files away.
+ */
+export function previewCompletesProfile(input: PreviewInput | null): boolean {
+  return input != null && input.income != null;
+}

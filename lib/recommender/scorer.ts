@@ -263,7 +263,12 @@ export class ContentBasedScorer implements Scorer {
     // ── Income fit (0–0.20) ──────────────────────────────────────────────
     const incCap = s.income_cap_thb;
     if (incCap) {
-      const monthlyBracketCeil = INCOME_CEILING_MONTHLY[profile.income_bracket] ?? 999_999;
+      // Unknown income earns no income-fit points. Awarding them would mean
+      // scoring a fit against a bracket the student never declared — which is
+      // what the caller's old `?? 4` did, quietly, on their behalf.
+      const monthlyBracketCeil = profile.income_bracket == null
+        ? 999_999
+        : INCOME_CEILING_MONTHLY[profile.income_bracket] ?? 999_999;
       const annualBracketCeil  = monthlyBracketCeil * 12;
       // The more room below the cap, the better the fit
       const headroom    = Math.max(0, incCap - annualBracketCeil);

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types'
+import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput, previewCompletesProfile } from '@/lib/preview/types'
 import {
   CONSENT_COOKIE,
   CONSENT_PARAM,
@@ -198,8 +198,10 @@ async function resolveRedirect(
     // filled in".
     const incomplete = !profile || profile.income_bracket == null
 
-    // Enough on hand to skip onboarding altogether.
-    if (incomplete && preview && consented) {
+    // Enough on hand to skip onboarding altogether — and only if writing it
+    // actually leaves the profile complete. Skipping the wizard on a preview
+    // that cannot fill it is how five accounts ended up half-written in August.
+    if (incomplete && preview && consented && previewCompletesProfile(preview)) {
       const { error } = await supabase.from('profiles').upsert({
         id:              user.id,
         grade_level:     preview.level,
