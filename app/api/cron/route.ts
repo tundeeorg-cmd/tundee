@@ -2,6 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
+import { fetchAllRows } from '@/lib/supabase/fetchAll';
+
+/** Exactly the columns the status recompute reads. */
+interface TdStatusRow {
+  scholarship_id:   string;
+  open_date:        string | null;
+  deadline_date:    string | null;
+  status:           string | null;
+  status_effective: string | null;
+  last_verified:    string | null;
+  is_displayed:     boolean | null;
+  stale:            boolean | null;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,9 +67,16 @@ export async function GET(request: NextRequest) {
   // ── 2. td_scholarships: recompute status_effective + display gate ────────
   // This is what lets a scholarship auto-transition (Opening Soon → Open →
   // Closing Soon → Closed) day to day with no re-upload and no code change.
-  const { data: allRows, error: fetchErr } = await adminClient
-    .from('td_scholarships')
-    .select('scholarship_id, open_date, deadline_date, status, status_effective, last_verified, is_displayed, stale');
+  // Paginated: this reads the whole table, which passed 1000 rows some time ago.
+  // Unpaginated it was recomputing 1000 of 1575 scholarships and reporting
+  // success, so 575 kept whatever status they last had — deadlines passing
+  // without the display gate ever noticing.
+  const { data: allRows, error: fetchErr } = await fetchAllRows<TdStatusRow>((from, to) =>
+    adminClient
+      .from('td_scholarships')
+      .select('scholarship_id, open_date, deadline_date, status, status_effective, last_verified, is_displayed, stale')
+      .order('scholarship_id')
+      .range(from, to));
 
   if (fetchErr) {
     console.error('[CRON] Error fetching td_scholarships:', fetchErr.message);

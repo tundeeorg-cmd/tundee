@@ -34,6 +34,7 @@ import {
   type PreviewMatchCard,
   type PreviewResponse,
 } from '@/lib/preview/types';
+import { fetchAllRows } from '@/lib/supabase/fetchAll';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -174,10 +175,16 @@ export async function POST(request: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await db
-    .from('td_scholarships')
-    .select(COLUMNS)
-    .eq('is_displayed', true);
+  // Paginated: 491 rows match today. The count this endpoint returns is shown
+  // to the visitor as "we found N scholarships", so a silent truncation would
+  // understate it without anything looking broken.
+  const { data, error } = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    db
+      .from('td_scholarships')
+      .select(COLUMNS)
+      .eq('is_displayed', true)
+      .order('scholarship_id')
+      .range(from, to));
 
   if (error) {
     console.error('[preview-match] scholarship query failed:', error.message);

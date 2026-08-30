@@ -19,6 +19,7 @@ import { recommend }                      from '@/lib/recommender/recommend';
 import type { RecommenderProfile, FairnessMode } from '@/lib/recommender/types';
 import type { TdScholarship }             from '@/lib/tdScholarships/types';
 import { filterForUnknownGpa, UNKNOWN_GPA_SENTINEL } from '@/lib/recommender/unknownGpa';
+import { fetchAllRows } from '@/lib/supabase/fetchAll';
 
 export const runtime = 'nodejs';
 
@@ -102,11 +103,18 @@ export async function POST(request: NextRequest) {
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 
-  const { data: scholarships, error: schError } = await db
-    .from('td_scholarships')
-    .select('*')
-    .eq('is_displayed', true)
-    .eq('status', 'Open');
+  // Paginated. 371 rows match today, so this is not yet truncating — but a
+  // recommender that silently stops considering part of the catalogue would
+  // look exactly like a ranking change, which is the hardest kind of wrong to
+  // notice in a running experiment.
+  const { data: scholarships, error: schError } = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    db
+      .from('td_scholarships')
+      .select('*')
+      .eq('is_displayed', true)
+      .eq('status', 'Open')
+      .order('scholarship_id')
+      .range(from, to));
 
   if (schError) {
     return NextResponse.json({ error: schError.message }, { status: 500 });

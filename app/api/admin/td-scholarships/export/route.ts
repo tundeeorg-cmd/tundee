@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
+import { fetchAllRows } from '@/lib/supabase/fetchAll';
 
 const COLUMNS = [
   'scholarship_id', 'scholarship_name', 'funder', 'funder_type', 'level',
@@ -51,10 +52,15 @@ export async function GET(_request: NextRequest) {
   }
 
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: rows, error } = await db
-    .from('td_scholarships')
-    .select(COLUMNS.join(', '))
-    .order('scholarship_id');
+  // Paginated: an export that stops at 1000 rows is a file the operator will
+  // edit and re-import, so a short read here silently drops scholarships from
+  // the master sheet. It has been writing 1000 of 1575 rows.
+  const { data: rows, error } = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    db
+      .from('td_scholarships')
+      .select(COLUMNS.join(', '))
+      .order('scholarship_id')
+      .range(from, to));
 
   if (error) return new NextResponse(error.message, { status: 500 });
 
