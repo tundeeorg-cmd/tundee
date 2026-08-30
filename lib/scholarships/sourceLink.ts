@@ -7,19 +7,18 @@
  *
  *     414  source_url is a third-party aggregator (scholarshiptab, eduzones, dek-d, …)
  *     373  application_url is one too
- *      43  either URL is on a regulated Thai institutional domain
+ *      43  either URL is on a registry-controlled Thai institutional domain
+ *      26  more sit on an equivalent registry abroad (.edu, .ac.uk, .edu.hk, …)
  *
  * So for roughly five out of six scholarships, a link promising the funder's own
  * announcement would open an ad-supported aggregator instead. On a site whose entire
  * problem is being mistaken for a scam, that is the worst available failure: the student
  * checks the one claim we invited them to check, and it is false. Better to say less.
  *
- * Hence a positive test rather than a blocklist. `.ac.th`, `.go.th`, `.or.th` and `.mi.th`
- * are registry-controlled in Thailand — an .ac.th requires Ministry accreditation, an
- * .or.th requires registration documents — so a URL on one of them genuinely belongs to
- * an institution, and no guesswork is involved. A blocklist of known aggregators would
- * have the opposite failure mode: an aggregator we have not seen yet gets promoted to
- * "the funder's official announcement" silently.
+ * Hence a positive test rather than a blocklist. A blocklist of known aggregators has the
+ * opposite failure mode: the next aggregator we have not seen yet gets promoted to "the
+ * funder's official announcement" silently. The candidate list for this catalogue
+ * contains forms.gle, which is the kind of thing a blocklist would wave through.
  *
  * The cost is under-claiming for real funders outside those domains — daad-thailand.org,
  * studyinnl.org, waseda.jp are official and are still labelled the weaker way. That is the
@@ -28,10 +27,29 @@
  */
 
 /**
- * Thailand's registry-controlled second-level domains. Membership is documented and
- * enforced by THNIC, which is what makes this a fact about the URL rather than a guess.
+ * Registry-controlled suffixes: an institution cannot hold one without documented
+ * accreditation or government status, which is what makes membership a fact about the
+ * URL rather than an opinion about who owns it.
+ *
+ *   .ac.th .go.th .or.th .mi.th   THNIC, requires Ministry accreditation or registration
+ *   .ac.uk .edu.au .edu.hk .go.kr and the other two-letter academic/government registries
+ *   .edu .gov .mil                the US restricted TLDs
+ *
+ * Deliberately structural. A domain like chevening.org or gatescambridge.org plainly
+ * belongs to the funder too, but "this suffix is registry-controlled" is checkable by
+ * anyone, while "chevening.org is the UK government's scholarship" is something I happen
+ * to know. The strong label should rest on the first kind of statement, so hosts of the
+ * second kind stay on the weaker label until a person confirms them — see
+ * scripts/export_source_host_review.mjs, which lists exactly those.
+ *
+ * The suffix must terminate the hostname, or "ac.th.evil.com" would qualify.
  */
-const OFFICIAL_TH_DOMAIN = /\.(?:ac|go|or|mi)\.th$/;
+const REGISTRY_CONTROLLED = new RegExp(
+  [
+    '\\.(?:ac|go|gov|or|mi|edu)\\.[a-z]{2}$',  // .ac.th, .ac.uk, .edu.au, .go.kr, …
+    '\\.(?:edu|gov|mil)$',                      // US restricted TLDs
+  ].join('|'),
+);
 
 export type SourceLinkKind =
   /** Verifiably the institution's own site: the strong label is honest. */
@@ -55,7 +73,7 @@ export function isOfficialFunderDomain(url: string | null | undefined): boolean 
   if (!url) return false;
   try {
     const host = new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase();
-    return OFFICIAL_TH_DOMAIN.test(host);
+    return REGISTRY_CONTROLLED.test(host);
   } catch {
     // An unparseable URL is not evidence of anything.
     return false;
