@@ -18,3 +18,33 @@ export function formatUserDate(dateStr: string, locale: 'th' | 'en'): string {
     ? `${day}-${TH_MONTHS[month]}-${year + 543}`
     : `${day}-${EN_MONTHS[month]}-${year}`;
 }
+
+/**
+ * The "last checked" date, spaced rather than hyphenated: "28 ส.ค. 2569".
+ *
+ * Separate from formatUserDate because that one renders deadlines, where the hyphens
+ * read as a compact field. This is prose inside a sentence and wants to look like a
+ * date a person wrote.
+ *
+ * Returns null for a missing or unparseable value. The caller must render nothing in
+ * that case — never today's date and never a placeholder. A verification date that is
+ * quietly wrong is worse than no verification date, because it is the one thing on the
+ * card claiming the data was looked at.
+ */
+export function formatVerifiedDate(
+  dateStr: string | null | undefined,
+  locale: 'th' | 'en',
+): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const day = d.getUTCDate();
+  const month = d.getUTCMonth();
+  const year = d.getUTCFullYear();
+  if (month < 0 || month > 11) return null;
+
+  return locale === 'th'
+    ? `${day} ${TH_MONTHS[month]} ${year + 543}`
+    : `${day} ${EN_MONTHS[month]} ${year}`;
+}

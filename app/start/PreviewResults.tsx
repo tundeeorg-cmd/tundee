@@ -19,6 +19,7 @@ import { formatUserDate } from '@/lib/formatDate';
 import { getDeadlineInfo } from '@/lib/deadline';
 import { trackGateCTA, trackPreviewResults } from '@/lib/adTracking';
 import { WhyFreeCondensed } from '@/components/trust/WhyTunDeeIsFree';
+import TrustStrip from '@/components/trust/TrustStrip';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 
@@ -135,12 +136,17 @@ export default function PreviewResults({
   signupHref,
   onReset,
   registeredCount,
+  scholarshipCount,
+  funderCount,
 }: {
   results: PreviewResponse;
   signupHref: string;
   onReset: () => void;
   /** Rounded signup count for the social-proof line; null hides it entirely. */
   registeredCount: number | null;
+  /** Live catalogue counts for the trust strip. Null drops that segment. */
+  scholarshipCount: number | null;
+  funderCount: number | null;
 }) {
   const tracked = useRef(false);
 
@@ -201,7 +207,7 @@ export default function PreviewResults({
         <p className="text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mt-1.5" style={th}>
           {results.broadened
             ? 'ลองดูทุนเหล่านี้ก่อน — หลายทุนผ่อนปรนเรื่องเกรด และมีทุนใหม่เพิ่มเข้ามาทุกสัปดาห์'
-            : 'ตรวจสอบโดยคนจริง · ไม่มีทุนหมดอายุ'}
+            : 'ตรวจสอบโดยทีมงาน · ไม่มีทุนหมดอายุ'}
         </p>
       </div>
 
@@ -300,6 +306,14 @@ export default function PreviewResults({
             Note this space is usually empty: the social-proof line above renders only
             above lib/social/userCount MIN_DISPLAYABLE, which the real count is far
             below. */}
+        {/* Scale first, then what it costs them: the two halves of "is this real". */}
+        <TrustStrip
+          scholarships={scholarshipCount}
+          funders={funderCount}
+          lang="th"
+          className="mt-3 text-center"
+        />
+
         <WhyFreeCondensed className="mt-4 pt-4 border-t border-[#E8ECF2] dark:border-[#1A2E4A]" />
 
         <button

@@ -427,6 +427,10 @@ export default function BrowsePage() {
         'income_cap_thb', 'num_recipients', 'min_gpa',
         'deadline_raw', 'deadline_date', 'deadline_is_rolling',
         'status', 'status_effective', 'application_url', 'application_link',
+        // Read by the provenance line on the card: when it was last checked, and the
+        // link back to where it came from. Additions, so the scorer sees exactly what
+        // it saw before and rankings cannot shift underneath this change.
+        'source_url', 'last_verified',
         'is_displayed',
       ].join(', '))
       .eq('is_displayed', true)

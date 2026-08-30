@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { useLang } from '@/lib/LanguageContext';
+import VerificationMeta from '@/components/scholarships/VerificationMeta';
 import TrackButton from './TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 import { logFunnelEvent } from '@/lib/research/funnel';
@@ -283,6 +284,16 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
           )}
         </span>
       </div>
+
+      {/* ── Provenance: when we last checked, and where it came from ── */}
+      <VerificationMeta
+        lastVerified={s.last_verified}
+        sourceUrl={s.source_url}
+        applicationUrl={s.application_url}
+        applicationLink={s.application_link}
+        lang={lo}
+        variant="card"
+      />
 
       {/* ── Actions: Track/Save (primary) + Details (secondary) ──
           Opening Soon rows have no Apply link yet, so Track doubles as
