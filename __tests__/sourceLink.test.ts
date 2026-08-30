@@ -28,10 +28,41 @@ describe('isOfficialFunderDomain', () => {
     ]) expect(isOfficialFunderDomain(u)).toBe(false);
   });
 
+  it('accepts the equivalent registries abroad', () => {
+    // Same principle as .ac.th: an institution cannot hold one of these without
+    // documented accreditation, so membership is checkable rather than assumed.
+    for (const u of [
+      'https://amherst.edu/admission/aid',
+      'https://www.bristol.ac.uk/scholarships',
+      'https://join.hkust.edu.hk/awards',
+      'https://www.studyinkorea.go.kr/gks',
+      'https://nyuad.nyu.edu/en/admissions.html',
+    ]) expect(isOfficialFunderDomain(u)).toBe(true);
+  });
+
+  it('leaves plainly-real funder domains on the weaker label', () => {
+    // chevening.org and gatescambridge.org obviously belong to their funders, but that
+    // is knowledge rather than a checkable property of the URL. They stay weak until a
+    // person confirms them, which is what the host review file exists for.
+    for (const u of [
+      'https://www.chevening.org/scholarship/thailand/',
+      'https://www.gatescambridge.org/apply/',
+      'https://ethz.ch/en/studies/financial.html',
+    ]) expect(isOfficialFunderDomain(u)).toBe(false);
+  });
+
+  it('does not wave through a form host, which a blocklist would', () => {
+    // forms.gle is in this catalogue's candidate list. It is not a funder domain, and
+    // it is exactly the case that makes "not a known aggregator" the wrong rule.
+    expect(isOfficialFunderDomain('https://forms.gle/abc123')).toBe(false);
+  });
+
   it('is not fooled by a lookalike host', () => {
     // The suffix must terminate the hostname, or "notac.th.evil.com" would pass.
     expect(isOfficialFunderDomain('https://ac.th.evil.com/x')).toBe(false);
     expect(isOfficialFunderDomain('https://fake-ac.th.example.org')).toBe(false);
+    expect(isOfficialFunderDomain('https://notedu.com/x')).toBe(false);
+    expect(isOfficialFunderDomain('https://edu.com.evil.net/x')).toBe(false);
   });
 
   it('treats anything unparseable as not official', () => {
