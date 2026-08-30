@@ -40,15 +40,39 @@ describe('isOfficialFunderDomain', () => {
     ]) expect(isOfficialFunderDomain(u)).toBe(true);
   });
 
-  it('leaves plainly-real funder domains on the weaker label', () => {
-    // chevening.org and gatescambridge.org obviously belong to their funders, but that
-    // is knowledge rather than a checkable property of the URL. They stay weak until a
-    // person confirms them, which is what the host review file exists for.
+  it('leaves an unreviewed non-registry host on the weaker label', () => {
+    // The default for anything nobody has looked at. chevening.org used to be asserted
+    // here; it is now in REVIEWED_FUNDER_HOSTS, which is the only way a host moves.
+    for (const u of [
+      'https://some-new-foundation.org/scholarship',
+      'https://scholarships.example.com/apply',
+    ]) expect(isOfficialFunderDomain(u)).toBe(false);
+  });
+
+  it('accepts the hosts a person reviewed and confirmed', () => {
     for (const u of [
       'https://www.chevening.org/scholarship/thailand/',
       'https://www.gatescambridge.org/apply/',
       'https://ethz.ch/en/studies/financial.html',
+      'https://you.ubc.ca/financial-planning/scholarships-awards-international/',
+    ]) expect(isOfficialFunderDomain(u)).toBe(true);
+  });
+
+  it('rejects the four the reviewer turned down', () => {
+    // Every one of these was a candidate. A "not a known aggregator" rule would have
+    // promoted all four to "the funder's official announcement".
+    for (const u of [
+      'https://forms.gle/abc123',
+      'https://docs.google.com/forms/d/e/x/viewform',
+      'https://www.facebook.com/somefoundation',
+      'https://www.mytcas.com/',
     ]) expect(isOfficialFunderDomain(u)).toBe(false);
+  });
+
+  it('matches a reviewed host as a whole name, not a suffix', () => {
+    expect(isOfficialFunderDomain('https://chevening.org.example.net/x')).toBe(false);
+    expect(isOfficialFunderDomain('https://notchevening.org/x')).toBe(false);
+    expect(isOfficialFunderDomain('https://www.chevening.org/x')).toBe(true);
   });
 
   it('does not wave through a form host, which a blocklist would', () => {
