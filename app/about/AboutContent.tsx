@@ -260,15 +260,16 @@ export default function AboutContent({ scholarshipCount }: Props) {
                 // hold. "ทีมงาน" covers the pipeline the team builds and runs, which does
                 // check every row before the display gate lets it through.
                 //
-                // Still outstanding in this same sentence: "ไม่นำทุนที่ยังไม่ผ่านการยืนยัน
-                // ขึ้นแสดง" / "do not surface unconfirmed information". 410 of the 491
-                // displayed are marked 'Auto-extracted (confirm deadline + link)' — the
-                // status names the confirmation as still owed. That clause is the most
-                // directly checkable statement on the page and is currently false.
+                // "ไม่นำทุนที่ยังไม่ผ่านการยืนยันขึ้นแสดง" became "ที่ข้อมูลยังไม่ครบ" for the
+                // same reason. 410 of the 491 displayed are marked 'Auto-extracted
+                // (confirm deadline + link)' — a status that names the confirmation as
+                // still owed — so a promise to withhold unconfirmed listings was false of
+                // most of the page. Incompleteness is what the gate actually withholds
+                // on, and it withholds 1,084 of the 1,575 collected.
                 headingTh: 'เฉพาะทุนที่ผ่านการตรวจสอบจากทีมงาน',
                 headingEn: 'Team-checked scholarships',
-                descTh: 'ทุกทุนในทุนดีผ่านการตรวจสอบโดยทีมงานก่อนนำขึ้นระบบ เราไม่ใช้ AI สร้างข้อมูลทุน ไม่แสดงทุนที่หมดอายุ และไม่นำทุนที่ยังไม่ผ่านการยืนยันขึ้นแสดง นี่คือสิ่งที่ทำให้ทุนดีแตกต่างจากเว็บรวมทุนทั่วไป',
-                descEn: 'Every scholarship on TunDee is checked by our team before it goes live. We do not show expired listings, and do not surface unconfirmed information. This is what sets TunDee apart from general scholarship aggregators.',
+                descTh: 'ทุกทุนในทุนดีผ่านการตรวจสอบโดยทีมงานก่อนนำขึ้นระบบ เราไม่ใช้ AI สร้างข้อมูลทุน ไม่แสดงทุนที่หมดอายุ และไม่นำทุนที่ข้อมูลยังไม่ครบขึ้นแสดง นี่คือสิ่งที่ทำให้ทุนดีแตกต่างจากเว็บรวมทุนทั่วไป',
+                descEn: 'Every scholarship on TunDee is checked by our team before it goes live. We do not show expired listings, and do not surface listings whose information is incomplete. This is what sets TunDee apart from general scholarship aggregators.',
               },
               {
                 headingTh: 'ระบบจับคู่ที่เป็นธรรมสำหรับนักเรียนต่างจังหวัด',
