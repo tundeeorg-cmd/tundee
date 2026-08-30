@@ -140,7 +140,7 @@ export default async function OGImage() {
             marginBottom: 44,
           }}
         >
-          ฟรีทั้งหมด · ไม่มีโฆษณา · ตรวจสอบโดยคนจริงทุกทุน
+          ฟรีทั้งหมด · ไม่มีโฆษณา · ตรวจสอบโดยทีมงานทุกทุน
         </div>
 
         {/* URL pill */}

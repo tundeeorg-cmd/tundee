@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: `${SITE_URL}/start`,
     title: 'หาทุนการศึกษาที่คุณมีสิทธิ์ ใน 2 นาที',
-    description: 'ฟรีทั้งหมด ไม่มีโฆษณา ไม่มีข้อมูลหมดอายุ • ตรวจสอบโดยคนจริงทุกทุน',
+    description: 'ฟรีทั้งหมด ไม่มีโฆษณา ไม่มีข้อมูลหมดอายุ • ตรวจสอบโดยทีมงานทุกทุน',
     siteName: 'TunDee ทุนดี',
     locale: 'th_TH',
     // og:image is auto-resolved from opengraph-image.tsx (1200×630 PNG)
@@ -80,6 +80,7 @@ export default async function StartPage({
     <StartLanding
       adParams={adParams}
       scholarshipCount={stats.ok ? stats.scholarships : null}
+      funderCount={stats.ok ? stats.funders : null}
       registeredCount={registeredCount}
       landingVariant={landingVariant}
     />

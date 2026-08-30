@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
+import VerificationMeta from '@/components/scholarships/VerificationMeta';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { logFunnelEvent } from '@/lib/research/funnel';
@@ -641,19 +642,22 @@ export default function TdScholarshipDetailPage() {
 
         {/* ── 6. FOOTER ─────────────────────────────────────────────────── */}
         <div className="px-1 space-y-2 pb-2">
-          {s.source_url && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <a
-                href={s.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-[#1B3A6B] dark:text-[#4A7FD4] hover:underline"
-              >
-                {lang === 'th' ? 'ดูประกาศทางการ' : 'View official announcement'}
-                <IcoExternal />
-              </a>
-            </div>
-          )}
+          {/* Was a single link labelled "ดูประกาศทางการ / View official announcement"
+              pointing at source_url — which is a third-party aggregator for 414 of the
+              491 displayed scholarships. It promised the funder's own announcement and
+              usually delivered an ad-supported listing site, on the page where a student
+              goes specifically to check whether this is real. The label is now decided
+              per scholarship, and the last-checked date sits beside it. */}
+          <VerificationMeta
+            lastVerified={s.last_verified}
+            sourceUrl={s.source_url}
+            applicationUrl={s.application_url}
+            applicationLink={s.application_link}
+            funder={displayFunder}
+            lang={lang as 'th' | 'en'}
+            variant="full"
+            className="justify-center"
+          />
           <p className="text-xs text-center text-[#ADADB8] dark:text-[#4A5568]">
             {lang === 'th'
               ? 'TunDee ไม่ใช่ตัวแทนของผู้ให้ทุน — กรุณาอ่านเงื่อนไขจากเว็บไซต์ทางการ'

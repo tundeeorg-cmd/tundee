@@ -18,6 +18,7 @@ import { PROVINCES_TH } from '@/lib/translations';
 import { trackPreviewSearch } from '@/lib/adTracking';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import PreviewResults from './PreviewResults';
+import TrustStrip from '@/components/trust/TrustStrip';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -44,10 +45,15 @@ type Status = 'idle' | 'loading' | 'done' | 'error';
 export default function PreviewMatcher({
   signupHref,
   registeredCount,
+  scholarshipCount,
+  funderCount,
 }: {
   signupHref: string;
   /** Resolved on the server — see lib/social/userCount.ts. Null hides the line. */
   registeredCount: number | null;
+  /** Live catalogue counts for the trust strip. Null drops that segment. */
+  scholarshipCount: number | null;
+  funderCount: number | null;
 }) {
   const [level,    setLevel]    = useState('');
   const [province, setProvince] = useState('');
@@ -179,6 +185,8 @@ export default function PreviewMatcher({
           results={results}
           signupHref={signupHref}
           registeredCount={registeredCount}
+          scholarshipCount={scholarshipCount}
+          funderCount={funderCount}
           onReset={() => { setStatus('idle'); setResults(null); }}
         />
       </div>
@@ -328,6 +336,14 @@ export default function PreviewMatcher({
       <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
         ไม่ต้องสมัครสมาชิก · เห็นผลลัพธ์ทันทีใน 10 วินาที
       </p>
+
+      {/* The scale of the catalogue, before the visitor spends anything on it. */}
+      <TrustStrip
+        scholarships={scholarshipCount}
+        funders={funderCount}
+        lang="th"
+        className="mt-2 text-center"
+      />
     </form>
   );
 }

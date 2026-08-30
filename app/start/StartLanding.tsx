@@ -25,7 +25,12 @@ const HOW_IT_WORKS = [
 ];
 
 const WHY_TUNDEE = [
-  { title: 'ตรวจสอบโดยคนจริงทุกทุน', desc: 'ไม่มีข้อมูลหมดอายุหรือข้อมูลลวง' },
+  // Was "ตรวจสอบโดยคนจริงทุกทุน" — every scholarship checked by a real person. 76 of the
+  // 491 displayed are human-verified. This is the page paid traffic lands on, so it was
+  // the most-read false claim on the site; the same wording was corrected on /about.
+  // What is true, and is the stronger point anyway, is what does not get through:
+  // 1,084 of the 1,575 collected are withheld for unresolved dates or conditions.
+  { title: 'ตรวจสอบโดยทีมงานทุกทุน', desc: 'ทุนที่ข้อมูลไม่ครบหรือหมดอายุ เราไม่แสดง' },
   { title: 'ฟรีตลอดไป', desc: 'ไม่มีโฆษณาจากผู้ให้ทุน ผลลัพธ์จึงไม่มีอคติ' },
   { title: 'ในภาษาที่คุณเข้าใจ', desc: 'ในภาษาและสำเนียงที่คุณเข้าใจจริง' },
   { title: 'สร้างเพื่อคุณ', desc: 'สร้างเพื่อคนที่ไม่เคยมีใครคอยแนะแนว' },
@@ -60,12 +65,15 @@ function CtaButton({ href, location, children }: { href: string; location: strin
 export default function StartLanding({
   adParams,
   scholarshipCount,
+  funderCount,
   landingVariant = DEFAULT_LANDING_VARIANT,
   registeredCount,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
   scholarshipCount: number | null;
+  /** Distinct funders across the displayed set — see lib/scholarships/counts.ts. */
+  funderCount: number | null;
   /** Resolved server-side against the registry (PREREG §5.8 covariate). */
   landingVariant?: string;
   /** Rounded signup count for the social-proof line; null hides it. */
@@ -138,7 +146,12 @@ export default function StartLanding({
           {copy.sub}
         </p>
 
-        <PreviewMatcher signupHref={ctaHref} registeredCount={registeredCount} />
+        <PreviewMatcher
+          signupHref={ctaHref}
+          registeredCount={registeredCount}
+          scholarshipCount={scholarshipCount}
+          funderCount={funderCount}
+        />
       </section>
 
       {/* ── B) Trust bar ─────────────────────────────────────────────────────── */}
