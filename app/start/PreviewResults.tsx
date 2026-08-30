@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { formatUserDate } from '@/lib/formatDate';
 import { getDeadlineInfo } from '@/lib/deadline';
 import { trackGateCTA, trackPreviewResults } from '@/lib/adTracking';
+import { WhyFreeCondensed } from '@/components/trust/WhyTunDeeIsFree';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 
@@ -291,6 +292,16 @@ export default function PreviewResults({
             นักเรียน {registeredCount.toLocaleString('th-TH')}+ คนใช้ TunDee หาทุนแล้ว
           </p>
         )}
+        {/* The scam question, answered where it is actually being asked.
+            A visitor at this point has seen real matched scholarships and is deciding
+            whether to hand over their details; "free" is the part that reads as a
+            warning sign in this market, so the three lines that say what TunDee takes
+            sit directly under the button rather than on a page nobody clicks through to.
+            Note this space is usually empty: the social-proof line above renders only
+            above lib/social/userCount MIN_DISPLAYABLE, which the real count is far
+            below. */}
+        <WhyFreeCondensed className="mt-4 pt-4 border-t border-[#E8ECF2] dark:border-[#1A2E4A]" />
+
         <button
           type="button"
           onClick={onReset}

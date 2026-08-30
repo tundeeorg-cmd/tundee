@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
+import WhyTunDeeIsFree from '@/components/trust/WhyTunDeeIsFree';
+import VerificationProcess from '@/components/trust/VerificationProcess';
 
 interface Props {
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
@@ -29,11 +31,10 @@ export default function AboutContent({ scholarshipCount }: Props) {
             style={{
               fontSize: 'clamp(2.5rem, 5vw, 4rem)',
               fontWeight: 300,
-              color: '#0A2342',
               lineHeight: th ? 1.3 : 1.15,
               fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
             }}
-            className="mb-6 dark:text-[#E8EDF5]"
+            className="mb-6 text-[#0A2342] dark:text-[#E8EDF5]"
           >
             {th ? (
               <>
@@ -51,12 +52,11 @@ export default function AboutContent({ scholarshipCount }: Props) {
           <p
             style={{
               fontSize: '1.0625rem',
-              color: '#6E7A8A',
               lineHeight: 1.8,
               maxWidth: '520px',
               fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
             }}
-            className="mb-10 dark:text-[#7A8FA8]"
+            className="mb-10 text-[#6E7A8A] dark:text-[#7A8FA8]"
           >
             {th
               ? (countLabel
@@ -103,11 +103,10 @@ export default function AboutContent({ scholarshipCount }: Props) {
             style={{
               fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)',
               fontWeight: 300,
-              color: '#0A2342',
               lineHeight: th ? 1.4 : 1.2,
               fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
             }}
-            className="mb-8 dark:text-[#E8EDF5]"
+            className="mb-8 text-[#0A2342] dark:text-[#E8EDF5]"
           >
             {th ? (
               <>
@@ -125,12 +124,11 @@ export default function AboutContent({ scholarshipCount }: Props) {
           <div
             style={{
               fontSize: '1rem',
-              color: '#6E7A8A',
               lineHeight: 1.85,
               maxWidth: '600px',
               fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
             }}
-            className="space-y-5 dark:text-[#7A8FA8]"
+            className="space-y-5 text-[#6E7A8A] dark:text-[#7A8FA8]"
           >
             <p>
               {th
@@ -166,10 +164,9 @@ export default function AboutContent({ scholarshipCount }: Props) {
             style={{
               fontSize: '2rem',
               fontWeight: 300,
-              color: '#0A2342',
               fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
             }}
-            className="mb-10 dark:text-[#E8EDF5]"
+            className="mb-10 text-[#0A2342] dark:text-[#E8EDF5]"
           >
             {th ? 'ง่ายกว่าที่คิด' : 'Simpler than you think'}
           </h2>
@@ -226,11 +223,10 @@ export default function AboutContent({ scholarshipCount }: Props) {
                   <p
                     style={{
                       fontSize: '14px',
-                      color: '#6E7A8A',
                       lineHeight: 1.75,
                       fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif',
                     }}
-                    className="dark:text-[#7A8FA8]"
+                    className="text-[#6E7A8A] dark:text-[#7A8FA8]"
                   >
                     {th ? step.descTh : step.descEn}
                   </p>
@@ -251,8 +247,8 @@ export default function AboutContent({ scholarshipCount }: Props) {
             {th ? 'ทำไมต้อง TunDee' : 'WHY TUNDEE'}
           </p>
           <h2
-            style={{ fontSize: '2rem', fontWeight: 300, color: '#0A2342', fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}
-            className="mb-10 dark:text-[#E8EDF5]"
+            style={{ fontSize: '2rem', fontWeight: 300, fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}
+            className="mb-10 text-[#0A2342] dark:text-[#E8EDF5]"
           >
             {th ? 'ไม่ใช่แค่การค้นหา' : 'More than just a search'}
           </h2>
@@ -287,7 +283,7 @@ export default function AboutContent({ scholarshipCount }: Props) {
                 <p className="mb-1" style={{ fontSize: '15px', fontWeight: 500, color: '#0A2342', fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }}>
                   <span className="dark:text-[#E8EDF5]">{th ? point.headingTh : point.headingEn}</span>
                 </p>
-                <p style={{ fontSize: '14px', color: '#6E7A8A', lineHeight: 1.75, fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }} className="dark:text-[#7A8FA8]">
+                <p style={{ fontSize: '14px', lineHeight: 1.75, fontFamily: th ? 'Sarabun, system-ui, sans-serif' : 'var(--font-lato), Lato, system-ui, sans-serif' }} className="text-[#6E7A8A] dark:text-[#7A8FA8]">
                   {th ? point.descTh : point.descEn}
                 </p>
               </div>
@@ -296,7 +292,15 @@ export default function AboutContent({ scholarshipCount }: Props) {
         </div>
       </section>
 
-      {/* ── SECTION 5: FINAL CTA ── */}
+      {/* ── SECTION 5: WHY TUNDEE IS FREE ──
+           Placed after the pillars and before the CTA: the visitor has just been told
+           what TunDee does well, and the next question is what it costs them. */}
+      <WhyTunDeeIsFree />
+
+      {/* ── SECTION 6: HOW EACH SCHOLARSHIP IS CHECKED ── */}
+      <VerificationProcess />
+
+      {/* ── SECTION 7: FINAL CTA ── */}
       <section className="bg-[#0A2342] px-6 py-20 text-center">
         <h2
           style={{
