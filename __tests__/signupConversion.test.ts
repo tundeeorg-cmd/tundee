@@ -16,6 +16,8 @@ import {
   readSignupConversion,
   expireSignupConversionCookie,
   isSignupConversionMethod,
+  isFirstSignIn,
+  FIRST_SIGN_IN_WINDOW_MS,
 } from '@/lib/analytics/signupConversion';
 
 describe('readSignupConversion', () => {
@@ -77,5 +79,46 @@ describe('isSignupConversionMethod', () => {
     for (const v of ['', 'apple', 'GOOGLE', null, undefined, 1, {}]) {
       expect(isSignupConversionMethod(v)).toBe(false);
     }
+  });
+});
+
+describe('isFirstSignIn', () => {
+  const created = '2026-08-30T10:00:00.000Z';
+  const plus = (ms: number) => new Date(Date.parse(created) + ms).toISOString();
+
+  it('is true on the sign-in that created the account', () => {
+    expect(isFirstSignIn(created, created)).toBe(true);
+    expect(isFirstSignIn(created, plus(1200))).toBe(true);
+  });
+
+  it('is true when nothing has stamped last_sign_in_at yet', () => {
+    expect(isFirstSignIn(created, null)).toBe(true);
+    expect(isFirstSignIn(created, undefined)).toBe(true);
+  });
+
+  it('is false for a returning user, which is what stops re-reporting', () => {
+    expect(isFirstSignIn(created, plus(3 * 24 * 3600_000))).toBe(false);
+    expect(isFirstSignIn(created, plus(FIRST_SIGN_IN_WINDOW_MS + 1))).toBe(false);
+  });
+
+  it('treats the boundary as already returning', () => {
+    expect(isFirstSignIn(created, plus(FIRST_SIGN_IN_WINDOW_MS))).toBe(false);
+    expect(isFirstSignIn(created, plus(FIRST_SIGN_IN_WINDOW_MS - 1))).toBe(true);
+  });
+
+  it('does not report when the timestamps are unusable', () => {
+    expect(isFirstSignIn(null, created)).toBe(false);
+    expect(isFirstSignIn(undefined, created)).toBe(false);
+    expect(isFirstSignIn('not a date', created)).toBe(false);
+  });
+
+  it('reports when only last_sign_in_at is unparseable', () => {
+    // created_at is sound, so the account is real; the missing half of the
+    // comparison should not silently drop a genuine signup.
+    expect(isFirstSignIn(created, 'garbage')).toBe(true);
+  });
+
+  it('is symmetric, so clock skew either way cannot drop a signup', () => {
+    expect(isFirstSignIn(created, plus(-1200))).toBe(true);
   });
 });
