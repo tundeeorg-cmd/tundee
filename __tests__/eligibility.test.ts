@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { isEligible } from '@/lib/recommender/eligibility';
 import { classifyProtectedGroup } from '@/lib/recommender/reranker';
 import { previewCompletesProfile } from '@/lib/preview/types';
+import { filterForUnknownGpa, UNKNOWN_GPA_SENTINEL } from '@/lib/recommender/unknownGpa';
 import type { RecommenderProfile } from '@/lib/recommender/types';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 
@@ -91,5 +92,45 @@ describe('previewCompletesProfile', () => {
 
   it('rejects a missing preview', () => {
     expect(previewCompletesProfile(null)).toBe(false);
+  });
+});
+
+describe('filterForUnknownGpa', () => {
+  const gated   = { ...capped(null), scholarship_id: 'GATED', min_gpa: 3.0 } as TdScholarship;
+  const gated35 = { ...capped(null), scholarship_id: 'HIGH',  min_gpa: 3.5 } as TdScholarship;
+  const open    = { ...capped(null), scholarship_id: 'OPEN',  min_gpa: null } as TdScholarship;
+  const zero    = { ...capped(null), scholarship_id: 'ZERO',  min_gpa: 0 } as TdScholarship;
+  const all     = [gated, gated35, open, zero];
+
+  it('withholds every GPA-gated award when no GPA was declared', () => {
+    // The old default of 3.0 admitted the 3.0 award on a grade nobody gave.
+    expect(filterForUnknownGpa(all, null).map(r => r.scholarship_id))
+      .toEqual(['OPEN', 'ZERO']);
+  });
+
+  it('changes nothing once a GPA is known, however low', () => {
+    expect(filterForUnknownGpa(all, 1.0)).toEqual(all);
+    expect(filterForUnknownGpa(all, 4.0)).toEqual(all);
+  });
+
+  it('treats a zero minimum as no minimum', () => {
+    expect(filterForUnknownGpa([zero], null)).toEqual([zero]);
+  });
+
+  it('adding a GPA can only reveal more, never fewer', () => {
+    const unknown = filterForUnknownGpa(all, null).length;
+    for (const g of [1.0, 2.0, 3.0, 3.5, 4.0]) {
+      expect(filterForUnknownGpa(all, g).length).toBeGreaterThanOrEqual(unknown);
+    }
+  });
+
+  it('pairs with a sentinel that cannot trip the engine GPA test', () => {
+    // The filter removes everything with a minimum, so the sentinel is only
+    // ever compared against awards that have none. It must still be the top of
+    // the scale, or an unfiltered caller would silently disqualify students.
+    expect(UNKNOWN_GPA_SENTINEL).toBe(4);
+    for (const r of filterForUnknownGpa(all, null)) {
+      expect(isEligible(r, profile({ gpa: UNKNOWN_GPA_SENTINEL }), NOW).eligible).toBe(true);
+    }
   });
 });

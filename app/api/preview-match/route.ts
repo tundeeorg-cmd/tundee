@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import { recommend } from '@/lib/recommender/recommend';
 import type { RecommenderProfile } from '@/lib/recommender/types';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
+import { filterForUnknownGpa, UNKNOWN_GPA_SENTINEL } from '@/lib/recommender/unknownGpa';
 import {
   parsePreviewInput,
   encodePreviewInput,
@@ -78,19 +79,6 @@ function rateLimited(ip: string): boolean {
 
 // ── Profile construction ──────────────────────────────────────────────────────
 
-/**
- * With no GPA on file, a scholarship carrying a min_gpa cannot honestly be
- * shown as a match — we do not know whether the visitor clears the bar.
- *
- * These are excluded rather than optimistically included, so the count the
- * visitor is shown is a floor and never an overclaim. Adding a GPA can only
- * ever reveal MORE scholarships, never fewer, which is also the honest
- * incentive to fill the optional field in.
- */
-function filterForUnknownGpa(rows: TdScholarship[], gpa: number | null): TdScholarship[] {
-  if (gpa !== null) return rows;
-  return rows.filter(r => !r.min_gpa || Number(r.min_gpa) <= 0);
-}
 
 /**
  * Builds a recommender profile from the preview answers.
@@ -103,7 +91,8 @@ function filterForUnknownGpa(rows: TdScholarship[], gpa: number | null): TdSchol
  *
  * GPA, when not given, is passed as 4.0 so the recommender's `profile.gpa <
  * min_gpa` test never fires. Scholarships that actually carry a min_gpa are
- * then removed separately in filterForUnknownGpa() — passing a top grade here
+ * then removed separately by filterForUnknownGpa() in lib/recommender/unknownGpa
+ * — passing a top grade here
  * and filtering there keeps the "unknown GPA" rule in one obvious place rather
  * than pretending the visitor is a straight-A student.
  */
@@ -112,7 +101,7 @@ function buildProfile(input: PreviewInput): RecommenderProfile {
     user_id:               'anonymous-preview',
     province_id:           input.province,
     income_bracket:        input.income,
-    gpa:                   input.gpa ?? 4,
+    gpa:                   input.gpa ?? UNKNOWN_GPA_SENTINEL,
     grade_level:           input.level,
     fields_of_interest:    [],
     welfare_card:          false,
