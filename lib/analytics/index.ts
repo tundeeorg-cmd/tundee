@@ -27,9 +27,28 @@ import * as meta from './meta';
 import * as tiktok from './tiktok';
 import * as ga from './ga';
 import { hasAnalyticsConsent } from './consent';
+import { detectInAppBrowser } from '@/lib/browser/inAppBrowser';
 
 export { gpaBand, signupMethodFrom } from './meta';
-export type SignupMethod = 'google' | 'line' | 'email';
+export type { BrowserContext } from './meta';
+export type SignupMethod = 'google' | 'line' | 'password' | 'email';
+
+/**
+ * Which browser this event is happening in, resolved once per call.
+ *
+ * Every funnel event carries it. The question the ad data has to answer is a
+ * ratio — of the visitors who reach the signup gate inside a Facebook webview,
+ * what share create an account, versus visitors in a real browser — and a flag
+ * on the conversion alone gives a numerator with no denominator.
+ *
+ * Computed here rather than passed in by call sites: it is a property of the
+ * environment, not of the event, and a call site that forgets it is how a
+ * breakdown silently goes half-empty.
+ */
+function browserContext(): meta.BrowserContext {
+  const iab = detectInAppBrowser();
+  return { inWebview: iab.isInApp, app: iab.app };
+}
 
 /**
  * One consent check for the whole fan-out. The adapters re-check individually —
@@ -57,9 +76,10 @@ export function search(input: {
   // Bucket the GPA once, here, so no platform ever receives a precise academic
   // record — see gpaBand in ./meta.
   const band = meta.gpaBand(input.gpa);
+  const browser = browserContext();
 
-  meta.trackSearch(input);
-  tiktok.trackSearch({ educationLevel: input.educationLevel, gpa_band: band, province: input.province });
+  meta.trackSearch({ ...input, browser });
+  tiktok.trackSearch({ educationLevel: input.educationLevel, gpa_band: band, province: input.province, browser });
   ga.trackSearch({ educationLevel: input.educationLevel, gpa_band: band, province: input.province });
 }
 
@@ -70,17 +90,19 @@ export function viewContent(input: {
   numItems?: number;
 }): void {
   if (!allowed()) return;
-  meta.trackViewContent(input);
-  tiktok.trackViewContent(input);
+  const browser = browserContext();
+  meta.trackViewContent({ ...input, browser });
+  tiktok.trackViewContent({ ...input, browser });
   ga.trackViewContent(input);
 }
 
 /** Pre-account intent — the visitor reached the signup gate. */
 export function lead(input: { location: string }): void {
   if (!allowed()) return;
-  meta.trackLead(input);
-  tiktok.trackLead(input);
-  ga.trackLead(input);
+  const browser = browserContext();
+  meta.trackLead({ ...input, browser });
+  tiktok.trackLead({ ...input, browser });
+  ga.trackLead({ ...input, browser });
 }
 
 /**
@@ -92,17 +114,28 @@ export function lead(input: { location: string }): void {
  */
 export function initiateCheckout(input: { location: string; numItems?: number }): void {
   if (!allowed()) return;
-  meta.trackInitiateCheckout(input);
-  tiktok.trackInitiateCheckout(input);
+  const browser = browserContext();
+  meta.trackInitiateCheckout({ ...input, browser });
+  tiktok.trackInitiateCheckout({ ...input, browser });
   ga.trackInitiateCheckout(input);
 }
 
-/** A real, completed signup. Never fire this optimistically. */
-export function completeRegistration(method: SignupMethod): void {
+/**
+ * A real, completed signup. Never fire this optimistically.
+ *
+ * `browser` is passed in rather than sniffed here, because the account may have
+ * been created in a DIFFERENT browser from the one now firing the pixel — a
+ * visitor who escaped a webview into Chrome converts in Chrome, and recording
+ * "not a webview" would hide the very path this change exists to measure. The
+ * server route that created the account records the browser it saw and hands it
+ * back through the conversion cookie.
+ */
+export function completeRegistration(method: SignupMethod, browser?: meta.BrowserContext): void {
   if (!allowed()) return;
-  meta.trackCompleteRegistration({ method });
-  tiktok.trackCompleteRegistration({ method });
-  ga.trackCompleteRegistration({ method });
+  const ctx = browser ?? browserContext();
+  meta.trackCompleteRegistration({ method, browser: ctx });
+  tiktok.trackCompleteRegistration({ method, browser: ctx });
+  ga.trackCompleteRegistration({ method, browser: ctx });
 }
 
 /** The visitor clicked through to a funder's external application form. */

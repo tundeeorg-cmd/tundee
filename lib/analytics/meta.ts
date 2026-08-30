@@ -30,6 +30,31 @@ export type MetaEventName =
   | 'CompleteRegistration'
   | 'SubmitApplication';
 
+/** How an account was created. 'email' is the retired magic-link flow. */
+export type SignupMethod = 'google' | 'line' | 'password' | 'email';
+
+/**
+ * Which browser the event happened in.
+ *
+ * Attached to every funnel event, not just the conversion, because the question
+ * it answers is a RATIO: what share of webview visitors who reach the gate go on
+ * to create an account, versus real-browser visitors. Tagging only the
+ * conversion would give a numerator with no denominator.
+ */
+export interface BrowserContext {
+  inWebview: boolean;
+  app: string | null;
+}
+
+/** Flattened onto every event's params under stable, greppable names. */
+export function browserParams(ctx?: BrowserContext): Record<string, unknown> {
+  if (!ctx) return {};
+  return {
+    in_app_browser: ctx.inWebview,
+    in_app_app:     ctx.app ?? 'none',
+  };
+}
+
 /**
  * Events mirrored to the Conversions API. PageView/Search/ViewContent are
  * high-volume and low-value server-side; the three conversions are what ad
@@ -176,15 +201,19 @@ export function gpaBand(gpa: number): string {
   return '3.50_4.00';
 }
 
-/** Which one-tap method created the account, for the CompleteRegistration param. */
+/** Which method created the account, for the CompleteRegistration param. */
 export function signupMethodFrom(
   appMetadataProvider?: string | null,
   userMetadataProvider?: string | null,
-): 'google' | 'line' | 'email' {
+): SignupMethod {
   // The LINE bridge (app/api/auth/line/callback) marks its users in
   // user_metadata; Supabase itself reports them as email-provider accounts.
+  // The password route marks its own the same way, for the same reason.
   if (userMetadataProvider === 'line') return 'line';
   if (appMetadataProvider === 'google') return 'google';
+  if (userMetadataProvider === 'password') return 'password';
+  // Accounts created by the magic-link flow that password auth replaced. They
+  // still exist and still sign in, so this is not dead code.
   return 'email';
 }
 
@@ -198,6 +227,7 @@ export function trackSearch(input: {
   educationLevel: string;
   gpa: number;
   province: string;
+  browser?: BrowserContext;
 }): void {
   send('Search', {
     search_string:   'scholarship_match',
@@ -205,6 +235,7 @@ export function trackSearch(input: {
     education_level: input.educationLevel,
     gpa_band:        gpaBand(input.gpa),
     province:        input.province,
+    ...browserParams(input.browser),
   });
 }
 
@@ -212,18 +243,24 @@ export function trackViewContent(input: {
   contentIds: string[];
   contentName?: string;
   numItems?: number;
+  browser?: BrowserContext;
 }): void {
   send('ViewContent', {
     content_type: 'scholarship',
     content_ids:  input.contentIds,
     ...(input.contentName ? { content_name: input.contentName } : {}),
     ...(input.numItems != null ? { num_items: input.numItems } : {}),
+    ...browserParams(input.browser),
   });
 }
 
 /** Pre-account intent — the visitor reached the signup gate. */
-export function trackLead(input: { location: string }): void {
-  send('Lead', { content_category: 'signup_gate', content_name: input.location });
+export function trackLead(input: { location: string; browser?: BrowserContext }): void {
+  send('Lead', {
+    content_category: 'signup_gate',
+    content_name:     input.location,
+    ...browserParams(input.browser),
+  });
 }
 
 /**
@@ -234,16 +271,35 @@ export function trackLead(input: { location: string }): void {
  * learning; InitiateCheckout adds the funnel step Meta reports on separately. The two
  * carry different eventIDs, so CAPI dedup treats them as the distinct events they are.
  */
-export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
+export function trackInitiateCheckout(input: {
+  location: string;
+  numItems?: number;
+  browser?: BrowserContext;
+}): void {
   send('InitiateCheckout', {
     content_category: 'signup_gate',
     content_name:     input.location,
     ...(input.numItems !== undefined ? { num_items: input.numItems } : {}),
+    ...browserParams(input.browser),
   });
 }
 
-export function trackCompleteRegistration(input: { method: 'google' | 'line' | 'email' }): void {
-  send('CompleteRegistration', { method: input.method, status: true });
+/**
+ * `method` and `auth_method` carry the same value. `method` is the name the
+ * existing ad-set rules and saved reports already reference; `auth_method` is
+ * the unambiguous one to build new breakdowns on. Dropping `method` would break
+ * reports that are live right now.
+ */
+export function trackCompleteRegistration(input: {
+  method: SignupMethod;
+  browser?: BrowserContext;
+}): void {
+  send('CompleteRegistration', {
+    method:      input.method,
+    auth_method: input.method,
+    status:      true,
+    ...browserParams(input.browser),
+  });
 }
 
 export function trackSubmitApplication(input: { scholarshipId: string }): void {

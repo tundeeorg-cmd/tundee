@@ -36,6 +36,10 @@ interface TrackedRow {
 interface Profile {
   line_user_id: string | null;
   line_linked_at: string | null;
+  /** Student asked for deadline reminders by email. Off until they ask. */
+  email_reminders_opt_in: boolean | null;
+  /** When they confirmed the address. NULL blocks reminder mail, nothing else. */
+  email_verified_at: string | null;
 }
 
 const LINE_ERROR_MESSAGES: Record<string, { th: string; en: string }> = {
@@ -179,6 +183,73 @@ function LineSection({ profile, lang, onUnlink }: { profile: Profile | null; lan
             {lang === 'th' ? 'เชื่อมต่อ LINE' : 'Connect LINE'}
           </a>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Email reminder opt-in ────────────────────────────────────────────────────
+
+/**
+ * The only control in the product that causes a verification email to be sent.
+ *
+ * Signup sends nothing: an account is created and signed in with no email round
+ * trip, because every send is a step where a student in a Facebook webview
+ * leaves the browser and does not come back. Verification is deferred to the
+ * one moment it actually matters — when someone asks us to mail them — and the
+ * copy says plainly that declining costs them nothing else.
+ */
+function EmailReminderSection({
+  profile, lang, onChange,
+}: {
+  profile: Profile | null;
+  lang: string;
+  onChange: (optIn: boolean) => void;
+}) {
+  const optedIn  = !!profile?.email_reminders_opt_in;
+  const verified = !!profile?.email_verified_at;
+
+  const status = !optedIn
+    ? (lang === 'th'
+        ? 'เปิดเพื่อรับแจ้งเตือนทางอีเมลก่อนทุนหมดเขต'
+        : 'Turn on to get an email before your deadlines')
+    : verified
+      ? (lang === 'th'
+          ? 'เปิดอยู่ — จะส่งอีเมลแจ้งเตือนก่อนหมดเขต 7 วัน'
+          : 'On — we email you 7 days before a deadline')
+      : (lang === 'th'
+          ? 'เราส่งอีเมลยืนยันไปให้แล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน'
+          : 'Check your inbox and tap the link to start receiving reminders');
+
+  return (
+    <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 mb-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#1B3A6B] flex items-center justify-center shrink-0" aria-hidden>
+            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-white" strokeWidth="2">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m2 7 10 6 10-6" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#1D1D1F] dark:text-white">
+              {lang === 'th' ? 'แจ้งเตือนทางอีเมล' : 'Email reminders'}
+            </p>
+            <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">{status}</p>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            checked={optedIn}
+            onChange={e => onChange(e.target.checked)}
+            className="w-5 h-5 rounded accent-[#1B3A6B] focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+          />
+          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+            {lang === 'th' ? 'เปิด' : 'On'}
+          </span>
+        </label>
       </div>
     </div>
   );
@@ -391,11 +462,54 @@ export default function TrackerPage() {
     if (p.get('line_connected') === '1') {
       setLineMsg(lang === 'th' ? 'เชื่อมต่อ LINE สำเร็จ!' : 'LINE connected successfully!');
       window.history.replaceState({}, '', '/tracker');
+    } else if (p.get('verify') === 'ok') {
+      setLineMsg(lang === 'th' ? 'ยืนยันอีเมลแล้ว เราจะแจ้งเตือนก่อนทุนหมดเขต' : 'Email confirmed — we will remind you before your deadlines.');
+      window.history.replaceState({}, '', '/tracker');
+    } else if (p.get('verify') === 'failed') {
+      setLineMsg(lang === 'th'
+        ? 'ลิงก์ยืนยันหมดอายุหรือไม่ถูกต้อง กรุณาเปิดการแจ้งเตือนอีกครั้งเพื่อขอลิงก์ใหม่'
+        : 'That confirmation link is expired or invalid. Toggle email reminders again for a new one.');
+      window.history.replaceState({}, '', '/tracker');
     } else if (p.get('line_error')) {
       const code = p.get('line_error')!;
       const msg = LINE_ERROR_MESSAGES[code] ?? { th: 'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองใหม่', en: 'LINE connection failed — please try again.' };
       setLineMsg(lang === 'th' ? msg.th : msg.en);
       window.history.replaceState({}, '', '/tracker');
+    }
+  }, [lang]);
+
+  /**
+   * Opt in or out of email deadline reminders.
+   *
+   * Optimistic, because the checkbox has to feel instant, and reconciled from
+   * the response: the server decides whether a verification email was actually
+   * sent, and a LINE account with a synthetic address gets none.
+   */
+  const handleEmailReminders = useCallback(async (optIn: boolean) => {
+    setProfile(p => p ? { ...p, email_reminders_opt_in: optIn } : p);
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ optIn }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error ?? 'save_failed');
+
+      if (optIn && body?.verificationSent) {
+        setToast(lang === 'th'
+          ? 'ส่งอีเมลยืนยันแล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน'
+          : 'Verification email sent — tap the link to start receiving reminders');
+      } else if (optIn && body?.reason === 'no_address') {
+        setToast(lang === 'th'
+          ? 'บัญชีนี้ยังไม่มีอีเมลที่ส่งได้ ใช้แจ้งเตือนทาง LINE แทนได้เลย'
+          : 'This account has no deliverable email address — use LINE reminders instead');
+      }
+    } catch {
+      // Put the checkbox back rather than leaving it showing a state the server
+      // never accepted.
+      setProfile(p => p ? { ...p, email_reminders_opt_in: !optIn } : p);
+      setToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Could not save — please try again');
     }
   }, [lang]);
 
@@ -411,7 +525,7 @@ export default function TrackerPage() {
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
-        .select('line_user_id, line_linked_at')
+        .select('line_user_id, line_linked_at, email_reminders_opt_in, email_verified_at')
         .eq('id', userId)
         .maybeSingle(),
     ]);
@@ -618,6 +732,9 @@ export default function TrackerPage() {
 
         {/* LINE connect */}
         <LineSection profile={profile} lang={lang} onUnlink={handleUnlink} />
+
+        {/* Email reminders — the one place verification mail originates */}
+        <EmailReminderSection profile={profile} lang={lang} onChange={handleEmailReminders} />
 
         {/* Empty state */}
         {rows.length === 0 && (
