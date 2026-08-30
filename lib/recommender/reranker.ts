@@ -62,7 +62,13 @@ export function classifyProtectedGroup(
   const derived  = declared ? '' : (regionGroupFromProvince(profile.province_id) ?? '');
 
   const isTargetedRegion = DISADVANTAGED_REGIONS.has(declared || derived);
-  const isLowIncome      = profile.income_bracket <= 3;
+  // Explicit null check, because `null <= 3` is true in JavaScript and would
+  // classify every unknown-income student as low-income. The pre-registered
+  // definition is a declared bracket at or below 3 — lib/research/assignment.ts
+  // already returns false for null — and this keeps the two in step. It also
+  // preserves what happens today: the caller substituted bracket 4, which was
+  // never <= 3, so no live classification changes here.
+  const isLowIncome      = profile.income_bracket != null && profile.income_bracket <= 3;
   return (isTargetedRegion && isLowIncome) ? 'disadvantaged' : 'advantaged';
 }
 

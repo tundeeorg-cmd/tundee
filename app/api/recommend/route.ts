@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
   const profile: RecommenderProfile = {
     user_id:               user.id,
     province_id:           profileRow?.province ?? '',
-    income_bracket:        Number(profileRow?.income_bracket ?? 4),
+    // Pass the gap through instead of filling it. Substituting 4 put a
+    // middle-income bracket on students who never gave one — the same
+    // assumption /start was corrected for on 29 Aug — and it decided real
+    // eligibility: bracket 4 is ruled out of 8 of the 14 capped scholarships.
+    income_bracket:        profileRow?.income_bracket == null
+                             ? null
+                             : Number(profileRow.income_bracket),
     gpa:                   parseFloat(String(profileRow?.gpa ?? '3.0')),
     grade_level:           profileRow?.grade_level ?? '',
     fields_of_interest:    (profileRow?.fields_of_interest as string[] | null) ?? [],

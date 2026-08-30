@@ -29,7 +29,14 @@ export interface RecommenderProfile {
 
   // From profiles table
   province_id: string;         // Thai province name, e.g. 'เชียงใหม่'
-  income_bracket: number;      // 1–7 (mapped to monthly THB ceilings)
+  /**
+   * 1–7, or null when the student has not told us. Null is a real state: a
+   * profile written by the auth callback before /start asked for income has
+   * one, and so does every account that stops partway through the wizard.
+   * Typed as non-null it was not safer, only quieter — callers substituted a
+   * middle bracket and the guesses reached scoring as if declared.
+   */
+  income_bracket: number | null;
   gpa: number;
   grade_level: string;         // 'M4'|'M5'|'M6'|'uni'|'graduate'
   fields_of_interest: string[];
