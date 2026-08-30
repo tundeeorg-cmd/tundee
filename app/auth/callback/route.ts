@@ -15,6 +15,7 @@ import {
   SIGNUP_CONVERSION_COOKIE,
   SIGNUP_CONVERSION_MAX_AGE_SECONDS,
   type SignupConversionMethod,
+  isFirstSignIn,
 } from '@/lib/analytics/signupConversion'
 
 /**
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
  */
 interface ResolvedRedirect {
   path: string
-  /** Set ONLY on the wizard-skip branch; app/profile/setup fires its own event. */
+  /** Set whenever this callback created the account, on every branch. */
   signupMethod?: SignupConversionMethod
 }
 
@@ -160,6 +161,19 @@ async function resolveRedirect(
 
     // (last_active_at removed column does not exist in profiles table)
 
+    /**
+     * The account exists as of this request, so the registration is complete —
+     * whatever the visitor does with the wizard next. Computed once here and
+     * attached to every branch below, because the branch taken says something
+     * about onboarding, not about whether a signup happened.
+     */
+    const signupMethod = isFirstSignIn(user.created_at, user.last_sign_in_at)
+      ? signupMethodFrom(
+          user.app_metadata?.provider,
+          user.user_metadata?.provider as string | undefined,
+        )
+      : undefined
+
     const jar = await cookies()
 
     // Query param first, cookie second: an email magic link opened in another
@@ -205,15 +219,7 @@ async function resolveRedirect(
       }, { onConflict: 'id' })
 
       if (!error) {
-        // The signup completed HERE — the wizard that normally reports it is
-        // being skipped, so hand the conversion to the client.
-        return {
-          path: next,
-          signupMethod: signupMethodFrom(
-            user.app_metadata?.provider,
-            user.user_metadata?.provider as string | undefined,
-          ),
-        }
+        return { path: next, signupMethod }
       }
 
       // Fall through to the wizard rather than stranding the user on a
@@ -224,12 +230,16 @@ async function resolveRedirect(
     if (incomplete) {
       const params = new URLSearchParams({ next })
       if (preview) params.set('prefill', '1')
-      // No marker: app/profile/setup fires CompleteRegistration on submit.
-      return { path: `/profile/setup?${params.toString()}` }
+      // Marked too. This is the branch that was losing the conversion: the
+      // wizard only reported on submit, and visitors who opened it and left
+      // never reported at all — 100% of them since 25 Aug.
+      return { path: `/profile/setup?${params.toString()}`, signupMethod }
     }
 
-    // A returning user with a complete profile is not a signup.
-    return { path: next }
+    // Usually a returning user, for whom signupMethod is undefined and nothing
+    // fires. It is set only if this same request created the account — someone
+    // whose profile was already written for them, who is still a new signup.
+    return { path: next, signupMethod }
   } catch {
     return { path: next }
   }

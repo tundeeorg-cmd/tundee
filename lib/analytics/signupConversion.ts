@@ -43,3 +43,41 @@ export function readSignupConversion(cookieString: string): SignupConversionMeth
 export function expireSignupConversionCookie(): string {
   return `${SIGNUP_CONVERSION_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
 }
+
+/**
+ * Is this callback the one that created the account?
+ *
+ * CompleteRegistration means "an account now exists", so it must fire once per
+ * account, at the moment of creation — not when a profile is finished. Chaining
+ * it to profile completion is what made the number meaningless: between 25 and
+ * 30 Aug 2026, eight accounts were created and not one profile was completed, so
+ * the ad platforms saw no conversions from real signups.
+ *
+ * Supabase stamps last_sign_in_at on every sign-in, so on the very first one it
+ * sits within a second or two of created_at, and on every later one it does not.
+ * That makes it a self-cleaning signal: no column to add, and no risk of an old
+ * account re-reporting itself years later.
+ *
+ * The window trades two unequal errors. Too wide re-fires only if someone signs
+ * in a second time within the window of creating the account; too narrow drops
+ * real signups on a slow round-trip. A minute is far outside normal latency and
+ * well inside "clicked the link twice", so it errs toward not duplicating.
+ */
+export const FIRST_SIGN_IN_WINDOW_MS = 60_000;
+
+export function isFirstSignIn(
+  createdAt: string | null | undefined,
+  lastSignInAt: string | null | undefined,
+  windowMs: number = FIRST_SIGN_IN_WINDOW_MS,
+): boolean {
+  if (!createdAt) return false;
+  const created = Date.parse(createdAt);
+  if (Number.isNaN(created)) return false;
+
+  // No last_sign_in_at means this is the first: nothing has stamped it yet.
+  if (!lastSignInAt) return true;
+  const signedIn = Date.parse(lastSignInAt);
+  if (Number.isNaN(signedIn)) return true;
+
+  return Math.abs(signedIn - created) < windowMs;
+}

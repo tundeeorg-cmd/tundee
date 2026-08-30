@@ -115,13 +115,17 @@ export function trackPreviewResults(matchCount: number, scholarshipIds: string[]
 }
 
 /**
- * A signup actually completed.
+ * An account was created.
  *
- * Fired from two places, which between them cover every route into an account:
- *   • components/SignupConversion.tsx — when the auth callback wrote the
- *     profile itself and skipped the wizard (the /start → signup path)
- *   • app/profile/setup — when the visitor completed the wizard
- * They are mutually exclusive by construction, so there is no double-count.
+ * One call site: components/SignupConversion.tsx, firing on the marker cookie
+ * that app/auth/callback leaves whenever that request created the account. The
+ * wizard used to fire this too, which tied the ad platforms' conversion number
+ * to finishing onboarding rather than to signing up — so eight real signups
+ * between 25 and 30 Aug 2026 reported nothing at all, because not one of them
+ * finished the wizard. Onboarding now reports profile_completed instead.
+ *
+ * Once per account: the cookie is written only on a first sign-in, and deleted
+ * as it is read.
  */
 export function trackSignupComplete(method: 'google' | 'line' | 'email' = 'email') {
   analytics.completeRegistration(method);

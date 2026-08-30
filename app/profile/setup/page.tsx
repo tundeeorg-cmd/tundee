@@ -28,8 +28,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
-import { trackSignupComplete, readAdParams } from '@/lib/adTracking';
-import { signupMethodFrom } from '@/lib/analytics';
+import { readAdParams } from '@/lib/adTracking';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
 
@@ -462,16 +461,11 @@ export default function ProfileSetupPage() {
         metadata:  { acquisition_source: acquisitionSource },
       });
 
-      // Ad-pixel conversion event — this is the real "signup complete" moment,
-      // regardless of which channel (ad or organic) brought the user in.
-      // The method lets us compare one-tap conversion against email in Ads
-      // Manager, which is the whole point of having added Google and LINE.
-      trackSignupComplete(
-        signupMethodFrom(
-          user.app_metadata?.provider,
-          user.user_metadata?.provider as string | undefined,
-        ),
-      );
+      // No CompleteRegistration here. The account was created at the auth
+      // callback and reported there, for every branch — including this one. The
+      // wizard is onboarding, not registration, and firing again would
+      // double-count the visitors who do reach the end of it. profile_completed
+      // above is the event that means "finished the wizard".
 
       // Back to wherever the funnel started — for /start traffic that's their
       // own matched results, not a generic list.
