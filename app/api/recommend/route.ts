@@ -17,6 +17,8 @@ import { createServerSupabaseClient }     from '@/lib/supabase/server';
 import { createClient }                   from '@supabase/supabase-js';
 import { recommend }                      from '@/lib/recommender/recommend';
 import type { RecommenderProfile, FairnessMode } from '@/lib/recommender/types';
+import type { TdScholarship }             from '@/lib/tdScholarships/types';
+import { filterForUnknownGpa, UNKNOWN_GPA_SENTINEL } from '@/lib/recommender/unknownGpa';
 
 export const runtime = 'nodejs';
 
@@ -56,6 +58,16 @@ export async function POST(request: NextRequest) {
   const variant     = (experimentRow?.variant as string | null) ?? 'control';
   const fairnessMode: FairnessMode = variant === 'treatment' ? 'on' : 'off';
 
+  /**
+   * The GPA the student actually gave us, or null. Anything unparseable is
+   * unknown too — a stored value we cannot read is not evidence of a grade.
+   */
+  const declaredGpa = ((): number | null => {
+    if (profileRow?.gpa == null) return null;
+    const parsed = parseFloat(String(profileRow.gpa));
+    return Number.isFinite(parsed) ? parsed : null;
+  })();
+
   // Build merged recommender profile (graceful defaults for incomplete profiles)
   const profile: RecommenderProfile = {
     user_id:               user.id,
@@ -67,7 +79,12 @@ export async function POST(request: NextRequest) {
     income_bracket:        profileRow?.income_bracket == null
                              ? null
                              : Number(profileRow.income_bracket),
-    gpa:                   parseFloat(String(profileRow?.gpa ?? '3.0')),
+    // A GPA nobody declared is not 3.0. That default admitted these students to
+    // 31 of the 34 GPA-gated scholarships on a grade we had never been told, and
+    // withheld the other 3 from students who might well clear them. The sentinel
+    // keeps the engine's `gpa < min_gpa` test from firing on an invented value;
+    // filterForUnknownGpa below is what actually applies the rule.
+    gpa:                   declaredGpa ?? UNKNOWN_GPA_SENTINEL,
     grade_level:           profileRow?.grade_level ?? '',
     fields_of_interest:    (profileRow?.fields_of_interest as string[] | null) ?? [],
     welfare_card:          Boolean(profileRow?.welfare_card),
@@ -95,9 +112,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: schError.message }, { status: 500 });
   }
 
+  // Withhold GPA-gated awards when we have no GPA on file, matching what the
+  // anonymous preview has always done. Signing in should not start showing a
+  // student matches the preview would not have claimed.
+  const candidates = filterForUnknownGpa(
+    (scholarships ?? []) as unknown as TdScholarship[],
+    declaredGpa,
+  );
+
   // Run the three-stage pipeline
   const result = recommend(
-    scholarships ?? [],
+    candidates,
     profile,
     { fairness_mode: fairnessMode, variant, limit: requestedLimit },
   );
