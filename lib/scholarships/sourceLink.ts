@@ -51,6 +51,68 @@ const REGISTRY_CONTROLLED = new RegExp(
   ].join('|'),
 );
 
+/**
+ * Hosts a person has confirmed belong to the funder.
+ *
+ * These are the ones the registry test cannot reach. chevening.org is the UK government's
+ * scholarship and ethz.ch is ETH Zurich, but no property of either URL proves it — that is
+ * knowledge, and the point of REGISTRY_CONTROLLED is that it needs none. So the knowledge
+ * lives here instead, in a list somebody actually checked, rather than being smuggled into
+ * a pattern.
+ *
+ * Reviewed 30 Aug 2026 from scripts/export_source_host_review.mjs: 42 candidate hosts, 38
+ * confirmed, 4 rejected. The rejections are the reason this is a reviewed list and not a
+ * "not a known aggregator" rule — forms.gle, docs.google.com, facebook.com and mytcas.com
+ * all appeared as candidates, and all four would have been promoted to "the funder's
+ * official announcement" by any heuristic that assumes an unrecognised host is a good one.
+ *
+ * Matched as whole hostnames, not suffixes. A suffix test would accept
+ * chevening.org.example.net; this accepts chevening.org and nothing that merely ends in it.
+ *
+ * Adding a host means someone opened it and confirmed the funder owns it. There is no way
+ * to derive an entry here, which is the property that makes the strong label trustworthy.
+ */
+const REVIEWED_FUNDER_HOSTS: ReadonlySet<string> = new Set([
+  'admissions.hku.hk',
+  'apply.stipendiumhungaricum.hu',
+  'campusfrance.org',
+  'chevening.org',
+  'connect.schwarzmanscholars.org',
+  'daad-thailand.org',
+  'dsu.toscana.it',
+  'eef-scholarship.thaijobjob.com',
+  'epfl.ch',
+  'erasmus-plus.ec.europa.eu',
+  'eria.org',
+  'esteri.it',
+  'ethz.ch',
+  'future.utoronto.ca',
+  'gatescambridge.org',
+  'grants.at',
+  'lomhaijai.org',
+  'lunduniversity.lu.se',
+  'nanmee.com',
+  'od.globaluni.ru',
+  'pao.ssk.in.th',
+  'polimi.it',
+  'princess-it.org',
+  'regist.yesthailand.info',
+  'sbfi.admin.ch',
+  'scholarship.tiscofoundation.org',
+  'sciencespo.fr',
+  'searca.org',
+  'stfhome.com',
+  'studyinnl.org',
+  'thailande.campusfrance.org',
+  'ualberta.ca',
+  'unibo.it',
+  'universiteitleiden.nl',
+  'uu.se',
+  'uwaterloo.ca',
+  'uwc.org',
+  'you.ubc.ca',
+]);
+
 export type SourceLinkKind =
   /** Verifiably the institution's own site: the strong label is honest. */
   | 'official'
@@ -73,7 +135,7 @@ export function isOfficialFunderDomain(url: string | null | undefined): boolean 
   if (!url) return false;
   try {
     const host = new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase();
-    return REGISTRY_CONTROLLED.test(host);
+    return REGISTRY_CONTROLLED.test(host) || REVIEWED_FUNDER_HOSTS.has(host);
   } catch {
     // An unparseable URL is not evidence of anything.
     return false;
