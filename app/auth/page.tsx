@@ -372,7 +372,15 @@ function AuthForm() {
       const res = await fetch('/api/auth/email-link', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: trimmed, redirectTo: callbackUrl, lang }),
+        // Consent travels in the body as well as in the cookie recordConsent() just
+        // wrote. The cookie is the weaker carrier of the two here: this request is
+        // made from inside the Facebook and TikTok webviews, where storage is
+        // routinely partitioned or dropped, and the server refuses without it. The
+        // value is honest — requireConsent() gated entry to this function, so the box
+        // is ticked.
+        body:    JSON.stringify({
+          email: trimmed, redirectTo: callbackUrl, lang, [CONSENT_PARAM]: CONSENT_VERSION,
+        }),
         signal:  controller.signal,
       });
       clearTimeout(abort);
@@ -382,7 +390,16 @@ function AuthForm() {
       // than the fallback path, precisely so it cannot be retried around.
       if (res.status === 400 && body?.error === 'consent_required') {
         setLoading(false);
-        requireConsent();
+        // If the box is unticked, requireConsent() says so and focuses it.
+        if (!requireConsent()) return;
+        // Otherwise the box IS ticked and the server still refused, which means the
+        // consent never arrived — a dropped cookie, and now a dropped body field too.
+        // Before this branch existed the function simply returned: the student tapped
+        // the button, nothing happened, and no message explained why. A dead control
+        // on the one signup path that works inside a webview.
+        setError(lang === 'th'
+          ? 'ยืนยันการยอมรับไม่สำเร็จ กรุณาลองอีกครั้ง หรือเปิดหน้านี้ในเบราว์เซอร์'
+          : 'We could not confirm your consent. Please try again, or open this page in your browser.');
         return;
       }
 
@@ -530,7 +547,15 @@ function AuthForm() {
     setLineLoading(true);
     setError('');
     recordConsent();
-    window.location.href = `/api/auth/line/start?next=${encodeURIComponent(next)}`;
+    // Consent in the query string as well as the cookie, for the same reason as the
+    // magic link above: LINE is the primary method for webview traffic, and
+    // /api/auth/line/start refuses without consent. Google already carries it —
+    // buildCallbackUrl() puts it in the OAuth redirect — so this closes the last path
+    // that depended on the cookie alone.
+    const lineStart = new URL('/api/auth/line/start', window.location.origin);
+    lineStart.searchParams.set('next', next);
+    lineStart.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
+    window.location.href = lineStart.toString();
   }
 
   // ════════════════════════════════════════════════════════════════════════════
