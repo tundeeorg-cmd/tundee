@@ -6,22 +6,29 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { roundForDisplay, MIN_DISPLAYABLE } from '@/lib/social/userCount';
+import { roundForDisplay, MIN_DISPLAYABLE, ROUND_TO } from '@/lib/social/userCount';
 import { PREVIEW_TOP_N } from '@/lib/preview/types';
 
 describe('roundForDisplay — the social-proof count', () => {
   it('rounds down, never up', () => {
-    // "74 renders as 70+". Rounding up would claim users that do not exist.
-    expect(roundForDisplay(74)).toBe(70);
-    expect(roundForDisplay(79)).toBe(70);
-    expect(roundForDisplay(80)).toBe(80);
+    // Rounding up would claim students who do not exist.
+    expect(roundForDisplay(1_340)).toBe(1_300);
+    expect(roundForDisplay(1_399)).toBe(1_300);
+    expect(roundForDisplay(1_400)).toBe(1_400);
   });
 
-  it('hides itself rather than showing a discouraging number', () => {
-    // "20+ students" argues against the product. Below the floor the caller renders
-    // nothing at all, which is the instruction: hide the line, never a placeholder.
+  it('renders nothing at all below the threshold', () => {
+    // ~70 accounts today. On a site whose problem is being mistaken for a scam, a
+    // truthful small number argues against signing up — so the caller shows no line,
+    // never a placeholder and never a padded figure.
+    expect(roundForDisplay(70)).toBeNull();
+    expect(roundForDisplay(999)).toBeNull();
     expect(roundForDisplay(MIN_DISPLAYABLE - 1)).toBeNull();
     expect(roundForDisplay(0)).toBeNull();
+  });
+
+  it('starts rendering exactly at the threshold', () => {
+    expect(roundForDisplay(MIN_DISPLAYABLE)).toBe(MIN_DISPLAYABLE);
   });
 
   it('hides when the count is unavailable', () => {
@@ -30,12 +37,18 @@ describe('roundForDisplay — the social-proof count', () => {
   });
 
   it('never returns a number the database cannot defend', () => {
-    for (const n of [23, 47, 61, 99, 100, 1234]) {
+    for (const n of [1_000, 1_001, 1_567, 2_099, 12_345]) {
       const shown = roundForDisplay(n);
       expect(shown).not.toBeNull();
       expect(shown!).toBeLessThanOrEqual(n);
-      expect(shown! % 10).toBe(0);
+      expect(shown! % ROUND_TO).toBe(0);
     }
+  });
+
+  it('keeps the threshold and the rounding as the only two knobs', () => {
+    // The brief asks for one named constant to change later; this pins that there is
+    // no second, hidden floor buried in the rounding.
+    expect(MIN_DISPLAYABLE % ROUND_TO).toBe(0);
   });
 });
 
