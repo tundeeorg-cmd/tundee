@@ -86,9 +86,41 @@ export async function GET(request: NextRequest) {
     let failed = 0;
     /** LINE accounts with no deliverable address — skipped, not failed. */
     let skippedNoRealEmail = 0;
+    /** Never asked for email reminders, or never confirmed their address. */
+    let skippedNotOptedIn = 0;
+    let skippedUnverified = 0;
     const errors: string[] = [];
 
+    /*
+     * Who has asked for email reminders AND proved they own the address.
+     *
+     * Both conditions are new, and both are the point of the change that
+     * introduced them. Signup no longer sends any mail at all, so an address is
+     * unverified until a student opts into reminders and taps the link — and
+     * mailing deadlines to addresses nobody confirmed is exactly the traffic
+     * that wrecks a sending domain's reputation.
+     *
+     * One query rather than a per-user lookup inside the loop: the loop already
+     * makes an admin call per user, and this keeps it from making two.
+     */
+    const { data: optedIn, error: optInErr } = await supabase
+      .from('profiles')
+      .select('id, email_verified_at')
+      .eq('email_reminders_opt_in', true);
+
+    if (optInErr) {
+      console.error('[send-reminders] opt-in query failed:', optInErr.message);
+      return NextResponse.json({ error: optInErr.message }, { status: 500 });
+    }
+
+    const verified = new Set(
+      (optedIn ?? []).filter(p => p.email_verified_at != null).map(p => p.id as string),
+    );
+    const optedInIds = new Set((optedIn ?? []).map(p => p.id as string));
+
     for (const [userId, userApps] of Array.from(byUser.entries())) {
+      if (!optedInIds.has(userId)) { skippedNotOptedIn++; continue; }
+      if (!verified.has(userId))   { skippedUnverified++; continue; }
       // Fetch user email from auth.users via admin API
       const { data: adminUser, error: userErr } = await supabase.auth.admin.getUserById(userId);
       if (userErr || !adminUser?.user?.email) {
@@ -215,13 +247,18 @@ export async function GET(request: NextRequest) {
 
     console.log(
       `[send-reminders] sent=${sent} failed=${failed} ` +
-      `skipped_no_real_email=${skippedNoRealEmail}`,
+      `skipped_no_real_email=${skippedNoRealEmail} ` +
+      `skipped_not_opted_in=${skippedNotOptedIn} skipped_unverified=${skippedUnverified}`,
     );
     return NextResponse.json({
       ok: true, sent, failed,
-      // Surfaced rather than swallowed: this number is the count of students the
-      // platform currently cannot reach by email at all, which is worth watching.
+      // All three surfaced rather than swallowed. Together they say how many
+      // students with a live deadline this job chose not to email and why —
+      // which after the switch to lazy verification is most of them, and is
+      // supposed to be. A silent zero would look identical to a broken cron.
       skipped_no_real_email: skippedNoRealEmail,
+      skipped_not_opted_in:  skippedNotOptedIn,
+      skipped_unverified:    skippedUnverified,
       errors: errors.slice(0, 10),
     });
 

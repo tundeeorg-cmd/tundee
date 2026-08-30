@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   inspectUserAgent,
   escapeToRealBrowserUrl,
+  buildEscapeUrl,
 } from '@/lib/browser/inAppBrowser';
 
 const UA = {
@@ -23,6 +24,10 @@ const UA = {
     'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Line/13.14.0',
   tiktok:
     'Mozilla/5.0 (Linux; Android 11; SM-A125F Build/RP1A.200720.012; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/107.0.0.0 Mobile Safari/537.36 musical_ly_2022905040 JsSdk/1.0 BytedanceWebview/d8a21c6',
+  messengerIOS:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/MessengerForiOS;FBAV/430.0.0.29.109;FBBV/510301747]',
+  messengerAndroid:
+    'Mozilla/5.0 (Linux; Android 11; SM-A125F Build/RP1A.200720.012; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/107.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/430.0.0.29.109;]',
   androidWebView:
     'Mozilla/5.0 (Linux; Android 9; ANE-LX1 Build/HUAWEIANE-L21; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.108 Mobile Safari/537.36',
   chromeAndroid:
@@ -49,6 +54,17 @@ describe('detects the apps that carry TunDee traffic', () => {
     expect(inspectUserAgent(UA.instagram).app).toBe('instagram');
     expect(inspectUserAgent(UA.line).app).toBe('line');
     expect(inspectUserAgent(UA.tiktok).app).toBe('tiktok');
+  });
+
+  it('tells Messenger apart from the rest of the Facebook app family', () => {
+    // Both Messenger UAs also carry FBAN/FB_IAB, so the generic Facebook test
+    // would swallow them if it ran first. The distinction is not cosmetic: the
+    // conversion breakdown is read per app, and Messenger silently folded into
+    // "facebook" would hide whichever of the two actually converts.
+    expect(inspectUserAgent(UA.messengerIOS).app).toBe('messenger');
+    expect(inspectUserAgent(UA.messengerAndroid).app).toBe('messenger');
+    expect(inspectUserAgent(UA.messengerIOS).googleBlocked).toBe(true);
+    expect(inspectUserAgent(UA.messengerIOS).lineAppToAppBlocked).toBe(true);
   });
 
   it('falls back to a generic webview marker', () => {
@@ -97,11 +113,43 @@ describe('googleBlocked marks every embedded webview', () => {
   });
 });
 
+describe('lineAppToAppBlocked exempts LINE\'s own browser', () => {
+  it('is true in every third-party webview', () => {
+    for (const ua of [UA.facebookIOS, UA.messengerIOS, UA.instagram, UA.tiktok, UA.androidWebView]) {
+      expect(inspectUserAgent(ua).lineAppToAppBlocked, ua).toBe(true);
+    }
+  });
+
+  it('is false inside LINE, where app-to-app login works', () => {
+    // LINE documents auto login as working from its own in-app browser. Treating
+    // it like Facebook's would demote the LINE button in the one embedded
+    // browser where it is genuinely one tap.
+    expect(inspectUserAgent(UA.line).lineAppToAppBlocked).toBe(false);
+    expect(inspectUserAgent(UA.line).isInApp).toBe(true);
+  });
+
+  it('is false in a real browser', () => {
+    for (const ua of [UA.chromeAndroid, UA.safariIOS, UA.desktopChrome]) {
+      expect(inspectUserAgent(ua).lineAppToAppBlocked, ua).toBe(false);
+    }
+  });
+});
+
 describe('escapeToRealBrowserUrl', () => {
   it('builds a Chrome intent URL on Android', () => {
     const url = escapeToRealBrowserUrl('https://www.tundee.org/auth?from=signup', 'android');
-    expect(url).toBe(
-      'intent://www.tundee.org/auth?from=signup#Intent;scheme=https;package=com.android.chrome;end',
+    expect(url).toContain('intent://www.tundee.org/auth?from=signup#Intent;');
+    expect(url).toContain('scheme=https');
+    expect(url).toContain('package=com.android.chrome');
+  });
+
+  it('always carries a browser_fallback_url', () => {
+    // Without it, a handset with no Chrome installed follows the intent into
+    // nothing at all — a dead tap on the escape hatch, which is the one control
+    // on the page a stuck student is most likely to reach for.
+    const url = escapeToRealBrowserUrl('https://www.tundee.org/auth?from=signup', 'android');
+    expect(url).toContain(
+      `S.browser_fallback_url=${encodeURIComponent('https://www.tundee.org/auth?from=signup')}`,
     );
   });
 
@@ -114,5 +162,40 @@ describe('escapeToRealBrowserUrl', () => {
 
   it('returns null rather than throwing on a malformed URL', () => {
     expect(escapeToRealBrowserUrl('not a url', 'android')).toBeNull();
+  });
+});
+
+describe('buildEscapeUrl carries the guest session across browsers', () => {
+  const CURRENT = 'https://www.tundee.org/auth?from=signup&utm_campaign=fb_isan';
+
+  it('puts the preview answers in the query string', () => {
+    // Chrome and the Facebook webview have separate cookie jars, so the
+    // tundee_preview cookie does NOT survive the jump. If the answers do not
+    // travel in the URL, escaping the webview costs the student their grade,
+    // GPA and province — which is the drop-off the escape hatch exists to avoid.
+    const url = buildEscapeUrl(CURRENT, 'android', { p: 'ENCODED_PREVIEW' });
+    expect(url).toContain('p=ENCODED_PREVIEW');
+    expect(url).toContain(`S.browser_fallback_url=${encodeURIComponent(
+      'https://www.tundee.org/auth?from=signup&utm_campaign=fb_isan&p=ENCODED_PREVIEW',
+    )}`);
+  });
+
+  it('keeps parameters already on the page, so attribution is not lost', () => {
+    const url = buildEscapeUrl(CURRENT, 'android', { p: 'X' });
+    expect(url).toContain('utm_campaign=fb_isan');
+  });
+
+  it('skips null and empty extras rather than writing empty params', () => {
+    const url = buildEscapeUrl('https://www.tundee.org/auth', 'android', {
+      p: null, utm_campaign: undefined, next: '',
+    });
+    expect(url).toBe(
+      'intent://www.tundee.org/auth#Intent;scheme=https;package=com.android.chrome;' +
+      `S.browser_fallback_url=${encodeURIComponent('https://www.tundee.org/auth')};end`,
+    );
+  });
+
+  it('still refuses on iOS even with extras to carry', () => {
+    expect(buildEscapeUrl(CURRENT, 'ios', { p: 'X' })).toBeNull();
   });
 });

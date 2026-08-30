@@ -16,6 +16,7 @@
 
 import * as analytics from './analytics';
 import { logFunnelEvent } from './research/funnel';
+import type { SignupConversion } from './analytics/signupConversion';
 
 export type AdParams = {
   utm_source?: string;
@@ -127,13 +128,21 @@ export function trackPreviewResults(matchCount: number, scholarshipIds: string[]
  * Once per account: the cookie is written only on a first sign-in, and deleted
  * as it is read.
  */
-export function trackSignupComplete(method: 'google' | 'line' | 'email' = 'email') {
-  analytics.completeRegistration(method);
+export function trackSignupComplete(conversion: SignupConversion) {
+  const { method, inWebview, app } = conversion;
+  analytics.completeRegistration(method, { inWebview, app });
 
   // signup_completed rides along here rather than being wired separately at
   // both call sites. The two paths above are already mutually exclusive and
   // already cover every route into an account, so hanging the funnel event off
   // the same call makes it impossible for the two signals to drift apart or
   // for one path to be forgotten.
-  logFunnelEvent({ eventType: 'signup_completed', context: { method } });
+  //
+  // The webview context is logged too, so the conversion rate by browser can be
+  // computed from our own tables and not only from the ad platforms' — which
+  // report it behind a sampling and attribution model we do not control.
+  logFunnelEvent({
+    eventType: 'signup_completed',
+    context: { method, auth_method: method, in_app_browser: inWebview, in_app_app: app },
+  });
 }

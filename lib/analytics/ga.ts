@@ -53,8 +53,16 @@ export function trackViewContent(input: { contentIds: string[]; numItems?: numbe
   });
 }
 
-export function trackLead(input: { location: string }): void {
-  send('generate_lead', { link_id: input.location });
+export function trackLead(input: {
+  location: string;
+  browser?: { inWebview: boolean; app: string | null };
+}): void {
+  send('generate_lead', {
+    link_id: input.location,
+    ...(input.browser
+      ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }
+      : {}),
+  });
 }
 
 /** GA4's nearest equivalent of the gate tap. */
@@ -65,8 +73,17 @@ export function trackInitiateCheckout(input: { location: string; numItems?: numb
   });
 }
 
-export function trackCompleteRegistration(input: { method: string }): void {
-  send('sign_up', { method: input.method });
+export function trackCompleteRegistration(input: {
+  method: string;
+  browser?: { inWebview: boolean; app: string | null };
+}): void {
+  send('sign_up', {
+    method:      input.method,
+    auth_method: input.method,
+    ...(input.browser
+      ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }
+      : {}),
+  });
 }
 
 export function trackSubmitApplication(input: { scholarshipId: string }): void {

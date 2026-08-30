@@ -1,17 +1,18 @@
 /**
- * PDPA consent, captured inline on /auth beside the one-tap buttons.
+ * PDPA consent, captured inline on /auth beside the sign-in controls.
  *
  * It used to be step 0 of the /profile/setup wizard, which forced every new user
  * through the wizard even when /start had already collected their answers. Moving
- * it here lets the auth callback write a complete, consented profile and drop the
+ * it here lets the signup path write a complete, consented profile and drop the
  * user straight on their matched results.
  *
- * Carried two ways, because the three signup methods differ:
+ * Carried three ways, because the paths differ in what survives them:
  *   • cookie      — Google and LINE return to the same browser, and a SameSite=Lax
  *                   cookie survives a top-level redirect
- *   • query param — an email magic link is commonly opened in a DIFFERENT browser,
- *                   where no cookie exists; baking it into emailRedirectTo is the
- *                   only carrier that survives that hop
+ *   • form field  — the no-JS shell posts a `required` checkbox
+ *   • query param — a student who escapes an embedded webview into Chrome lands in
+ *                   a browser with an empty cookie jar; the URL is the only
+ *                   carrier that crosses that boundary
  */
 
 /** Bump when the wording of the terms changes. */
@@ -36,10 +37,10 @@ export function isValidConsent(value: string | null | undefined): boolean {
  * checkbox and the no-JS LINE control submits a query param. One of them presenting
  * valid consent is enough; they are the same click reported through different channels.
  *
- * Until this existed, consent was enforced only in the browser — `/api/auth/email-link`
- * and `/api/auth/line/start` accepted anything, so the checkbox could be skipped by
- * posting to them directly. The tick is a PDPA record written onto a minor's profile;
- * it should not be defeatable with curl.
+ * Until this existed, consent was enforced only in the browser — the signup routes
+ * accepted anything, so the checkbox could be skipped by posting to them directly.
+ * The tick is a PDPA record written onto a minor's profile; it should not be
+ * defeatable with curl.
  */
 export function hasValidConsent(...values: (string | null | undefined)[]): boolean {
   return values.some(isValidConsent);

@@ -24,8 +24,19 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getLineAuthRedirectUri } from '@/lib/line/redirectUri';
-import { LINE_AUTH_STATE_COOKIE, LINE_AUTH_NEXT_COOKIE } from '@/lib/line/authCookies';
+import {
+  LINE_AUTH_STATE_COOKIE,
+  LINE_AUTH_NEXT_COOKIE,
+  LINE_AUTH_NONCE_COOKIE,
+  LINE_AUTH_VERIFIER_COOKIE,
+  LINE_AUTH_PREVIEW_COOKIE,
+  LINE_AUTH_UTM_COOKIE,
+  LINE_AUTH_RETRY_COOKIE,
+} from '@/lib/line/authCookies';
 import { syntheticEmail } from '@/lib/line/syntheticEmail';
+import { PREVIEW_PARAM } from '@/lib/preview/types';
+import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
+import { findUserByEmail } from '@/lib/auth/adminUsers';
 
 const TOKEN_URL  = 'https://api.line.me/oauth2/v2.1/token';
 const VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
@@ -37,23 +48,6 @@ interface LineIdentity {
   email: string | null;
   name: string | null;
   picture: string | null;
-}
-
-/** Paginated lookup — supabase-js has no admin.getUserByEmail. */
-async function findUserIdByEmail(admin: SupabaseClient, email: string): Promise<string | null> {
-  const target = email.toLowerCase();
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) {
-      console.error('[auth/line/callback] listUsers failed:', error.message);
-      return null;
-    }
-    const hit = data.users.find(u => u.email?.toLowerCase() === target);
-    if (hit) return hit.id;
-    if (data.users.length < 200) return null;
-  }
-  console.warn('[auth/line/callback] listUsers exhausted 20 pages without a match');
-  return null;
 }
 
 /** Returns the Supabase user id for this LINE identity, creating one if needed. */
@@ -82,8 +76,8 @@ async function resolveUser(
   // 2. Same email as an existing account (only possible once LINE grants email)
   const email = identity.email?.toLowerCase() ?? syntheticEmail(identity.sub);
   if (identity.email) {
-    const existingId = await findUserIdByEmail(admin, email);
-    if (existingId) return { id: existingId, email };
+    const existing = await findUserByEmail(admin, email);
+    if (existing) return { id: existing.id, email };
   }
 
   // 3. New account
@@ -100,8 +94,8 @@ async function resolveUser(
 
   if (error || !data.user) {
     // Race: another request created it between the lookup and this call.
-    const existingId = await findUserIdByEmail(admin, email);
-    if (existingId) return { id: existingId, email };
+    const existing = await findUserByEmail(admin, email);
+    if (existing) return { id: existing.id, email };
     console.error('[auth/line/callback] createUser failed:', error?.message);
     return null;
   }
@@ -120,17 +114,60 @@ export async function GET(request: NextRequest) {
   const err   = searchParams.get('error');
 
   const jar = await cookies();
-  const savedState = jar.get(LINE_AUTH_STATE_COOKIE)?.value;
+  const savedState    = jar.get(LINE_AUTH_STATE_COOKIE)?.value;
+  const savedNonce    = jar.get(LINE_AUTH_NONCE_COOKIE)?.value;
+  const savedVerifier = jar.get(LINE_AUTH_VERIFIER_COOKIE)?.value;
+  const savedPreview  = jar.get(LINE_AUTH_PREVIEW_COOKIE)?.value;
+  const savedUtm      = jar.get(LINE_AUTH_UTM_COOKIE)?.value;
   const next = jar.get(LINE_AUTH_NEXT_COOKIE)?.value || '/scholarships';
   jar.delete(LINE_AUTH_STATE_COOKIE);
   jar.delete(LINE_AUTH_NEXT_COOKIE);
+  jar.delete(LINE_AUTH_NONCE_COOKIE);
+  jar.delete(LINE_AUTH_VERIFIER_COOKIE);
+  jar.delete(LINE_AUTH_PREVIEW_COOKIE);
+  jar.delete(LINE_AUTH_UTM_COOKIE);
+
+  // From the cookie, not the query string: LINE returns to the Callback URL
+  // registered in its console exactly as registered, so nothing we appended on
+  // the way out comes back.
+  const isRetry = jar.get(LINE_AUTH_RETRY_COOKIE)?.value === '1';
+  jar.delete(LINE_AUTH_RETRY_COOKIE);
 
   if (err) {
     // Includes the ordinary "user tapped cancel" case
     console.error('[auth/line/callback] LINE returned an error:', err, searchParams.get('error_description'));
     return fail('line_cancelled');
   }
-  if (!state || state !== savedState) return fail('line_state_mismatch');
+
+  /*
+   * A state mismatch is the documented symptom of auto login failing part-way:
+   * LINE returns a code that does not work and a state that does not match, and
+   * says outright that this is indistinguishable from a CSRF attempt.
+   *
+   * Both readings get the same safe response — throw the credentials away and
+   * start over — but the previous version stopped there, sending the student
+   * back to /auth with "LINE sign-in failed, please try again". Tapping LINE
+   * again reissued exactly the same request, which failed exactly the same way.
+   * A closed loop, on the method that is supposed to be one tap.
+   *
+   * The retry is LINE's own prescribed remedy: go round once more with auto
+   * login disabled. Once only — `retry=1` on the way in means we have already
+   * spent it, and a second failure is a real failure.
+   */
+  if (!state || state !== savedState) {
+    if (!isRetry) {
+      const again = new URL(`${siteUrl}/api/auth/line/start`);
+      again.searchParams.set('next', next);
+      again.searchParams.set('retry', '1');
+      again.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
+      if (savedPreview) again.searchParams.set(PREVIEW_PARAM, savedPreview);
+      if (savedUtm) again.searchParams.set('utm_campaign', savedUtm);
+      console.warn('[auth/line/callback] state mismatch — retrying with disable_auto_login');
+      return NextResponse.redirect(again.toString());
+    }
+    return fail('line_state_mismatch');
+  }
+
   if (!code) return fail('line_no_code');
 
   const channelId     = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -161,6 +198,10 @@ export async function GET(request: NextRequest) {
       redirect_uri:  redirectUri,
       client_id:     channelId,
       client_secret: channelSecret,
+      // The authorization code crosses a redirect chain we do not control.
+      // PKCE binds it to the browser that started the flow, so a code captured
+      // in transit cannot be exchanged from anywhere else.
+      ...(savedVerifier ? { code_verifier: savedVerifier } : {}),
     }),
   });
 
@@ -176,7 +217,14 @@ export async function GET(request: NextRequest) {
   const verifyRes = await fetch(VERIFY_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ id_token: tokens.id_token, client_id: channelId }),
+    // LINE checks the nonce itself when we supply it, and rejects the token if
+    // it does not match. Without this nothing tied the identity LINE returns to
+    // the request that asked for it.
+    body: new URLSearchParams({
+      id_token:  tokens.id_token,
+      client_id: channelId,
+      ...(savedNonce ? { nonce: savedNonce } : {}),
+    }),
   });
 
   if (!verifyRes.ok) {
@@ -184,8 +232,16 @@ export async function GET(request: NextRequest) {
     return fail('line_verify_failed');
   }
 
-  const payload: { sub?: string; email?: string; name?: string; picture?: string } = await verifyRes.json();
+  const payload: { sub?: string; email?: string; name?: string; picture?: string; nonce?: string } = await verifyRes.json();
   if (!payload.sub) return fail('line_no_sub');
+
+  // Belt and braces: LINE has already rejected a mismatched nonce above, but an
+  // echoed value that disagrees with ours means something is wrong that we
+  // should not sign a session over.
+  if (savedNonce && payload.nonce && payload.nonce !== savedNonce) {
+    console.error('[auth/line/callback] nonce mismatch');
+    return fail('line_nonce_mismatch');
+  }
 
   const identity: LineIdentity = {
     sub:     payload.sub,
@@ -230,6 +286,14 @@ export async function GET(request: NextRequest) {
   handoff.searchParams.set('token_hash', link.properties.hashed_token);
   handoff.searchParams.set('type', 'email');
   handoff.searchParams.set('next', next);
+  // The guest session and campaign, forwarded rather than left to the cookie
+  // jar. /auth/callback prefers the param for exactly this reason: a student who
+  // escaped a webview into Chrome has no TunDee cookies in that browser, and
+  // without these the merge would re-ask their grade, GPA and province and
+  // record the signup as 'organic'.
+  if (savedPreview) handoff.searchParams.set(PREVIEW_PARAM, savedPreview);
+  if (savedUtm) handoff.searchParams.set('utm_campaign', savedUtm);
+  handoff.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
 
   return NextResponse.redirect(handoff.toString());
 }

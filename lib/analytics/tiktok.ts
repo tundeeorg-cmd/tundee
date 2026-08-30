@@ -10,7 +10,7 @@
  */
 
 import { hasAnalyticsConsent } from './consent';
-import { isProductionEnvironment } from './meta';
+import { isProductionEnvironment, browserParams, type BrowserContext, type SignupMethod } from './meta';
 
 declare global {
   interface Window {
@@ -67,12 +67,14 @@ export function trackSearch(input: {
   educationLevel: string;
   gpa_band: string;
   province: string;
+  browser?: BrowserContext;
 }): void {
   track('Search', {
     content_type:    'scholarship_preview',
     education_level: input.educationLevel,
     gpa_band:        input.gpa_band,
     province:        input.province,
+    ...browserParams(input.browser),
   });
 }
 
@@ -80,31 +82,49 @@ export function trackViewContent(input: {
   contentIds: string[];
   contentName?: string;
   numItems?: number;
+  browser?: BrowserContext;
 }): void {
   track('ViewContent', {
     content_type: 'scholarship',
     content_id:   input.contentIds[0],
     ...(input.contentName ? { content_name: input.contentName } : {}),
     ...(input.numItems != null ? { quantity: input.numItems } : {}),
+    ...browserParams(input.browser),
   });
 }
 
 /** Pre-account intent — the visitor reached the signup gate. */
-export function trackLead(input: { location: string }): void {
-  track('SubmitForm', { content_type: 'signup_gate', content_name: input.location });
+export function trackLead(input: { location: string; browser?: BrowserContext }): void {
+  track('SubmitForm', {
+    content_type: 'signup_gate',
+    content_name: input.location,
+    ...browserParams(input.browser),
+  });
 }
 
 /** Gate CTA. Mirrors meta.trackInitiateCheckout — see the note there on why both fire. */
-export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
+export function trackInitiateCheckout(input: {
+  location: string;
+  numItems?: number;
+  browser?: BrowserContext;
+}): void {
   track('InitiateCheckout', {
     content_type: 'product',
     description:  input.location,
     ...(input.numItems !== undefined ? { quantity: input.numItems } : {}),
+    ...browserParams(input.browser),
   });
 }
 
-export function trackCompleteRegistration(input: { method: 'google' | 'line' | 'email' }): void {
-  track('CompleteRegistration', { content_name: input.method });
+export function trackCompleteRegistration(input: {
+  method: SignupMethod;
+  browser?: BrowserContext;
+}): void {
+  track('CompleteRegistration', {
+    content_name: input.method,
+    auth_method:  input.method,
+    ...browserParams(input.browser),
+  });
 }
 
 export function trackSubmitApplication(input: { scholarshipId: string }): void {
