@@ -59,8 +59,20 @@ export function getLineAuthRedirectUri(): string {
   return configured;
 }
 
-/** LINE's bot_prompt param — see report item F for what "aggressive" requires. */
+/**
+ * LINE's bot_prompt param.
+ *
+ * Defaults to 'aggressive', which invites the student to add the TunDee LINE
+ * official account as a friend during sign-in. That friendship is what makes
+ * app/api/cron/line-reminders able to reach them before a scholarship deadline
+ * closes — the single highest-value message this product sends. It is a prompt,
+ * not a requirement: declining it still completes the sign-in.
+ *
+ * Has no effect unless the Login channel has a Linked OA configured, in which
+ * case it is a silent no-op rather than an error.
+ *
+ * Set LINE_BOT_PROMPT=normal to turn the invitation off.
+ */
 export function getLineBotPrompt(): 'normal' | 'aggressive' {
-  const v = process.env.LINE_BOT_PROMPT;
-  return v === 'aggressive' ? 'aggressive' : 'normal';
+  return process.env.LINE_BOT_PROMPT === 'normal' ? 'normal' : 'aggressive';
 }

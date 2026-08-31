@@ -24,6 +24,8 @@ import {
 } from '@/lib/preview/types'
 import { CONSENT_COOKIE, CONSENT_VERSION, isValidConsent } from '@/lib/consent'
 import { canonicalizeGradeLevel } from '@/lib/profile/gradeLevels'
+import { claimIntake, intakeIdFrom } from '@/lib/intake/pendingIntake'
+import { createClient } from '@supabase/supabase-js'
 import { signupMethodFrom } from '@/lib/analytics'
 import { recruitmentSourceFrom } from '@/lib/research/assignment'
 import {
@@ -58,6 +60,13 @@ export interface MergeContext {
   previewParam?: string | null
   consentParam?: string | null
   utmCampaign?: string | null
+  /**
+   * Id of the answers parked on the server by /api/intake. The one carrier that
+   * survives an email link opening in a different browser — a cookie does not
+   * cross that boundary and a base64 payload in a URL is fragile through an
+   * email client's link rewriter.
+   */
+  intakeParam?: string | null
   /**
    * Overrides provider sniffing. The password route knows what it just minted;
    * everything else is inferred from the Supabase user record.
@@ -123,12 +132,59 @@ export async function resolveRedirect(
 
     const jar = await cookies()
 
+    /**
+     * Every authenticated user gets a profiles row, always, before anything
+     * else is decided.
+     *
+     * 39 of 79 accounts had none. The wizard's old save fell back to an UPDATE
+     * that matched zero rows — not an error in PostgREST — so it reported
+     * success and the student walked into a product the matching engine could
+     * not serve them. An empty row here removes the orphan state entirely:
+     * every later write is an update to something that exists, and resumeStep()
+     * has something to read.
+     *
+     * Nothing is invented. The row carries an id and defaults, no answers.
+     */
+    const { error: ensureErr } = await supabase
+      .from('profiles')
+      .upsert({ id: user.id }, { onConflict: 'id', ignoreDuplicates: true })
+
+    if (ensureErr) {
+      // Not fatal — the merge below may still succeed, and the wizard writes
+      // per step now. Logged because an orphan account is what this prevents.
+      console.error('[TunDee] could not ensure a profiles row:', ensureErr.code, ensureErr.message)
+    }
+
     // Param first, cookie second. A visitor who escaped a webview into Chrome
     // arrives with the param and none of the webview's cookies, so the param
     // has to win — it is the only carrier that crosses a browser boundary.
-    const preview = decodePreviewInput(
+    const cookiePreview = decodePreviewInput(
       ctx.previewParam ?? jar.get(PREVIEW_COOKIE)?.value,
     )
+
+    /**
+     * Answers parked on the server at /start, claimed once.
+     *
+     * Checked only when the in-browser carriers came up empty, which is exactly
+     * the cross-browser case: the student tapped the link in their email, landed
+     * in a different browser, and has neither the cookie nor the param. Reading
+     * it requires the service role, because pending_intake grants anon INSERT
+     * and nothing else.
+     */
+    let intakePreview: typeof cookiePreview = null
+    const intakeId = intakeIdFrom(ctx.intakeParam)
+    if (!cookiePreview && intakeId) {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      if (serviceKey && url) {
+        const service = createClient(url, serviceKey, { auth: { persistSession: false } })
+        intakePreview = await claimIntake(service, intakeId, user.id)
+      } else {
+        console.error('[TunDee] intake id present but service role not configured')
+      }
+    }
+
+    const preview = cookiePreview ?? intakePreview
     const consented =
       isValidConsent(ctx.consentParam) ||
       isValidConsent(jar.get(CONSENT_COOKIE)?.value)
@@ -156,9 +212,20 @@ export async function resolveRedirect(
       // canonical set, and this is the second line of defence.
       const previewGrade = canonicalizeGradeLevel(preview.level)
 
-      const { error } = await supabase.from('profiles').upsert({
+      if (!previewGrade) {
+        // Never silently null. A level that reaches here and cannot be mapped
+        // means /start is offering something gradeLevels.ts does not know about,
+        // which is the exact drift that broke onboarding — and it would be
+        // invisible if we just wrote NULL and moved on.
+        console.error(
+          '[TunDee] /start level could not be mapped to the canonical set — ' +
+          'not written, student will be asked on the wizard instead',
+          { level: preview.level, userId: user.id },
+        )
+      }
+
+      const baseRow = {
         id:              user.id,
-        ...(previewGrade ? { grade_level: previewGrade } : {}),
         province:        preview.province,
         income_bracket:  preview.income,
         // PREREG §5.4. Validated against the closed campaign set here, not
@@ -172,13 +239,43 @@ export async function resolveRedirect(
         consent_version: CONSENT_VERSION,
         consent_at:      new Date().toISOString(),
         updated_at:      new Date().toISOString(),
-      }, { onConflict: 'id' })
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ ...baseRow, ...(previewGrade ? { grade_level: previewGrade } : {}) }, { onConflict: 'id' })
 
       if (!error) return { path: next, conversion }
 
+      /**
+       * 23514 is a CHECK violation, and on this row it can only be grade_level:
+       * every other value here has already been validated against its domain.
+       * It means the database has not been migrated to the canonical set yet
+       * (scripts/20260831_v19_grade_level_domain.sql).
+       *
+       * Retry without the grade rather than losing the whole merge. Province,
+       * income, GPA and consent are all still true and still worth keeping —
+       * the student is then asked one question in the wizard instead of four.
+       */
+      if (error.code === '23514' && previewGrade) {
+        console.error(
+          '[TunDee] grade_level rejected by CHECK during merge — v19 migration ' +
+          'is probably not applied. Retrying without the grade.',
+          { level: preview.level, mapped: previewGrade, userId: user.id },
+        )
+        const { error: retryErr } = await supabase
+          .from('profiles')
+          .upsert(baseRow, { onConflict: 'id' })
+        if (!retryErr) {
+          const params = new URLSearchParams({ next, prefill: '1' })
+          return { path: `/profile/setup?${params.toString()}`, conversion }
+        }
+        console.error('[TunDee] merge retry without grade failed:', retryErr.code, retryErr.message)
+      }
+
       // Fall through to the wizard rather than stranding the user on a
       // half-written profile; their answers are still in the cookie.
-      console.error('[TunDee] profile upsert failed during merge:', error.message)
+      console.error('[TunDee] profile upsert failed during merge:', error.code, error.message)
     }
 
     if (incomplete) {

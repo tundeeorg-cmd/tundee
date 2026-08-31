@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { PREVIEW_PARAM } from '@/lib/preview/types'
+import { INTAKE_PARAM } from '@/lib/intake/pendingIntake'
 import { CONSENT_PARAM } from '@/lib/consent'
 import { resolveRedirect, safeNext, redirectWithConversion } from '@/lib/auth/resolveRedirect'
 
@@ -10,12 +11,15 @@ import { resolveRedirect, safeNext, redirectWithConversion } from '@/lib/auth/re
  *  • Google OAuth:      URL contains code
  *  • LINE login:        app/api/auth/line/callback hands off a token_hash here
  *  • Password recovery: the "set your password" link carries a token_hash too
+ *  • Email code:        no token at all — the session already exists
  *
- * It no longer handles magic-link sign-in, because there is no longer a magic
- * link: email accounts sign in with a password at /api/auth/password, with no
- * email round trip at all. The token_hash branch stays because two other flows
- * depend on it — the LINE bridge mints one internally, and password recovery
- * sends one by email.
+ * Email sign-in is a six-digit code, verified in the page by
+ * supabase.auth.verifyOtp — it never reaches this route, because never leaving
+ * the page is the entire point of using a code inside a webview. The same email
+ * also carries a link, and THAT arrives here as a token_hash: it is the
+ * fallback for someone who would rather tap than type, and it is why the
+ * token_hash branch matters more now, not less. The LINE bridge and password
+ * recovery mint one too.
  *
  * Where the user lands, and the merge of their /start answers into the new
  * account, live in lib/auth/resolveRedirect.ts — shared with the password route
@@ -34,6 +38,9 @@ export async function GET(request: NextRequest) {
   const merge = () => resolveRedirect(supabase, {
     next,
     previewParam: searchParams.get(PREVIEW_PARAM),
+    // Survives an email sign-in link opening in a different browser, where the
+    // cookie and the preview param do not exist at all.
+    intakeParam:  searchParams.get(INTAKE_PARAM),
     consentParam: searchParams.get(CONSENT_PARAM),
     utmCampaign:  searchParams.get('utm_campaign'),
     userAgent:    request.headers.get('user-agent'),
@@ -76,6 +83,17 @@ export async function GET(request: NextRequest) {
 
     console.error('[TunDee] exchangeCodeForSession error:', error.status, error.message)
     return NextResponse.redirect(`${origin}/auth?error=exchange_failed`)
+  }
+
+  // ── Already signed in ─────────────────────────────────────────────────────
+  // The email code is verified in the page (or by /api/auth/otp/verify), so the
+  // session exists BEFORE this route is reached and there is no token to
+  // exchange. Sending that student to ?error=no_credentials would strand a
+  // successful sign-in on an error screen — and skip the merge, which is the
+  // one thing every new session has to pass through.
+  {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) return redirectWithConversion(origin, await merge())
   }
 
   // ── Nothing usable arrived ────────────────────────────────────────────────

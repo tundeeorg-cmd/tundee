@@ -37,10 +37,12 @@ import {
   LINE_AUTH_VERIFIER_COOKIE,
   LINE_AUTH_PREVIEW_COOKIE,
   LINE_AUTH_UTM_COOKIE,
+  LINE_AUTH_INTAKE_COOKIE,
   LINE_AUTH_RETRY_COOKIE,
 } from '@/lib/line/authCookies';
 import { syntheticEmail } from '@/lib/line/syntheticEmail';
 import { PREVIEW_PARAM } from '@/lib/preview/types';
+import { INTAKE_PARAM } from '@/lib/intake/pendingIntake';
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import { findUserByEmail } from '@/lib/auth/adminUsers';
 
@@ -125,6 +127,7 @@ export async function GET(request: NextRequest) {
   const savedVerifier = jar.get(LINE_AUTH_VERIFIER_COOKIE)?.value;
   const savedPreview  = jar.get(LINE_AUTH_PREVIEW_COOKIE)?.value;
   const savedUtm      = jar.get(LINE_AUTH_UTM_COOKIE)?.value;
+  const savedIntake   = jar.get(LINE_AUTH_INTAKE_COOKIE)?.value;
   const next = jar.get(LINE_AUTH_NEXT_COOKIE)?.value || '/scholarships';
   jar.delete(LINE_AUTH_STATE_COOKIE);
   jar.delete(LINE_AUTH_NEXT_COOKIE);
@@ -167,6 +170,7 @@ export async function GET(request: NextRequest) {
       again.searchParams.set('retry', '1');
       again.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
       if (savedPreview) again.searchParams.set(PREVIEW_PARAM, savedPreview);
+      if (savedIntake) again.searchParams.set(INTAKE_PARAM, savedIntake);
       if (savedUtm) again.searchParams.set('utm_campaign', savedUtm);
       console.warn('[auth/line/callback] state mismatch — retrying with disable_auto_login');
       return NextResponse.redirect(again.toString());
@@ -298,6 +302,10 @@ export async function GET(request: NextRequest) {
   // without these the merge would re-ask their grade, GPA and province and
   // record the signup as 'organic'.
   if (savedPreview) handoff.searchParams.set(PREVIEW_PARAM, savedPreview);
+  // The parked-answers id too. /auth/callback only reads it when the preview is
+  // absent, so this costs nothing when both are present and rescues the case
+  // where the student reached LINE from a browser that never had the cookie.
+  if (savedIntake) handoff.searchParams.set(INTAKE_PARAM, savedIntake);
   if (savedUtm) handoff.searchParams.set('utm_campaign', savedUtm);
   handoff.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
 

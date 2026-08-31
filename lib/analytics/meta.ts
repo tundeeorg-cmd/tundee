@@ -212,8 +212,9 @@ export function signupMethodFrom(
   if (userMetadataProvider === 'line') return 'line';
   if (appMetadataProvider === 'google') return 'google';
   if (userMetadataProvider === 'password') return 'password';
-  // Accounts created by the magic-link flow that password auth replaced. They
-  // still exist and still sign in, so this is not dead code.
+  // Email one-time code — the passwordless path, and now the default way an
+  // email account is created. Also covers the older magic-link accounts, which
+  // still exist and still sign in.
   return 'email';
 }
 

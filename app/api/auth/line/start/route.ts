@@ -35,6 +35,7 @@ import { createHash, randomBytes } from 'crypto';
 import { getLineAuthRedirectUri, getLineBotPrompt } from '@/lib/line/redirectUri';
 import { CONSENT_COOKIE, CONSENT_PARAM, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION, hasValidConsent } from '@/lib/consent';
 import { PREVIEW_PARAM, PREVIEW_COOKIE, PREVIEW_COOKIE_MAX_AGE, decodePreviewInput } from '@/lib/preview/types';
+import { INTAKE_PARAM, isIntakeId } from '@/lib/intake/pendingIntake';
 import {
   LINE_AUTH_STATE_COOKIE,
   LINE_AUTH_NEXT_COOKIE,
@@ -42,6 +43,7 @@ import {
   LINE_AUTH_VERIFIER_COOKIE,
   LINE_AUTH_PREVIEW_COOKIE,
   LINE_AUTH_UTM_COOKIE,
+  LINE_AUTH_INTAKE_COOKIE,
   LINE_AUTH_RETRY_COOKIE,
   LINE_AUTH_COOKIE_MAX_AGE,
 } from '@/lib/line/authCookies';
@@ -178,6 +180,14 @@ export async function GET(request: NextRequest) {
   // handoff URL, so a param left on THIS request simply never arrived, and every
   // LINE signup was recorded as 'organic' no matter which ad paid for it.
   const utmCampaign = searchParams.get('utm_campaign');
+  // Parked /start answers. Kept alongside the preview cookie, not instead of
+  // it: the preview is the fast path within one browser, this is the one that
+  // still works when the student got here after a browser switch.
+  const intakeParam = searchParams.get(INTAKE_PARAM);
+  if (isIntakeId(intakeParam)) {
+    response.cookies.set(LINE_AUTH_INTAKE_COOKIE, intakeParam, cookieOptions);
+  }
+
   if (utmCampaign) {
     response.cookies.set(LINE_AUTH_UTM_COOKIE, utmCampaign, cookieOptions);
   }
