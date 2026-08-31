@@ -27,11 +27,16 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files — NEVER commit these
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+#
+# Deny everything, then allow back the two templates by name. The previous list
+# named five files explicitly, which meant .env.production, .env.staging,
+# .env.test and .env.backup were NOT ignored — a file called .env.production
+# would have been committed with real credentials and nothing would have warned
+# anyone. An allow-list fails closed: a new .env.<anything> is ignored by
+# default, and adding a template is a deliberate two-line change.
+.env*
+!.env.example
+!.env.local.example
 
 # vercel
 .vercel
