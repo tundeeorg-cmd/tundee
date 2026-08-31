@@ -23,6 +23,7 @@ import {
   previewCompletesProfile,
 } from '@/lib/preview/types'
 import { CONSENT_COOKIE, CONSENT_VERSION, isValidConsent } from '@/lib/consent'
+import { canonicalizeGradeLevel } from '@/lib/profile/gradeLevels'
 import { signupMethodFrom } from '@/lib/analytics'
 import { recruitmentSourceFrom } from '@/lib/research/assignment'
 import {
@@ -147,9 +148,17 @@ export async function resolveRedirect(
     // actually leaves the profile complete. Skipping the wizard on a preview
     // that cannot fill it is how five accounts ended up half-written in August.
     if (incomplete && preview && consented && previewCompletesProfile(preview)) {
+      // Canonicalised, not trusted. This upsert was the SILENT half of the
+      // 31 Aug outage: a visitor who chose ม.4–6 on /start had their level
+      // rejected here by profiles_grade_level_check, the error was logged and
+      // swallowed, and they were forwarded to the wizard — which then failed on
+      // the same value at 100%. parsePreviewInput now validates against the
+      // canonical set, and this is the second line of defence.
+      const previewGrade = canonicalizeGradeLevel(preview.level)
+
       const { error } = await supabase.from('profiles').upsert({
         id:              user.id,
-        grade_level:     preview.level,
+        ...(previewGrade ? { grade_level: previewGrade } : {}),
         province:        preview.province,
         income_bracket:  preview.income,
         // PREREG §5.4. Validated against the closed campaign set here, not

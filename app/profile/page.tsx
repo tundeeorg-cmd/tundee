@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
+import { GRADE_LEVELS, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
@@ -109,16 +110,13 @@ const FIELDS = [
   { id: 'arts',             th: 'ศิลปะ',                 en: 'Arts' },
 ];
 
-const GRADE_LEVELS = ['M4', 'M5', 'M6', 'uni', 'graduate'] as const;
-type GradeLevel = typeof GRADE_LEVELS[number];
-
-const GRADE_LABELS: Record<GradeLevel, { th: string; en: string }> = {
-  M4: { th: 'ม.4', en: 'M4 (Gr.10)' },
-  M5: { th: 'ม.5', en: 'M5 (Gr.11)' },
-  M6: { th: 'ม.6', en: 'M6 (Gr.12)' },
-  uni: { th: 'ป.ตรี', en: 'Bachelor' },
-  graduate: { th: 'ป.โท/เอก', en: 'Graduate' },
-};
+/**
+ * This page used to declare its own list — 'M4','M5','M6','uni','graduate' —
+ * which matched the database CHECK but not the signup wizard's. A student who
+ * signed up choosing ม.4–6 and then opened this page saw no option selected,
+ * and saving rewrote their answer. One list now, in lib/profile/gradeLevels.ts.
+ */
+type GradeLevel = string;
 
 // ── Section label ──────────────────────────────────────────────────────────
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -205,7 +203,7 @@ export default function ProfilePage() {
   const [provinceSearch, setProvinceSearch] = useState('');
   const [incomeBracket, setIncomeBracket] = useState<number>(4);
   const [welfareCard, setWelfareCard] = useState(false);
-  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('M6');
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [schoolType, setSchoolType] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -239,11 +237,13 @@ export default function ProfilePage() {
         setProvince(data.province ?? '');
         setIncomeBracket(data.income_bracket ?? 4);
         setWelfareCard(data.welfare_card ?? false);
-        setGradeLevel((data.grade_level as GradeLevel) ?? 'M6');
+        // Defaulting an unreadable value to 'M6' put a grade on the record that
+        // the student never claimed — and then saved it back. Blank means blank.
+        setGradeLevel(canonicalizeGradeLevel(data.grade_level) ?? '');
         setSelectedFields(
           data.fields_of_interest?.filter((f: string) => f !== 'any') ?? []
         );
-        setSchoolType(data.school_type ?? '');
+        // school_type lives on student_profile, not profiles — see loadSchoolType.
       }
     } catch { /* row may not exist yet */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -344,12 +344,22 @@ export default function ProfilePage() {
         province: province || null,
         income_bracket: incomeBracket,
         welfare_card: welfareCard,
-        grade_level: gradeLevel,
+        grade_level: gradeLevel || null,
         fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        school_type: schoolType || null,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
+
+      // school_type belongs to student_profile. It was being sent to `profiles`,
+      // which has no such column, so PostgREST answered PGRST204 and the whole
+      // upsert failed — every profile save on this page has been failing, shown
+      // to the user only as "บันทึกไม่สำเร็จ".
+      const schoolRes = await fetch('/api/profile/student', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ school_type: schoolType || null }),
+      });
+      if (!schoolRes.ok) console.error('[TunDee Profile] school_type not saved:', schoolRes.status);
       showToast(lang === 'th' ? 'บันทึกโปรไฟล์เรียบร้อย ✓' : 'Profile saved ✓', 'success');
     } catch {
       showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
@@ -545,16 +555,16 @@ export default function ProfilePage() {
               <div className="flex flex-wrap gap-2">
                 {GRADE_LEVELS.map(gl => (
                   <button
-                    key={gl}
+                    key={gl.value}
                     type="button"
-                    onClick={() => setGradeLevel(gl)}
+                    onClick={() => setGradeLevel(gl.value)}
                     className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
-                      gradeLevel === gl
+                      gradeLevel === gl.value
                         ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-semibold'
                         : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/60'
                     }`}
                   >
-                    {GRADE_LABELS[gl][lang as 'th' | 'en']}
+                    {gl[lang === 'th' ? 'th' : 'en']}
                   </button>
                 ))}
               </div>
