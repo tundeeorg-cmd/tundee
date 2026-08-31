@@ -1,6 +1,12 @@
 /**
  * GET /api/auth/line/callback — completes one-tap LINE login.
  *
+ * NOT /api/line/callback, which links a LINE account to a user who is ALREADY
+ * signed in (entry: /api/line/connect, from the /tracker button, env
+ * LINE_REDIRECT_URI). This route creates the account; that one decorates it.
+ * Both write profiles.line_user_id, which is why the two are easy to confuse —
+ * see the table in app/api/line/callback/route.ts.
+ *
  * Supabase Auth has no native LINE provider, so this route bridges the two:
  *
  *   LINE code → LINE token → verified id_token (sub = LINE user id)

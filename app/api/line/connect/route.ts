@@ -1,8 +1,12 @@
 /**
  * GET /api/line/connect
- * Starts the LINE Login OAuth flow. Redirects the browser to LINE's
- * authorization endpoint. After the user authorizes, LINE redirects to
+ * Starts the LINE OAuth flow that LINKS a LINE account to the signed-in user.
+ * Redirects the browser to LINE's authorization endpoint; LINE then redirects to
  * /api/line/callback with ?code=&state=.
+ *
+ * NOT the sign-in flow. That is /api/auth/line/start → /api/auth/line/callback,
+ * which creates an account rather than requiring one. This route returns the
+ * visitor to /auth when there is no session.
  *
  * Required env vars:
  *   LINE_LOGIN_CHANNEL_ID   – your LINE Login channel ID
