@@ -333,3 +333,66 @@ describe('the funnel can tell the two methods apart', () => {
       .toBeLessThan(conv.indexOf('trackSignupComplete(conversion)'));
   });
 });
+
+// ─── Is any of this actually live? ───────────────────────────────────────────
+
+/**
+ * Everything above reads source files, which proves the code is right and
+ * proves nothing about production. pending_intake has a deliberately silent
+ * failure mode — /api/intake is called with `void fetch`, claimIntake swallows
+ * every error — so if the v20 migration was never run, the cross-browser rescue
+ * is simply dead and no student, log line or test ever says so. That is the
+ * exact shape of the last two outages, so it gets a live probe.
+ *
+ * Runs only when Supabase credentials are present (locally, from .env.local);
+ * skipped in CI, where the offline assertions still run.
+ *
+ * READ-ONLY. A GET with the anon key writes nothing, and the anon key is the
+ * right one to ask with: it is the key that ships in the browser, so what it
+ * can see is what the public can see.
+ */
+function loadAnonEnv(): { url: string; anon: string } | null {
+  const fromProcess = {
+    url:  process.env.NEXT_PUBLIC_SUPABASE_URL,
+    anon: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  };
+  if (fromProcess.url && fromProcess.anon) return fromProcess as { url: string; anon: string };
+  try {
+    const env = Object.fromEntries(
+      read('.env.local').split('\n')
+        .filter(l => l.includes('=') && !l.trim().startsWith('#'))
+        .map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, '')]; }),
+    ) as Record<string, string>;
+    if (env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return { url: env.NEXT_PUBLIC_SUPABASE_URL, anon: env.NEXT_PUBLIC_SUPABASE_ANON_KEY };
+    }
+  } catch { /* no .env.local — offline run */ }
+  return null;
+}
+
+const liveAnon = loadAnonEnv();
+
+describe.skipIf(!liveAnon)('pending_intake exists in the live database (read-only probe)', () => {
+  it('has been migrated, and leaks nothing to the anon key', async () => {
+    const res = await fetch(`${liveAnon!.url}/rest/v1/pending_intake?select=id&limit=1`, {
+      headers: { apikey: liveAnon!.anon, Authorization: `Bearer ${liveAnon!.anon}` },
+    });
+    const body = await res.text();
+
+    // PGRST205 / 42P01 both mean "no such table": v20 was never applied, and
+    // every student who signs in from a different browser than they answered
+    // in is losing their /start answers right now, silently.
+    expect(
+      body,
+      'scripts/20260901_v20_pending_intake.sql has not been applied — '
+      + 'run it in the Supabase SQL Editor. Until then the cross-browser '
+      + 'rescue of the /start answers is dead and fails silently.',
+    ).not.toMatch(/PGRST205|42P01|Could not find the table/);
+
+    // The table is there. Whether the block is the REVOKE (a permission error)
+    // or RLS with no SELECT policy (an empty array), the observable result the
+    // migration promises is the same: nothing comes back.
+    const rows: unknown = res.status === 200 ? JSON.parse(body) : [];
+    expect(rows, 'the anon key can read parked /start answers').toEqual([]);
+  }, 20_000);
+});
