@@ -177,7 +177,7 @@ describe('the LINE authorize URL', () => {
   });
 
   it('invites the OA friendship by default, which is what reminders need', () => {
-    expect(read('lib/line/redirectUri.ts')).toContain("'normal' : 'aggressive'");
+    expect(read('lib/line/env.ts')).toContain("'normal' : 'aggressive'");
     expect(LINE_START).toContain("'bot_prompt', getLineBotPrompt()");
   });
 

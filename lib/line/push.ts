@@ -1,5 +1,7 @@
 /** LINE Messaging API client — no SDK dependency, just fetch. */
 
+import { getLineChannelAccessToken } from '@/lib/line/env';
+
 const PUSH_URL = 'https://api.line.me/v2/bot/message/push';
 const REPLY_URL = 'https://api.line.me/v2/bot/message/reply';
 
@@ -20,8 +22,8 @@ export interface LineTextMessage {
 }
 
 async function lineApiCall(url: string, body: Record<string, unknown>): Promise<void> {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN not configured');
+  // Throws naming the variable and the console page it comes from.
+  const token = getLineChannelAccessToken();
 
   const res = await fetch(url, {
     method: 'POST',

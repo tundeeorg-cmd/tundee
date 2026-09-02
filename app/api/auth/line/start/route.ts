@@ -32,7 +32,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createHash, randomBytes } from 'crypto';
-import { getLineAuthRedirectUri, getLineBotPrompt } from '@/lib/line/redirectUri';
+import { getLineAuthRedirectUri, getLineBotPrompt, getLineLoginChannelId } from '@/lib/line/env';
 import { CONSENT_COOKIE, CONSENT_PARAM, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION, hasValidConsent } from '@/lib/consent';
 import { PREVIEW_PARAM, PREVIEW_COOKIE, PREVIEW_COOKIE_MAX_AGE, decodePreviewInput } from '@/lib/preview/types';
 import { INTAKE_PARAM, isIntakeId } from '@/lib/intake/pendingIntake';
@@ -67,12 +67,6 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const next = safeNext(searchParams.get('next'));
 
-  const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
-  if (!channelId) {
-    console.error('[auth/line/start] LINE_LOGIN_CHANNEL_ID is not set');
-    return NextResponse.redirect(`${siteUrl}/auth?error=line_not_configured`);
-  }
-
   /*
    * PDPA consent, enforced here rather than only in the browser.
    *
@@ -91,11 +85,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(back);
   }
 
+  /*
+   * Both LINE values, read together.
+   *
+   * lib/line/env throws with the variable name and the console page it comes
+   * from — which is what instrumentation.ts surfaces at boot. By the time a
+   * request reaches here that check has already passed, so this catch is for
+   * the deployment that somehow got past it. It degrades to the email path
+   * rather than 500ing: the student still has a way in, and the log line names
+   * the variable for whoever reads it.
+   */
+  let channelId: string;
   let redirectUri: string;
   try {
+    channelId   = getLineLoginChannelId();
     redirectUri = getLineAuthRedirectUri();
   } catch (e) {
-    console.error('[auth/line/start] redirect_uri misconfigured:', e);
+    console.error('[auth/line/start] LINE env misconfigured:', e);
     return NextResponse.redirect(`${siteUrl}/auth?error=line_not_configured`);
   }
 

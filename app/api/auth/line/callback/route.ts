@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { getLineAuthRedirectUri } from '@/lib/line/redirectUri';
+import { getLineAuthRedirectUri, getLineLoginChannelId, getLineLoginChannelSecret } from '@/lib/line/env';
 import {
   LINE_AUTH_STATE_COOKIE,
   LINE_AUTH_NEXT_COOKIE,
@@ -180,13 +180,29 @@ export async function GET(request: NextRequest) {
 
   if (!code) return fail('line_no_code');
 
-  const channelId     = process.env.LINE_LOGIN_CHANNEL_ID;
-  const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
-  const supabaseUrl   = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey    = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // The LINE pair comes from lib/line/env, which trims and names the variable
+  // in its error. The Supabase pair is not this module's business, so it keeps
+  // the plain read — but is reported separately, or a missing service key would
+  // be indistinguishable from a missing channel secret in the log.
+  let channelId: string;
+  let channelSecret: string;
+  try {
+    channelId     = getLineLoginChannelId();
+    channelSecret = getLineLoginChannelSecret();
+  } catch (e) {
+    console.error('[auth/line/callback] LINE env misconfigured:', e);
+    return fail('line_not_configured');
+  }
 
-  if (!channelId || !channelSecret || !supabaseUrl || !serviceKey) {
-    console.error('[auth/line/callback] required env vars are missing');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    console.error(
+      '[auth/line/callback] Supabase env missing:',
+      !supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL' : '',
+      !serviceKey  ? 'SUPABASE_SERVICE_ROLE_KEY' : '',
+    );
     return fail('line_not_configured');
   }
 

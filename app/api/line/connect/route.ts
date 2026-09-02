@@ -16,7 +16,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { getLineRedirectUri, getLineBotPrompt } from '@/lib/line/redirectUri';
+import { getLineRedirectUri, getLineBotPrompt, getLineLoginChannelId } from '@/lib/line/env';
 
 export const runtime = 'nodejs';
 
@@ -35,17 +35,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${siteUrl}/auth?from=line-connect`);
   }
 
-  const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  if (!channelId) {
-    return NextResponse.redirect(`${siteUrl}/tracker?line_error=not_configured`);
-  }
 
+  let channelId: string;
   let callbackUrl: string;
   try {
+    channelId   = getLineLoginChannelId();
     callbackUrl = getLineRedirectUri();
   } catch (e) {
-    console.error('[line/connect] redirect_uri misconfigured:', e);
+    console.error('[line/connect] LINE env misconfigured:', e);
     return NextResponse.redirect(`${siteUrl}/tracker?line_error=redirect_uri_not_configured`);
   }
 

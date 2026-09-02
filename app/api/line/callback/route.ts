@@ -44,7 +44,7 @@ export const runtime = 'nodejs';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { getLineRedirectUri } from '@/lib/line/redirectUri';
+import { getLineRedirectUri, getLineLoginChannelId, getLineLoginChannelSecret } from '@/lib/line/env';
 
 const TOKEN_URL  = 'https://api.line.me/oauth2/v2.1/token';
 const VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
@@ -71,15 +71,19 @@ export async function GET(request: NextRequest) {
   if (!state || state !== savedState) return redirect('/tracker?line_error=state_mismatch');
   if (!code) return redirect('/tracker?line_error=no_code');
 
-  const channelId     = process.env.LINE_LOGIN_CHANNEL_ID;
-  const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
-  if (!channelId || !channelSecret) return redirect('/tracker?line_error=not_configured');
-
+  let channelId: string;
+  let channelSecret: string;
   let redirectUri: string;
   try {
-    redirectUri = getLineRedirectUri();
+    // The LINE LOGIN channel's credentials, shared with the sign-in flow. The
+    // redirect_uri is NOT shared: this flow comes back to /api/line/callback,
+    // the sign-in flow to /api/auth/line/callback, and lib/line/env refuses a
+    // value whose path belongs to the other one.
+    channelId     = getLineLoginChannelId();
+    channelSecret = getLineLoginChannelSecret();
+    redirectUri   = getLineRedirectUri();
   } catch (e) {
-    console.error('[line/callback] redirect_uri misconfigured:', e);
+    console.error('[line/callback] LINE env misconfigured:', e);
     return redirect('/tracker?line_error=redirect_uri_not_configured');
   }
 

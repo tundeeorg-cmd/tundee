@@ -88,7 +88,7 @@ describe('LINE linking: /api/line/connect → /api/line/callback', () => {
 
 describe('the two flows stay distinct', () => {
   it('use different redirect_uri env vars', () => {
-    const helper = read('lib/line/redirectUri.ts');
+    const helper = read('lib/line/env.ts');
     expect(helper).toContain('LINE_REDIRECT_URI');
     expect(helper).toContain('LINE_AUTH_REDIRECT_URI');
     // Two callback URLs, registered separately in the LINE console. Collapsing
