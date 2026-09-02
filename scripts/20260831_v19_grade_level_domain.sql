@@ -39,7 +39,27 @@
 
 BEGIN;
 
--- ── 1. Retire the single-year secondary values ──────────────────────────────
+-- ── 1. Drop the old constraint FIRST ────────────────────────────────────────
+-- Order is load-bearing, and getting it wrong is why this migration failed
+-- every time it was run:
+--
+--   ERROR: 23514: new row for relation "profiles" violates check constraint
+--          "profiles_grade_level_check"
+--   DETAIL: Failing row contains (..., M4-M6, ...)
+--
+-- The rewrite below writes 'M4-M6', and the OLD constraint — which admits only
+-- ('M4','M5','M6','uni','graduate') — rejects exactly that value. CHECK
+-- constraints are evaluated on UPDATE, not just INSERT, so step 2 aborted the
+-- whole transaction before ever reaching the DROP that would have permitted it.
+-- The migration was unrunnable as written and left no trace but a failed query.
+--
+-- Dropping first is safe because every statement here is inside one
+-- transaction: there is no instant at which another session can observe the
+-- table unconstrained, and a failure anywhere rolls back to the old constraint.
+ALTER TABLE public.profiles
+  DROP CONSTRAINT IF EXISTS profiles_grade_level_check;
+
+-- ── 2. Retire the single-year secondary values ──────────────────────────────
 -- 'M4'/'M5'/'M6' are vocabulary A. One production row holds 'M6', written by
 -- the /profile edit page. The recommender buckets 'M6' and 'M4-M6' identically
 -- (high_school), so this changes nobody's matches — it collapses two spellings
@@ -48,17 +68,14 @@ UPDATE public.profiles
    SET grade_level = 'M4-M6'
  WHERE grade_level IN ('M4', 'M5', 'M6');
 
--- ── 2. Normalise blanks to NULL ─────────────────────────────────────────────
+-- ── 3. Normalise blanks to NULL ─────────────────────────────────────────────
 -- '' is not an answer; it is the absence of one, and the new constraint rejects
 -- it explicitly so it can never masquerade as a stored grade.
 UPDATE public.profiles
    SET grade_level = NULL
  WHERE grade_level = '';
 
--- ── 3. The canonical domain ─────────────────────────────────────────────────
-ALTER TABLE public.profiles
-  DROP CONSTRAINT IF EXISTS profiles_grade_level_check;
-
+-- ── 4. The canonical domain ─────────────────────────────────────────────────
 ALTER TABLE public.profiles
   ADD CONSTRAINT profiles_grade_level_check
   CHECK (grade_level IS NULL OR grade_level IN (
@@ -74,7 +91,7 @@ COMMENT ON COLUMN public.profiles.grade_level IS
   'Generated from GRADE_LEVELS in lib/profile/gradeLevels.ts — change both, '
   'or __tests__/profileSetup.e2e.test.ts fails. NULL = not yet answered.';
 
--- ── 4. profile_baselines carries the same vocabulary ────────────────────────
+-- ── 5. profile_baselines carries the same vocabulary ────────────────────────
 -- It is an immutable research snapshot with no CHECK, so nothing was rejected
 -- there. Its values still have to be readable alongside the profiles they
 -- mirror, so the same collapse is applied. Row count is small and this is the
