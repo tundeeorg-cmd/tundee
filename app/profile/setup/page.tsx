@@ -477,13 +477,20 @@ export default function ProfileSetupPage() {
     setError(null);
     setFieldError(null);
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        console.error('[TunDee] getUser failed:', authError?.message);
-        router.replace('/auth');
-        return;
-      }
+      /*
+       * There is deliberately no supabase.auth.getUser() here.
+       *
+       * There was, and it sat between the tap and the only network call that
+       * matters. getUser() is a request to Supabase with no timeout, so in the
+       * Facebook webview — where nearly all our traffic is — a stalled
+       * connection left the button spinning forever and /api/profile/setup was
+       * never reached. Nothing appeared in the Vercel log because nothing was
+       * ever sent to Vercel, which is exactly how this became invisible.
+       *
+       * It also bought nothing. The route re-checks the session server-side and
+       * answers 401, which the handler below already handles by showing the
+       * 'unauthorized' message. Asking twice only added a way to fail.
+       */
 
       // Client-side first, so a rejection costs no round trip and lands the
       // student on the step that owns the answer rather than on a wall of red.

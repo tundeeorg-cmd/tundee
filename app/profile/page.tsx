@@ -316,39 +316,94 @@ export default function ProfilePage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  /**
+   * Send one patch to /api/profile/save and turn the answer into a toast.
+   *
+   * Both save buttons go through here rather than writing to PostgREST from the
+   * browser. A write from the page reaches supabase.co and never us, so when it
+   * failed the whole record was a toast on a phone we cannot see — see the
+   * route for what that cost. Now every failure is logged server-side with the
+   * user id and the values.
+   */
+  async function saveProfilePatch(patch: Record<string, unknown>): Promise<boolean> {
+    let res: Response;
+    try {
+      res = await fetch('/api/profile/save', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(patch),
+      });
+    } catch (err) {
+      // The request never left the device — offline, or the webview dropped it.
+      console.error('[TunDee Profile] save request failed:', err);
+      showToast(
+        lang === 'th'
+          ? 'เชื่อมต่อไม่ได้ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่'
+          : 'Connection failed. Check your internet and try again.',
+        'error',
+      );
+      return false;
+    }
+
+    if (res.ok) return true;
+
+    if (res.status === 401) {
+      // The session went away while the page was open. Saying "save failed"
+      // would send them round a retry loop that cannot succeed.
+      showToast(
+        lang === 'th' ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : 'Session expired. Please sign in again.',
+        'error',
+      );
+      router.replace('/auth');
+      return false;
+    }
+
+    if (res.status === 422) {
+      showToast(
+        lang === 'th'
+          ? 'ข้อมูลบางช่องไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+          : 'Some values are not valid. Please check and try again.',
+        'error',
+      );
+      return false;
+    }
+
+    showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    return false;
+  }
+
   async function handleSaveName() {
     if (!user) return;
     setSavingName(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
-      if (error) throw error;
-      setSavedDisplayName(displayName.trim());
-      setNavDisplayName(displayName.trim());
-      showToast(lang === 'th' ? 'บันทึกเรียบร้อย ✓' : 'Saved ✓', 'success');
-    } catch {
-      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+      const name = displayName.trim();
+      if (await saveProfilePatch({ displayName: name })) {
+        setSavedDisplayName(name);
+        setNavDisplayName(name);
+        showToast(lang === 'th' ? 'บันทึกเรียบร้อย ✓' : 'Saved ✓', 'success');
+      }
+    } finally {
+      // finally, not a trailing statement: an unexpected throw above used to
+      // leave the button spinning with no way to try again.
+      setSavingName(false);
     }
-    setSavingName(false);
   }
 
   async function handleSaveProfile() {
     if (!user) return;
     setSavingProfile(true);
     try {
-      const gpaNum = parseFloat(gpa);
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        gpa: !isNaN(gpaNum) && gpaNum >= 0 && gpaNum <= 4 ? gpaNum : null,
-        province: province || null,
-        income_bracket: incomeBracket,
-        welfare_card: welfareCard,
-        grade_level: gradeLevel || null,
-        fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        updated_at: new Date().toISOString(),
+      // Sent as the page holds them — strings and all. The route parses and
+      // validates, so the two screens cannot disagree about what is legal.
+      const saved = await saveProfilePatch({
+        gpa,
+        province,
+        incomeBracket,
+        welfareCard,
+        gradeLevel,
+        fields: selectedFields,
       });
-      if (error) throw error;
+      if (!saved) return;
 
       // school_type belongs to student_profile. It was being sent to `profiles`,
       // which has no such column, so PostgREST answered PGRST204 and the whole
@@ -358,13 +413,19 @@ export default function ProfilePage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ school_type: schoolType || null }),
+      }).catch((err) => {
+        console.error('[TunDee Profile] school_type request failed:', err);
+        return null;
       });
-      if (!schoolRes.ok) console.error('[TunDee Profile] school_type not saved:', schoolRes.status);
+      // Non-fatal: the profile itself is saved. Reporting failure here would
+      // send the student back to re-enter answers that are already stored.
+      if (!schoolRes?.ok) {
+        console.error('[TunDee Profile] school_type not saved:', schoolRes?.status ?? 'network');
+      }
       showToast(lang === 'th' ? 'บันทึกโปรไฟล์เรียบร้อย ✓' : 'Profile saved ✓', 'success');
-    } catch {
-      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    } finally {
+      setSavingProfile(false);
     }
-    setSavingProfile(false);
   }
 
   async function handleSignOut() {

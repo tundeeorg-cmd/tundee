@@ -16,13 +16,20 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
   return data as UserProfile | null;
 }
 
-export async function updateDisplayName(userId: string, name: string): Promise<void> {
-  const supabase = createClient();
-  await supabase
-    .from('profiles')
-    .upsert({ id: userId, display_name: name, updated_at: new Date().toISOString() });
-}
-
+/**
+ * Upload an avatar and record it on the profile.
+ *
+ * The file goes to Supabase Storage from here — that is a storage operation,
+ * its error is checked, and routing a multipart upload through our own server
+ * would buy nothing. The ROW write goes to /api/profile/save, because that half
+ * used to be `await supabase.from('profiles').upsert(...)` with the result
+ * thrown away: a rejected write still returned a URL, the page showed the new
+ * picture, and it was gone on the next reload with nothing logged anywhere.
+ *
+ * `userId` is no longer used for the row write — the route takes the id from
+ * the session — but it still names the storage path, which is what the storage
+ * policy keys on.
+ */
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
   const supabase = createClient();
   const path = `${userId}/avatar.jpg`;
@@ -30,13 +37,22 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
     .from('avatars')
     .upload(path, file, { upsert: true, contentType: file.type });
   if (error) throw error;
-  // Bust cache with timestamp
+
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  const publicUrl = `${data.publicUrl}?t=${Date.now()}`;
-  await supabase
-    .from('profiles')
-    .upsert({ id: userId, avatar_url: data.publicUrl, updated_at: new Date().toISOString() });
-  return publicUrl;
+
+  const res = await fetch('/api/profile/save', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ avatarUrl: data.publicUrl }),
+  });
+  if (!res.ok) {
+    // Throwing is right: the caller shows an error and the student can retry.
+    // Returning the URL would show them a picture that is not actually saved.
+    throw new Error(`avatar row write failed: ${res.status}`);
+  }
+
+  // Cache-busted for immediate display only; the stored value has no query.
+  return `${data.publicUrl}?t=${Date.now()}`;
 }
 
 export function getInitials(nameOrEmail: string): string {
