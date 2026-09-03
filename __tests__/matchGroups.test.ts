@@ -51,6 +51,63 @@ describe('isAbroad', () => {
     expect(isAbroad({ region_eligibility: null })).toBe(false);
     expect(isAbroad({ region_eligibility: '   ' })).toBe(false);
   });
+
+  it('treats a Thai province name as domestic, not a foreign destination', () => {
+    // region_eligibility is overloaded: it holds destination countries AND Thai
+    // province names AND domestic-targeting phrases. A provincial-government
+    // scholarship (Khon Kaen PAO, Sisaket, Udon Thani...) named its own province
+    // here and was reading as "abroad" for it — the bug report this fix answers.
+    // Same 77-province list /profile/student already treats as canonical.
+    for (const r of ['Khon Kaen', 'Nakhon Ratchasima', 'Sisaket', 'Udon Thani', 'Roi Et', 'Sakon Nakhon']) {
+      expect(isAbroad({ region_eligibility: r }), r).toBe(false);
+    }
+  });
+
+  it('treats Thai domestic-targeting phrases as domestic', () => {
+    for (const r of [
+      'Central (Bangkok)',
+      'Home / designated province',
+      'Northeast (Isan)',
+      'Outside Bangkok metro; state universities only',
+      'Rural / designated provinces',
+      'Rural / provincial priority',
+      'Southern border provinces',
+      '35 provinces (children in foundation care)', // plural — a bare \bprovince\b missed this
+    ]) {
+      expect(isAbroad({ region_eligibility: r }), r).toBe(false);
+    }
+  });
+
+  it('matches "nationwide" as a whole word, not just "national"', () => {
+    // 'nationwide' does not contain the substring 'national' (no 'al' before
+    // 'wide') — an earlier version of this fix used /national(wide)?/ and still
+    // missed it. The shared stem has to be 'nation', not 'national'.
+    for (const r of ['nationwide', 'Nationwide']) {
+      expect(isAbroad({ region_eligibility: r }), r).toBe(false);
+    }
+  });
+
+  it('does not let "national" match inside unrelated words like "International"', () => {
+    // 'nation' is a substring of 'International' (i-n-t-e-r-NATION-al). Without
+    // \b word boundaries, genuinely foreign scholarships whose name or region
+    // contains "International" would misclassify as domestic.
+    for (const r of ['International', 'Erasmus Mundus International Programme']) {
+      expect(isAbroad({ region_eligibility: r }), r).toBe(true);
+    }
+  });
+
+  it('still misclassifies a named Thai institution/campus as abroad (known limitation)', () => {
+    // region_eligibility here names a specific Thai university, not a province
+    // or a targeting phrase, so none of the domestic signals fire. A generic
+    // "contains University" rule was rejected on purpose: it would also catch
+    // genuinely foreign schools like "University of Melbourne". Left unresolved
+    // pending either better region_eligibility data or a maintained Thai
+    // university-name gazetteer — documented here so a future fix doesn't
+    // reintroduce it silently, and so it isn't mistaken for already being fixed.
+    for (const r of ['Ramkhamhaeng Univ - Faculty of Humanities only', 'Kasetsart Univ - Bangkhen campus']) {
+      expect(isAbroad({ region_eligibility: r }), r).toBe(true);
+    }
+  });
 });
 
 describe('destinationCountry', () => {

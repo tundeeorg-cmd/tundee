@@ -37,6 +37,7 @@
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import { normalizeGradeLevel, normalizeScholarshipLevel } from './gradeLevel';
 import { isFinalSchoolYear } from '@/lib/profile/gradeLevels';
+import { PROVINCES } from '@/lib/studentProfile';
 
 export type MatchGroupKey =
   | 'domestic_undergraduate'
@@ -66,23 +67,105 @@ export interface MatchGroup<T> {
  * Whether a scholarship means leaving Thailand.
  *
  * `region_eligibility` is the only location signal the table carries — there is
- * no study_location column — and it holds a country name: 'Australia',
- * 'National (Thailand)', 'Worldwide', and so on.
+ * no study_location column, and this field is NOT purely a country name. It
+ * holds at least three different kinds of value depending on the row:
  *
- * 'Worldwide' counts as domestic here, deliberately. It means the funder does
+ *   1. a destination country, for scholarships that genuinely require moving —
+ *      'Australia', 'United Kingdom', 'Study in Taiwan'
+ *   2. a Thai province or region, for domestic scholarships that restrict by
+ *      geography — 'Khon Kaen', 'Central (Bangkok)', 'Northeast (Isan)'
+ *   3. a targeting descriptor for a domestic scholarship — 'Rural / provincial
+ *      priority', 'Southern border provinces', 'Home / designated province'
+ *
+ * The first version of this function treated everything that was not a
+ * literal 'thailand'/'ไทย'/'national' as case (1) — a foreign country. That is
+ * how six Provincial Administrative Organization scholarships (Khon Kaen,
+ * Nakhon Ratchasima, Sakon Nakhon, Sisaket, Udon Thani, Roi Et — Thai local-
+ * government aid programs for disadvantaged students) ended up under "ทุนไป
+ * เรียนต่อต่างประเทศ", along with 'nationwide' (missing the substring
+ * 'national'), 'Central (Bangkok)', and a dozen other domestic descriptors.
+ * The exact demographic this product exists for, told their own local
+ * scholarship required moving abroad.
+ *
+ * The check now recognizes case (2) explicitly, using the SAME 77-province
+ * English names lib/studentProfile.ts already uses for /profile/student — a
+ * value this codebase treats as authoritative everywhere else, not a list
+ * invented here — plus (3) via a short set of Thai-domestic targeting words.
+ * A country name is never enough on its own to prove case (1): it is whatever
+ * is left over after (2) and (3) are ruled out, matching the ticket's own
+ * rule — domestic is the default, abroad requires positive evidence.
+ *
+ * 'Worldwide' counts as domestic too, deliberately. It means the funder does
  * not restrict by nationality, not that the student must go abroad, and
  * treating it as foreign would push open-to-anyone scholarships out of the
  * groups a student looks at first. A missing value is treated the same way: an
  * unknown location is not evidence of a plane ticket.
+ *
+ * NOT resolved by this function, and known to still misclassify:
+ *   • 'Ramkhamhaeng Univ - Faculty of Humanities only' and 'Kasetsart Univ -
+ *     Bangkhen campus' name a specific Thai institution rather than a province
+ *     or a targeting phrase, so neither list below catches them. A generic
+ *     "contains University" rule was rejected on purpose — it would swallow
+ *     hundreds of genuinely foreign university names ('University of
+ *     Melbourne' must stay abroad) for the sake of two rows.
+ *   • A value can still list Thailand among several other countries as an
+ *     eligible NATIONALITY rather than a study destination (one such row
+ *     exists: a list of nine countries "Kenya, ..., Thailand, ..., United
+ *     States"). THAI_LOCATION matches the substring and calls it domestic,
+ *     which is the same conservative direction the ticket asks for, but it is
+ *     not actually known which country that scholarship is held in.
+ * Both are flagged for a human decision rather than guessed at here.
  */
-const THAI_REGION = /thailand|ไทย|national/i;
+
+/** English spellings from the same 77-province list /profile/student already
+ *  treats as canonical — not invented for this file. */
+const THAI_PROVINCE_EN = new Set(PROVINCES.map(p => p.en.toLowerCase()));
+
+/** Loose match against THAI_PROVINCE_EN: case-insensitive and punctuation/
+ *  space-insensitive, because region_eligibility spells some of these
+ *  differently from the canonical list ('Sisaket' here, 'Si Sa Ket' there). */
+function normalizePlace(s: string): string {
+  return s.toLowerCase().replace(/[^a-z]/g, '');
+}
+const THAI_PROVINCE_EN_LOOSE = new Set(Array.from(THAI_PROVINCE_EN, normalizePlace));
+
+function mentionsThaiProvince(region: string): boolean {
+  const parts = region.split(/[,;/]/).map(p => p.trim()).filter(Boolean);
+  return parts.some(p => THAI_PROVINCE_EN_LOOSE.has(normalizePlace(p)));
+}
+
+/**
+ * 'national' does not match 'nationwide' as a substring — the exact gap that
+ * let six scholarships from that word alone read as foreign. 'nation(al|wide)?'
+ * is the fix; the naive first attempt at this was 'national(wide)?', which
+ * requires the literal substring 'national' before ever looking for 'wide' —
+ * 'nationwide' does not contain 'national' (there is no 'al' between 'nation'
+ * and 'wide'), so it still failed to match. Caught by testing this function
+ * against the real word, not just reasoning about the regex.
+ *
+ * \b on both sides of 'nation': without it, the same substring also sits
+ * inside 'International' (i-n-t-e-r-NATION-al) — a word that shows up
+ * constantly in genuinely foreign scholarship names — which would have
+ * reclassified them as domestic. Caught the same way: test the regex against
+ * words that merely CONTAIN the target substring, not only the target itself.
+ */
+const THAI_NATIONAL = /\bnation(al|wide)?\b|thailand|ไทย|ทั่วประเทศ/i;
+
+/** Domestic targeting language that never names a place outside Thailand —
+ *  the vocabulary these scholarships are actually written in. 'provinces?'
+ *  because '35 provinces (children in foundation care)' is plural and a bare
+ *  \bprovince\b does not match text immediately followed by that 's'. */
+const THAI_TARGETING = /\b(bangkok|central|northeast|isan|southern border|rural|provincial|designated province|home province|provinces?)\b/i;
+
 const WORLDWIDE = /worldwide|global|any country|ทั่วโลก/i;
 
 export function isAbroad(s: Pick<TdScholarship, 'region_eligibility'>): boolean {
   const region = s.region_eligibility?.trim();
   if (!region) return false;
-  if (THAI_REGION.test(region)) return false;
+  if (THAI_NATIONAL.test(region)) return false;
   if (WORLDWIDE.test(region)) return false;
+  if (mentionsThaiProvince(region)) return false;
+  if (THAI_TARGETING.test(region)) return false;
   return true;
 }
 
