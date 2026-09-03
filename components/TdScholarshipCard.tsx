@@ -7,6 +7,7 @@ import VerificationMeta from '@/components/scholarships/VerificationMeta';
 import TrackButton from './TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { isAbroad } from '@/lib/recommender/matchGroups';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -228,11 +229,23 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
             value={localizeField(s.field_of_study, lang)}
           />
         )}
+        {/* "ภูมิภาค: Australia" reads as an eligibility rule — who may apply.
+            For a scholarship that requires moving there it is the opposite: a
+            condition of taking it, and the single fact most likely to decide
+            whether a student wants it at all. Same value, named for what it
+            actually means, and tinted so it can be found without reading. */}
         {s.region_eligibility && (
-          <LabeledChip
-            label={lo === 'th' ? 'ภูมิภาค' : 'Region'}
-            value={localizeRegion(s.region_eligibility, lang)}
-          />
+          isAbroad(s) ? (
+            <span className="inline-flex items-center text-[11px] rounded-full px-2 py-0.5 bg-[#EEF4FF] dark:bg-[#16243F] text-[#1B3A6B] dark:text-[#8FB4FF] border border-[#C7DBFF] dark:border-[#24406B]">
+              <span className="font-semibold mr-0.5">{lo === 'th' ? 'ไปเรียนที่' : 'Study in'}:</span>
+              {localizeRegion(s.region_eligibility, lang)}
+            </span>
+          ) : (
+            <LabeledChip
+              label={lo === 'th' ? 'ภูมิภาค' : 'Region'}
+              value={localizeRegion(s.region_eligibility, lang)}
+            />
+          )
         )}
         {s.min_gpa != null && (
           <LabeledChip label="GPA" value={`≥ ${s.min_gpa}`} />

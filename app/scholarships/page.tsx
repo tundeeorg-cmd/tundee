@@ -20,6 +20,7 @@ import TdScholarshipCard from '@/components/TdScholarshipCard';
 import type { TdCardMatchInfo } from '@/components/TdScholarshipCard';
 import { recommend } from '@/lib/recommender';
 import type { RecommenderProfile, FairnessMode } from '@/lib/recommender';
+import { groupMatches } from '@/lib/recommender/matchGroups';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -847,15 +848,43 @@ export default function BrowsePage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {matchesToRender.map(s => (
-                      <TdScholarshipCard
-                        key={s.scholarship_id}
-                        scholarship={s}
-                        matchInfo={{ score: s.fairnessScore, reasons: s.reasons, reasons_en: s.reasons_en }}
-                        userId={user?.id ?? null}
-                        variant={rankingVariant}
-                      />
+                  /* Grouped by what the scholarship actually asks of the
+                     student, not just ranked. 75% of a school student's matches
+                     require moving to another country; as one deadline-ordered
+                     list the 21 Thai undergraduate ones were scattered among
+                     228 foreign ones with nothing on the page distinguishing
+                     them. Order inside each group is untouched, so whatever the
+                     sort control selected still holds under every heading. */
+                  <div className="space-y-10">
+                    {groupMatches(matchesToRender, userProfile?.grade_level).map(group => (
+                      <section key={group.key}>
+                        {group.key !== 'all' && (
+                          <header className="mb-4">
+                            <h2 className="text-base font-bold text-[#0A2342] dark:text-[#E8EDF5]"
+                                style={{ fontFamily: font }}>
+                              {group.title[lo === 'th' ? 'th' : 'en']}
+                              <span className="ml-2 text-sm font-normal text-[#8A96A8]">
+                                {group.items.length}
+                              </span>
+                            </h2>
+                            <p className="mt-1 text-sm text-[#6E6E73] dark:text-[#8E8E93]"
+                               style={{ fontFamily: font, lineHeight: 1.7 }}>
+                              {group.blurb[lo === 'th' ? 'th' : 'en']}
+                            </p>
+                          </header>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {group.items.map(s => (
+                            <TdScholarshipCard
+                              key={s.scholarship_id}
+                              scholarship={s}
+                              matchInfo={{ score: s.fairnessScore, reasons: s.reasons, reasons_en: s.reasons_en }}
+                              userId={user?.id ?? null}
+                              variant={rankingVariant}
+                            />
+                          ))}
+                        </div>
+                      </section>
                     ))}
                   </div>
                 )}
