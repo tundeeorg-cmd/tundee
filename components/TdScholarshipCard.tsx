@@ -7,7 +7,7 @@ import VerificationMeta from '@/components/scholarships/VerificationMeta';
 import TrackButton from './TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import { isAbroad } from '@/lib/recommender/matchGroups';
+import { isAbroad, thaiProvinceName } from '@/lib/recommender/matchGroups';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -131,6 +131,7 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
   const badge  = s.funder_type ? FUNDER_TYPE_BADGE[s.funder_type] : null;
   const tier   = s.award_value_tier ? AWARD_TIER_LABEL[s.award_value_tier] : null;
   const level  = s.level ? LEVEL_LABEL[s.level] : null;
+  const provinceTh = thaiProvinceName(s);
 
   // Status badge (per status_effective — never verification_status)
   const statusEffective = s.status_effective || '';
@@ -240,6 +241,14 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
               <span className="font-semibold mr-0.5">{lo === 'th' ? 'ไปเรียนที่' : 'Study in'}:</span>
               {localizeRegion(s.region_eligibility, lang)}
             </span>
+          ) : provinceTh ? (
+            // region_eligibility names a specific Thai province in English
+            // ('Khon Kaen') — show the Thai name instead of leaking that
+            // spelling onto a Thai-language page.
+            <LabeledChip
+              label={lo === 'th' ? 'จังหวัด' : 'Province'}
+              value={lo === 'th' ? provinceTh : s.region_eligibility}
+            />
           ) : (
             <LabeledChip
               label={lo === 'th' ? 'ภูมิภาค' : 'Region'}

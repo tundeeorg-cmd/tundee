@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { groupMatches, isAbroad, destinationCountry } from '@/lib/recommender/matchGroups';
+import { groupMatches, isAbroad, destinationCountry, thaiProvinceName } from '@/lib/recommender/matchGroups';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 
 type Row = Pick<TdScholarship, 'level' | 'region_eligibility'> & { id: string };
@@ -107,6 +107,27 @@ describe('isAbroad', () => {
     for (const r of ['Ramkhamhaeng Univ - Faculty of Humanities only', 'Kasetsart Univ - Bangkhen campus']) {
       expect(isAbroad({ region_eligibility: r }), r).toBe(true);
     }
+  });
+});
+
+describe('thaiProvinceName', () => {
+  it('names the Thai province for a domestic scholarship that named its own', () => {
+    // What the card badge needs: 'Khon Kaen' -> 'ขอนแก่น', not the raw
+    // English spelling shown on a Thai-language page.
+    expect(thaiProvinceName({ region_eligibility: 'Khon Kaen' })).toBe('ขอนแก่น');
+    expect(thaiProvinceName({ region_eligibility: 'Sisaket' })).toBe('ศรีสะเกษ');
+  });
+
+  it('returns null for a broader region, not a specific province', () => {
+    for (const r of ['Northeast (Isan)', 'Central (Bangkok)', 'Worldwide', 'National (Thailand)']) {
+      expect(thaiProvinceName({ region_eligibility: r }), r).toBeNull();
+    }
+  });
+
+  it('returns null for anything abroad, unknown, or empty', () => {
+    expect(thaiProvinceName({ region_eligibility: 'Australia' })).toBeNull();
+    expect(thaiProvinceName({ region_eligibility: null })).toBeNull();
+    expect(thaiProvinceName({ region_eligibility: '   ' })).toBeNull();
   });
 });
 

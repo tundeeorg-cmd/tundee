@@ -118,20 +118,31 @@ export interface MatchGroup<T> {
  */
 
 /** English spellings from the same 77-province list /profile/student already
- *  treats as canonical — not invented for this file. */
-const THAI_PROVINCE_EN = new Set(PROVINCES.map(p => p.en.toLowerCase()));
-
-/** Loose match against THAI_PROVINCE_EN: case-insensitive and punctuation/
- *  space-insensitive, because region_eligibility spells some of these
- *  differently from the canonical list ('Sisaket' here, 'Si Sa Ket' there). */
+ *  treats as canonical — not invented for this file. Keyed to the Thai name so
+ *  the card badge can show 'จังหวัด: ขอนแก่น' instead of leaking the English
+ *  spelling into a Thai-language page. */
 function normalizePlace(s: string): string {
   return s.toLowerCase().replace(/[^a-z]/g, '');
 }
-const THAI_PROVINCE_EN_LOOSE = new Set(Array.from(THAI_PROVINCE_EN, normalizePlace));
+const THAI_PROVINCE_BY_NORMALIZED_EN = new Map(
+  PROVINCES.map(p => [normalizePlace(p.en), p.th]),
+);
+
+/** Loose match: case-insensitive and punctuation/space-insensitive, because
+ *  region_eligibility spells some of these differently from the canonical
+ *  list ('Sisaket' here, 'Si Sa Ket' there). Returns the Thai name of the
+ *  first part that matches a province, or null if none does. */
+function matchedThaiProvince(region: string): string | null {
+  const parts = region.split(/[,;/]/).map(p => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    const th = THAI_PROVINCE_BY_NORMALIZED_EN.get(normalizePlace(part));
+    if (th) return th;
+  }
+  return null;
+}
 
 function mentionsThaiProvince(region: string): boolean {
-  const parts = region.split(/[,;/]/).map(p => p.trim()).filter(Boolean);
-  return parts.some(p => THAI_PROVINCE_EN_LOOSE.has(normalizePlace(p)));
+  return matchedThaiProvince(region) !== null;
 }
 
 /**
@@ -178,6 +189,21 @@ export function destinationCountry(
 ): string | null {
   if (!isAbroad(s)) return null;
   return s.region_eligibility?.trim() || null;
+}
+
+/**
+ * The Thai name of the province a domestic scholarship names, for the card
+ * badge. region_eligibility holds this in English ('Khon Kaen'); showing that
+ * on a Thai-language page is the same leak isAbroad() above already documents
+ * for the "study abroad" badge. Returns null for anything abroad, unnamed, or
+ * that names a broader region ('Northeast') rather than one specific province.
+ */
+export function thaiProvinceName(
+  s: Pick<TdScholarship, 'region_eligibility'>,
+): string | null {
+  const region = s.region_eligibility?.trim();
+  if (!region || isAbroad(s)) return null;
+  return matchedThaiProvince(region);
 }
 
 /**
