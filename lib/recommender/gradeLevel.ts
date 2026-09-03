@@ -92,6 +92,33 @@ export function levelsAreCompatible(
 ): boolean {
   if (!scholarshipLevel || scholarshipLevel === 'multiple') return true;
 
+  const known = studentBuckets.filter((b): b is LevelBucket => b !== null);
+
+  /*
+   * A student whose level we do not know is not disqualified.
+   *
+   * `some(b => b !== null && ...)` returned false when every bucket was null,
+   * so an unanswered level read as "eligible for nothing that names a level".
+   * For 16 of 42 real profiles that meant 185 scholarships instead of 302, with
+   * every undergraduate one — the highest-value group, and the reason most of
+   * them signed up — silently absent. Those 16 are the students whose grade
+   * level was rejected by profiles_grade_level_check before 3 Sep, so the
+   * database dropped their answer and the matcher then punished them for the
+   * gap it had created.
+   *
+   * This also makes the rule agree with the income cap two checks earlier in
+   * eligibility.ts, which already says it plainly:
+   *
+   *   "Not knowing is not the same as knowing they earn too much."
+   *
+   * The same is true of a grade level, and it was the one hard filter still
+   * treating silence as a disqualifying answer.
+   *
+   * Precision is unchanged wherever we DO know: a known level that does not
+   * match still fails, so this widens nothing for the students who answered.
+   */
+  if (known.length === 0) return true;
+
   const allowed = ELIGIBLE_STUDENT_BUCKETS[scholarshipLevel];
-  return studentBuckets.some(b => b !== null && allowed.includes(b));
+  return known.some(b => allowed.includes(b));
 }

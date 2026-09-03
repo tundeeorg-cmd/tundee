@@ -91,7 +91,40 @@ describe('levelsAreCompatible', () => {
     expect(levelsAreCompatible('graduate', ['undergraduate', 'graduate'])).toBe(true);
   });
 
-  it('disqualifies when no bucket is recognized', () => {
-    expect(levelsAreCompatible('high_school', [null, null])).toBe(false);
+  /*
+   * This assertion used to read `.toBe(false)` — an unknown level disqualified
+   * the student from every scholarship that named a level. It was deliberate,
+   * and it was wrong, so it is inverted here rather than deleted: the old
+   * expectation should stay visible next to the reason it changed.
+   *
+   * 16 of 42 real profiles held a NULL grade_level, because
+   * profiles_grade_level_check rejected 'M1-M3', 'M4-M6' and 'vocational'
+   * until 3 Sep. Their answer was dropped by the database, and the matcher then
+   * disqualified them for the gap it had created — 185 scholarships instead of
+   * 302, with all 110 undergraduate ones missing.
+   *
+   * Note which values the old constraint DID accept: 'uni' and 'graduate'. So a
+   * NULL here cannot belong to a graduate student — it belongs to someone who
+   * chose one of the three school levels and had it thrown away.
+   */
+  it('does not disqualify a student whose level we do not know', () => {
+    expect(levelsAreCompatible('high_school', [null, null])).toBe(true);
+    expect(levelsAreCompatible('undergraduate', [null, null])).toBe(true);
+    expect(levelsAreCompatible('graduate', [null, null])).toBe(true);
+  });
+
+  it('still disqualifies a known level that does not match', () => {
+    // The widening applies only to silence. Precision is unchanged for every
+    // student who actually answered, which is what keeps this from becoming
+    // "show everyone everything".
+    expect(levelsAreCompatible('graduate', ['high_school'])).toBe(false);
+    expect(levelsAreCompatible('graduate', ['undergraduate'])).toBe(false);
+    expect(levelsAreCompatible('high_school', ['undergraduate'])).toBe(false);
+    expect(levelsAreCompatible('high_school', ['graduate'])).toBe(false);
+  });
+
+  it('treats one known bucket as enough, ignoring a null beside it', () => {
+    expect(levelsAreCompatible('graduate', [null, 'graduate'])).toBe(true);
+    expect(levelsAreCompatible('graduate', ['high_school', null])).toBe(false);
   });
 });
