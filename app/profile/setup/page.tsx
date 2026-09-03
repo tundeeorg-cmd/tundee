@@ -30,7 +30,7 @@
  * Consent (step 0) is never skipped — PDPA requires it explicitly.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
@@ -48,6 +48,12 @@ import {
   type SetupErrorCode,
   type SetupField,
 } from '@/lib/profile/setupAnswers';
+import {
+  clientLog,
+  installGlobalErrorReporting,
+  withTimeout,
+  TimeoutError,
+} from '@/lib/clientLog';
 import {
   saveDraft, loadDraft, clearDraft, resumeStep, answersFromProfile,
 } from '@/lib/profile/setupDraft';
@@ -217,6 +223,28 @@ function WizardContainer({
                       : RETRY_LABEL[lang === 'th' ? 'th' : 'en']}
                   </button>
                 )}
+
+                {/* An expired session cannot be retried, so a retry button would
+                    be a lie. It needs the one action that does work — and the
+                    reassurance that the answers are still here, because the
+                    reason students do not come back from this screen is that
+                    they assume eight minutes of typing is gone. The draft is in
+                    localStorage and is reloaded on return. */}
+                {error === 'unauthorized' && (
+                  <>
+                    <a
+                      href="/auth?next=/profile/setup"
+                      className="mt-3 inline-block px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+                    >
+                      {lang === 'th' ? 'เข้าสู่ระบบอีกครั้ง' : 'Sign in again'}
+                    </a>
+                    <p className="mt-2 text-xs text-red-600/80 dark:text-red-400/80">
+                      {lang === 'th'
+                        ? 'คำตอบของคุณถูกเก็บไว้แล้ว กลับมากรอกต่อได้เลย'
+                        : 'Your answers are saved — you can pick up where you left off.'}
+                    </p>
+                  </>
+                )}
               </div>
             )}
             {children}
@@ -229,6 +257,16 @@ function WizardContainer({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * How long the final save may take before we stop waiting.
+ *
+ * fetch has no default timeout, so without this a request that never settles
+ * owns the spinner forever — which is the bug this page was reported for. Long
+ * enough that a slow 3G save still completes, short enough that a student is
+ * not staring at a spinner wondering whether to close the tab.
+ */
+const SAVE_TIMEOUT_MS = 15_000;
+
 export default function ProfileSetupPage() {
   const { lang } = useLang();
   const router   = useRouter();
@@ -236,6 +274,15 @@ export default function ProfileSetupPage() {
 
   const [step,          setStep]          = useState(0);
   const [authLoading,   setAuthLoading]   = useState(true);
+
+  /**
+   * The signed-in user's id, for log lines only.
+   *
+   * A ref rather than state: the global error handlers are installed once and
+   * would otherwise close over whatever the id was at mount — which is null.
+   * Nothing renders from this, and nothing branches on it.
+   */
+  const userIdRef = useRef<string | null>(null);
   const [saving,        setSaving]        = useState(false);
   /** Save-level failure, as a code. Never a database message — see WizardContainer. */
   const [error,         setError]         = useState<SaveErrorCode | null>(null);
@@ -342,11 +389,95 @@ export default function ProfileSetupPage() {
    * a question the row has no value for is still restored, which is what covers
    * the answers given while a partial save was failing.
    */
+  /**
+   * Report what the browser sees, and recover the session after a bfcache
+   * restore.
+   *
+   * BOTH HALVES EXIST FOR THE ANDROID-AFTER-LINE CASE.
+   *
+   * A student who signs in with LINE leaves for the LINE app and comes back.
+   * On Android Chrome that return is frequently served from the back/forward
+   * cache: the page is resurrected exactly as it was, JavaScript timers and
+   * all, without a reload. Nothing re-runs. The Supabase client is the same
+   * object it was before the trip, holding whatever access token it had then —
+   * which, after an OAuth round trip, may already be stale. The refresh timer
+   * that would have replaced it did not run while the page was frozen.
+   *
+   * `pageshow` with `event.persisted` is the only signal that this happened.
+   * Without it the page looks alive and behaves as though signed in, and the
+   * first thing that actually needs the token is the save.
+   */
+  useEffect(() => {
+    const removeErrorReporting = installGlobalErrorReporting(() => userIdRef.current);
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+
+      clientLog({
+        level:   'info',
+        message: '[setup] restored from bfcache — refreshing session',
+        context: { visibility: document.visibilityState },
+      });
+
+      // Bounded: this runs on a page that has just been resurrected on a phone
+      // whose network may have changed underneath it. An unbounded refresh here
+      // would reintroduce exactly the hang this page was reported for.
+      withTimeout(supabase.auth.refreshSession(), 10_000, 'refreshSession after bfcache')
+        .then(({ data, error }) => {
+          clientLog({
+            level:   error ? 'error' : 'info',
+            message: error ? '[setup] session refresh failed after bfcache' : '[setup] session refreshed after bfcache',
+            context: { hasSession: !!data?.session, detail: error?.message },
+          });
+        })
+        .catch((err) => {
+          // Reported, not acted on. The save path already handles a missing
+          // session by showing the sign-in message and keeping the draft, and
+          // redirecting someone away mid-wizard on a guess would be worse.
+          clientLog({
+            level:   'error',
+            message: '[setup] session refresh threw after bfcache',
+            context: { detail: err instanceof Error ? err.message : String(err) },
+          });
+        });
+    };
+
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+      removeErrorReporting();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const { data } = await supabase.auth.getSession();
+      /*
+       * Bounded, for the same reason as the save.
+       *
+       * getSession() reads from storage but refreshes over the network when the
+       * token has expired — which is precisely the state a phone returning from
+       * the LINE app is in. Unbounded, a stall here leaves the wizard on its
+       * loading spinner with no way forward and nothing logged.
+       */
+      let data: Awaited<ReturnType<typeof supabase.auth.getSession>>['data'];
+      try {
+        ({ data } = await withTimeout(supabase.auth.getSession(), 10_000, 'getSession on mount'));
+      } catch (err) {
+        clientLog({
+          level:   'error',
+          message: '[setup] getSession failed or timed out on mount',
+          context: { detail: err instanceof Error ? err.message : String(err) },
+        });
+        // Not a redirect to /auth: that would throw away a draft over what may
+        // be a transient stall. Stop loading and let the student proceed; the
+        // save path reports 401 honestly and keeps their answers.
+        if (!cancelled) setAuthLoading(false);
+        return;
+      }
+
       if (!data.session) {
         router.replace('/auth');
         return;
@@ -354,6 +485,7 @@ export default function ProfileSetupPage() {
       if (cancelled) return;
 
       const user = data.session.user;
+      userIdRef.current = user.id;
       const metadataName =
         user.user_metadata?.full_name ?? user.user_metadata?.name ?? '';
 
@@ -473,9 +605,25 @@ export default function ProfileSetupPage() {
   }
 
   async function handleSave() {
+    /*
+     * (0a) The tap itself, before anything can go wrong.
+     *
+     * This exists to answer one question that could not be answered before: did
+     * the handler run at all? A button that spins forever and a button whose
+     * onClick never fired look the same on a phone. If this line appears in the
+     * Vercel log and the next one does not, the hang is between here and the
+     * request; if this line is missing, the tap never reached React.
+     */
+    clientLog({
+      level:   'info',
+      message: '[setup] save tapped',
+      context: { step, savingAlready: saving },
+    });
+
     setSaving(true);
     setError(null);
     setFieldError(null);
+
     try {
       /*
        * There is deliberately no supabase.auth.getUser() here.
@@ -488,8 +636,11 @@ export default function ProfileSetupPage() {
        * ever sent to Vercel, which is exactly how this became invisible.
        *
        * It also bought nothing. The route re-checks the session server-side and
-       * answers 401, which the handler below already handles by showing the
-       * 'unauthorized' message. Asking twice only added a way to fail.
+       * answers 401, which the handler below already handles.
+       *
+       * (0b) — "did we have a session" is answered by the route's 401 instead,
+       * and reported below. That is strictly better than asking here: it is the
+       * server's own view of the session, and it costs no extra round trip.
        */
 
       // Client-side first, so a rejection costs no round trip and lands the
@@ -497,34 +648,69 @@ export default function ProfileSetupPage() {
       const errors = validateSetupAnswers(answers);
       if (hasErrors(errors)) {
         const [field, code] = Object.entries(errors)[0] as [SetupField, SetupErrorCode];
+        clientLog({ level: 'warn', message: '[setup] client validation rejected', context: { field, code } });
         setFieldError(code);
         setError('validation');
         setStep(FIELD_STEP[field]);
-        setSaving(false);
         return;
       }
+
+      // (1) Everything about to be sent, before it is sent.
+      clientLog({
+        level:   'info',
+        message: '[setup] posting answers',
+        context: { answers, step },
+      });
 
       // The write happens server-side. The browser gets a code back and never a
       // Postgres message — the real error is logged in the route with the user
       // id, the step and the payload.
       let res: Response;
       try {
-        res = await fetch('/api/profile/setup', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ partial: false, answers }),
-        });
+        /*
+         * Bounded, because unbounded is how the button hangs.
+         *
+         * fetch has no default timeout. A phone returning from the LINE app has
+         * a suspended tab, possibly a changed network, and a request that may
+         * never settle either way. 15 seconds is far longer than this call ever
+         * legitimately takes and far shorter than "forever".
+         */
+        res = await withTimeout(
+          fetch('/api/profile/setup', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ partial: false, answers }),
+          }),
+          SAVE_TIMEOUT_MS,
+          'POST /api/profile/setup',
+        );
       } catch (err) {
-        console.error('[TunDee Setup] save request failed:', err);
-        setError('network');
-        setSaving(false);
+        const timedOut = err instanceof TimeoutError;
+        // (3) The failure, with everything we know about it.
+        clientLog({
+          level:   'error',
+          message: timedOut ? '[setup] save timed out' : '[setup] save request failed',
+          context: {
+            name:    err instanceof Error ? err.name : typeof err,
+            detail:  err instanceof Error ? err.message : String(err),
+            online:  typeof navigator !== 'undefined' ? navigator.onLine : null,
+            timeout: timedOut ? SAVE_TIMEOUT_MS : undefined,
+          },
+        });
+        // Both cases mean the same thing to the student and offer the same
+        // remedy: the answers are safe, press the button again.
+        setError(timedOut ? 'save_failed' : 'network');
         return;
       }
 
       if (!res.ok) {
         if (res.status === 401) {
+          // (0b), answered by the server: there was no usable session.
+          // Never a silent return — the draft is preserved and the student is
+          // told to sign in rather than left tapping a button that cannot work.
+          clientLog({ level: 'error', message: '[setup] save rejected: no session', context: { status: 401 } });
+          persistStep(step);
           setError('unauthorized');
-          setSaving(false);
           return;
         }
         if (res.status === 422) {
@@ -532,20 +718,23 @@ export default function ProfileSetupPage() {
           // on the offending step instead of failing at 100%.
           const body = await res.json().catch(() => ({}));
           const entries = Object.entries(body?.fields ?? {}) as Array<[SetupField, SetupErrorCode]>;
+          clientLog({ level: 'error', message: '[setup] server validation rejected', context: body?.fields ?? null });
           if (entries.length > 0) {
             setFieldError(entries[0][1]);
             setStep(FIELD_STEP[entries[0][0]]);
           }
           setError('validation');
-          setSaving(false);
           return;
         }
         // Anything else: the answers are already saved step by step, so the
         // honest message is "try again", with a button that does exactly that.
+        clientLog({ level: 'error', message: '[setup] save failed', context: { status: res.status } });
         setError('save_failed');
-        setSaving(false);
         return;
       }
+
+      // (2) It worked.
+      clientLog({ level: 'info', message: '[setup] saved' });
 
       // ── Randomize into a ranking arm (PREREG §4) ──────────────────────────
       // Awaited, unlike the baseline snapshot below: the arm decides which
@@ -626,8 +815,31 @@ export default function ProfileSetupPage() {
       // own matched results, not a generic list.
       router.replace(destination);
     } catch (e) {
-      console.error('[TunDee Setup] exception:', e);
+      // Anything unforeseen. Reported rather than only console.error'd, because
+      // a console on a student's phone is not somewhere we can look.
+      clientLog({
+        level:   'error',
+        message: '[setup] unexpected exception in handleSave',
+        context: {
+          name:   e instanceof Error ? e.name : typeof e,
+          detail: e instanceof Error ? e.message : String(e),
+          stack:  e instanceof Error ? e.stack?.slice(0, 1_000) : undefined,
+        },
+      });
       setError('save_failed');
+    } finally {
+      /*
+       * The single exit point for the spinner.
+       *
+       * Every branch above used to clear it individually, which meant every new
+       * branch was a chance to forget — and forgetting looks exactly like the
+       * hang we are chasing. A `finally` cannot be forgotten.
+       *
+       * It runs on the success path too, after router.replace has been called.
+       * That is harmless: the navigation is already under way, and if it does
+       * not happen the student is left with a working button rather than a dead
+       * one.
+       */
       setSaving(false);
     }
   }
