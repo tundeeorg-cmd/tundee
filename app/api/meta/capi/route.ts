@@ -10,16 +10,26 @@
  * Each needs its own access token (a token is scoped to one dataset), so they
  * are paired in lib/analytics/capiDestinations.ts. The SAME event_id goes to
  * both, which is what lets each dataset collapse its own server copy against
- * its own browser copy.
+ * its own browser copy. In practice only the agency dataset (518364469095414)
+ * is meant to receive server events — set only META_CAPI_ACCESS_TOKEN_AGENCY,
+ * not the plain META_CAPI_ACCESS_TOKEN, and the primary dataset simply never
+ * completes its pair (see capiDestinations.ts) and stays CAPI-dormant while
+ * still receiving browser-side events as before.
  *
  * De-duplication: the client mints one event_id per event, passes it to
  * fbq(..., { eventID }) and sends the same id here. Meta collapses the browser
  * and server copies into a single conversion.
  *
  * PII: the client sends none. This route reads the session itself and hashes
- * the email server-side, so raw identifiers never pass through client code or
- * a request body. Reaching this route implies consent — lib/analytics/meta.ts
- * refuses to call it otherwise.
+ * the email, phone and user id server-side, so raw identifiers never pass
+ * through client code or a request body. Reaching this route implies
+ * consent — lib/analytics/meta.ts refuses to call it otherwise.
+ *
+ * RETRY: one retry per dataset, and only on a 5xx or a thrown fetch — both
+ * read as "Meta's side, momentarily" rather than "this request is wrong",
+ * which a 4xx would be and isn't worth repeating. Every failure (including a
+ * retry's own) is logged with console.warn, which lands in Vercel's function
+ * logs; never surfaced to the caller beyond the aggregate 200/202 below.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -61,9 +71,29 @@ function clientIp(request: NextRequest): string | undefined {
 }
 
 /**
+ * One HTTP attempt at posting to one dataset. Never throws — the caller
+ * (deliver, below) decides what a failure means.
+ */
+async function post(dest: CapiDestination, payload: Record<string, unknown>): Promise<Response> {
+  return fetch(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${dest.pixelId}/events?access_token=${encodeURIComponent(dest.accessToken)}`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    },
+  );
+}
+
+/**
  * Post one conversion to one dataset. Never throws: a dataset that is down,
  * misconfigured or rate-limited must not stop the others from receiving the
  * event, and must never surface an error to a student.
+ *
+ * Retries exactly once, and only on a 5xx — that's Meta's side failing, and
+ * likely to succeed a moment later. A 4xx means the request itself is wrong
+ * (bad token, malformed payload); retrying it wastes a round trip on
+ * something that will fail identically the second time.
  */
 async function deliver(
   dest: CapiDestination,
@@ -72,33 +102,33 @@ async function deliver(
   const payload: Record<string, unknown> = { data: [event] };
   if (dest.testEventCode) payload.test_event_code = dest.testEventCode;
 
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_API_VERSION}/${dest.pixelId}/events?access_token=${encodeURIComponent(dest.accessToken)}`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      },
-    );
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await post(dest, payload);
 
-    if (!res.ok) {
+      if (res.ok) return true;
+
+      const body = (await res.text()).slice(0, 200);
       // Name the dataset so a bad token is debuggable. The token itself is
       // never logged.
       console.warn(
-        `[meta/capi] ${dest.name} (${dest.pixelId}) rejected:`,
-        res.status, (await res.text()).slice(0, 200),
+        `[meta/capi] ${dest.name} (${dest.pixelId}) rejected (attempt ${attempt}):`,
+        res.status, body,
       );
-      return false;
+
+      if (res.status < 500 || attempt === 2) return false;
+      // else: 5xx on the first attempt — loop once more.
+    } catch (e) {
+      console.warn(
+        `[meta/capi] ${dest.name} (${dest.pixelId}) request failed (attempt ${attempt}):`,
+        e instanceof Error ? e.message : String(e),
+      );
+      if (attempt === 2) return false;
+      // A thrown fetch (network blip, DNS hiccup) is retried the same as a
+      // 5xx — both are "Meta's side, try again", not "this request is bad".
     }
-    return true;
-  } catch (e) {
-    console.warn(
-      `[meta/capi] ${dest.name} (${dest.pixelId}) request failed:`,
-      e instanceof Error ? e.message : String(e),
-    );
-    return false;
   }
+  return false;
 }
 
 export async function POST(request: NextRequest) {
@@ -143,6 +173,10 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.email) userData.em = [hashIdentifier(user.email)];
     if (user?.phone) userData.ph = [hashIdentifier(user.phone)];
+    // The account id itself, hashed the same way — an extra match signal for
+    // a signed-in visitor beyond email/phone, and the one that still works
+    // for an account that has neither (a LINE-only signup, say).
+    if (user?.id) userData.external_id = [hashIdentifier(user.id)];
   } catch {
     // Anonymous visitor or an unreadable session — send what we have.
   }
