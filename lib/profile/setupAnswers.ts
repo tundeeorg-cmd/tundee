@@ -17,7 +17,9 @@
  * the real constraint.
  */
 
-import { GRADE_LEVEL_VALUES, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
+import {
+  GRADE_LEVEL_VALUES, canonicalizeGradeLevel, coherentGradeYear,
+} from '@/lib/profile/gradeLevels';
 import { PROVINCES_TH } from '@/lib/translations';
 
 /** profiles.income_bracket CHECK: BETWEEN 1 AND 7. */
@@ -44,6 +46,18 @@ export const PRIOR_KNOWLEDGE_VALUES = [0, 2, 6, 15] as const;
 export interface SetupAnswers {
   displayName: string;
   gradeLevel: string;
+  /**
+   * Year inside gradeLevel's range — 1–3 for M1-M3, 4–6 for M4-M6. null when
+   * not applicable (any other level) or not yet answered.
+   *
+   * Coherence with gradeLevel is enforced at write time in
+   * buildProfilePayload, not by a database CHECK — see
+   * scripts/20260903_v21_grade_year.sql for why a cross-column constraint was
+   * rejected: it would refuse the whole write the moment a student changes
+   * ม.6 → ม.2 and a stale year comes along for the ride, which is the same
+   * failure shape profiles_grade_level_check produced for weeks.
+   */
+  gradeYear: number | null;
   gpa: string;
   province: string;
   incomeBracket: number;
@@ -59,12 +73,13 @@ export interface SetupAnswers {
 
 /** Every field the validator can reject, so callers can point at the right one. */
 export type SetupField =
-  | 'gradeLevel' | 'gpa' | 'province' | 'incomeBracket'
+  | 'gradeLevel' | 'gradeYear' | 'gpa' | 'province' | 'incomeBracket'
   | 'heardAboutUs' | 'priorKnowledge' | 'consentTerms';
 
 /** A rejection, as a stable code. Copy lives with the UI, not in the validator. */
 export type SetupErrorCode =
   | 'grade_level_invalid' | 'grade_level_required'
+  | 'grade_year_invalid'
   | 'gpa_out_of_range' | 'gpa_not_a_number'
   | 'province_unknown' | 'province_required'
   | 'income_out_of_range'
@@ -88,6 +103,19 @@ export function validateField(field: SetupField, value: unknown): SetupErrorCode
     case 'gradeLevel': {
       if (value === '' || value == null) return null;
       return GRADE_LEVEL_VALUES.includes(String(value)) ? null : 'grade_level_invalid';
+    }
+    case 'gradeYear': {
+      // Not required at this level — a student who has not reached the year
+      // question yet, or whose level has none (profiles_grade_year_check
+      // admits 1-6), sends null. Coherence with the CHOSEN level (a year
+      // outside its range) is checked at write time in buildProfilePayload,
+      // not here: the wizard only ever offers the years gradeYearsFor(level)
+      // returns, so an incoherent pairing cannot come from the UI — only from
+      // a stale field the student's own later change should silently correct,
+      // not reject.
+      if (value == null || value === '') return null;
+      const n = Number(value);
+      return Number.isInteger(n) && n >= 1 && n <= 6 ? null : 'grade_year_invalid';
     }
     case 'gpa': {
       const raw = String(value ?? '').trim();
@@ -143,6 +171,7 @@ export function validateSetupAnswers(answers: Partial<SetupAnswers>): SetupError
   const put = (f: SetupField, code: SetupErrorCode | null) => { if (code) errors[f] = code; };
 
   put('gradeLevel',     validateField('gradeLevel', answers.gradeLevel));
+  put('gradeYear',      validateField('gradeYear', answers.gradeYear));
   put('gpa',            validateField('gpa', answers.gpa));
   put('province',       validateField('province', answers.province));
   put('incomeBracket',  validateField('incomeBracket', answers.incomeBracket));
@@ -233,10 +262,27 @@ export function buildProfilePayload(
   // than reject, so a student who started before the deploy still lands.
   const grade = canonicalizeGradeLevel(answers.gradeLevel);
 
+  /*
+   * Written whenever grade_level is written, never left to drift.
+   *
+   * coherentGradeYear returns null for a year outside the level's range or a
+   * level with no years at all — exactly the shape a stale value takes after a
+   * student changes level without having re-answered the year yet (ม.6 → ม.2
+   * leaves grade_year=6 in React state until this runs). Writing that null is
+   * what clears it; leaving the key out would let the stale year sit in the
+   * database, coherent with nothing.
+   *
+   * Only computed when grade is non-null, matching grade_level's own
+   * undefined-when-blank behaviour below: a call that has not reached the
+   * grade-level step yet must not touch either column.
+   */
+  const gradeYear = grade !== null ? coherentGradeYear(grade, answers.gradeYear) : undefined;
+
   return compact({
     id:                          userId,
     display_name:                String(answers.displayName ?? '').trim() || undefined,
     grade_level:                 grade ?? undefined,
+    grade_year:                  gradeYear,
     province:                    province || undefined,
     gpa:                         Number.isFinite(gpaNum as number) ? gpaNum ?? undefined : undefined,
     income_bracket:              answers.incomeBracket,

@@ -41,6 +41,7 @@ import {
   type SetupErrors,
   type SetupField,
 } from '@/lib/profile/setupAnswers';
+import { canonicalizeGradeLevel, coherentGradeYear } from '@/lib/profile/gradeLevels';
 
 /** Longest display name we will store. Longer is a paste, not a name. */
 const MAX_DISPLAY_NAME = 80;
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (has('gradeLevel'))    check('gradeLevel', body.gradeLevel);
+  if (has('gradeYear'))     check('gradeYear', body.gradeYear);
   if (has('gpa'))           check('gpa', body.gpa);
   if (has('province'))      check('province', body.province);
   if (has('incomeBracket')) check('incomeBracket', body.incomeBracket);
@@ -104,7 +106,26 @@ export async function POST(request: NextRequest) {
     // rejects the empty string explicitly, so it has to become NULL here or a
     // student clearing the field would get save_failed with no way forward.
     const grade = String(body.gradeLevel ?? '').trim();
-    patch.grade_level = grade === '' ? null : grade;
+    // '' already returns null from canonicalizeGradeLevel; validateField above
+    // already refused anything else that isn't blank or in the canonical set.
+    const canonical = canonicalizeGradeLevel(grade);
+    patch.grade_level = canonical;
+
+    /*
+     * grade_year is written IN THE SAME PATCH as grade_level, never on its
+     * own — /profile sends both from one component's state on one save, so
+     * they always arrive together, and that is what lets this correct a stale
+     * value rather than merely ignore it.
+     *
+     * A student who changes ม.6 → ม.2 sends grade_level='M1-M3' with whatever
+     * gradeYear the page still holds from before (possibly 6, possibly
+     * untouched this call). coherentGradeYear returns null for that pairing,
+     * and writing that null is what clears the stale ม.6 out of the row —
+     * leaving the key out here would let it sit there, coherent with nothing.
+     * See scripts/20260903_v21_grade_year.sql for why this lives in code
+     * rather than a database CHECK.
+     */
+    patch.grade_year = coherentGradeYear(canonical, body.gradeYear);
   }
 
   if (has('gpa')) {

@@ -39,7 +39,10 @@ import { logEvent } from '@/lib/research/events';
 import { readAdParams } from '@/lib/adTracking';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
-import { GRADE_LEVELS, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
+import {
+  GRADE_LEVELS, canonicalizeGradeLevel, hasGradeYear, gradeYearsFor, gradeYearLabel,
+  coherentGradeYear,
+} from '@/lib/profile/gradeLevels';
 import {
   validateField,
   validateSetupAnswers,
@@ -303,6 +306,10 @@ export default function ProfileSetupPage() {
   // Form values
   const [displayName,       setDisplayName]       = useState('');
   const [gradeLevel,        setGradeLevel]        = useState('');
+  /** Only meaningful when hasGradeYear(gradeLevel) — null otherwise, and reset
+   *  to null the moment the level changes so a stale year can never survive a
+   *  switch away from the level it belonged to. */
+  const [gradeYear,         setGradeYear]         = useState<number | null>(null);
   const [gpa,               setGpa]               = useState('');
   const [province,          setProvince]          = useState('');
   const [incomeBracket,     setIncomeBracket]     = useState(4);
@@ -323,7 +330,7 @@ export default function ProfileSetupPage() {
 
   /** Everything the student has answered, in the shape the validator expects. */
   const answers: Partial<SetupAnswers> = {
-    displayName, gradeLevel, gpa, province,
+    displayName, gradeLevel, gradeYear, gpa, province,
     incomeBracket, welfareCard,
     fields: selectedFields,
     priorKnowledge, heardAboutUs: recruitmentSource,
@@ -370,6 +377,14 @@ export default function ProfileSetupPage() {
     const preview = decodePreviewInput(readCookie(PREVIEW_COOKIE));
     if (preview) {
       setGradeLevel(preview.level);
+      // No gradeYear here: /start's own quiz never asks it, and PREFILLED_STEPS
+      // sends anyone who arrives with a preview straight past step 3 (2 → 7),
+      // so the year sub-question never renders for them either. A ม.4–6
+      // student prefilled this way keeps grade_year null until they revisit
+      // step 3 or /profile — matching for the ม.ปลาย group they still get, just
+      // without the ม.6-leads-with-undergraduate refinement. Asking a fourth
+      // question on /start to close that gap is a product decision for that
+      // quiz, not something to smuggle in here.
       setProvince(preview.province);
       // Income is now asked on /start too, so it must replay here — otherwise
       // the visitor answers the same question twice and we look like we
@@ -531,7 +546,7 @@ export default function ProfileSetupPage() {
       const { data: profile } = await supabase
         .from('profiles')
         .select(
-          'display_name, grade_level, gpa, province, income_bracket, welfare_card, ' +
+          'display_name, grade_level, grade_year, gpa, province, income_bracket, welfare_card, ' +
           'fields_of_interest, prior_scholarship_knowledge, heard_about_us, ' +
           'consent_version, research_opt_in, guardian_acknowledged',
         )
@@ -550,6 +565,11 @@ export default function ProfileSetupPage() {
       // A grade stored under the retired vocabulary is upgraded, not dropped.
       const grade = canonicalizeGradeLevel(merged.gradeLevel);
       if (grade) setGradeLevel(grade);
+      // Read through the same coherence check the write side uses: a year that
+      // does not belong to the (possibly just-upgraded) level is not shown as
+      // if it did, even if it is still sitting in the stored row.
+      const year = coherentGradeYear(grade, merged.gradeYear);
+      if (year !== null) setGradeYear(year);
       if (merged.gpa) setGpa(merged.gpa);
       if (merged.province) setProvince(merged.province);
       if (typeof merged.incomeBracket === 'number') setIncomeBracket(merged.incomeBracket);
@@ -633,13 +653,37 @@ export default function ProfileSetupPage() {
    * Choose a grade level. Rejected here if it is not one the database accepts —
    * which is the whole point of this change, and is why the option list and the
    * constraint are now generated from one module.
+   *
+   * Does NOT always advance to step 4. ม.1–3 and ม.4–6 have a year inside them
+   * — the difference between a ม.6 student, for whom most Thai undergraduate
+   * scholarships are the highest-value thing in the catalogue, and a ม.4
+   * student, for whom the same list is two years away — so those two stay on
+   * this step for one more tap. Every other level has nothing further to ask
+   * and advances immediately, same as before this existed.
    */
   function chooseGradeLevel(value: string) {
     const code = validateField('gradeLevel', value);
     if (code) { setFieldError(code); return; }
     setFieldError(null);
     setGradeLevel(value);
-    persistStep(3, { ...answers, gradeLevel: value });
+    // Reset unconditionally: a year answered under a PREVIOUS level must never
+    // survive a switch to a new one, even briefly in local state — the write-
+    // time coherence rule would clear it on save regardless, but the screen
+    // should not claim ม.6 for a student who just chose ม.1–3.
+    setGradeYear(null);
+    persistStep(3, { ...answers, gradeLevel: value, gradeYear: null });
+
+    if (hasGradeYear(value)) return; // year sub-question renders next, same step
+    setStep(4);
+  }
+
+  /** The follow-up: which year inside the chosen level. */
+  function chooseGradeYear(year: number) {
+    const code = validateField('gradeYear', year);
+    if (code) { setFieldError(code); return; }
+    setFieldError(null);
+    setGradeYear(year);
+    persistStep(3, { ...answers, gradeYear: year });
     setStep(4);
   }
 
@@ -1098,9 +1142,73 @@ export default function ProfileSetupPage() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STEP 3 Grade level
+  // STEP 3 Grade level, and — inline, same step — which year inside it
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 3) {
+    // A level chosen but not yet advanced past: hasGradeYear(gradeLevel) is
+    // only true for M1-M3 and M4-M6, and chooseGradeLevel deliberately does
+    // not call setStep(4) for those — this is what keeps the student here for
+    // one more tap instead of moving them straight to step 4.
+    const askingYear = hasGradeYear(gradeLevel);
+
+    if (askingYear) {
+      const chosen = GRADE_LEVELS.find(g => g.value === gradeLevel);
+      return (
+        <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-4">📅</div>
+            <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
+              {lang === 'th' ? 'ชั้นปีไหน?' : 'Which year?'}
+            </h1>
+            {chosen && (
+              <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]" style={{ fontFamily: font }}>
+                {lang === 'th'
+                  ? `คุณเลือก ${chosen.th} — อีกแค่นี้ก็เสร็จ`
+                  : `You chose ${chosen.en} — one more tap`}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mb-6">
+            {gradeYearsFor(gradeLevel).map((year) => (
+              <button
+                key={year}
+                onClick={() => chooseGradeYear(year)}
+                className={`flex items-center justify-center px-4 py-4 rounded-xl border-2 font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] transition-all ${
+                  gradeYear === year
+                    ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
+                    : 'border-[#e0e0e0] dark:border-[#3a3a3c] hover:border-[#2E6BE6]/50 bg-white dark:bg-[#2c2c2e]'
+                }`}
+                style={{ fontFamily: font }}
+              >
+                {gradeYearLabel(year, lang === 'th' ? 'th' : 'en')}
+              </button>
+            ))}
+          </div>
+
+          <FieldError code={fieldError} lang={lang} />
+
+          <div className="flex items-center justify-between">
+            {/* Not prevStep: that leaves step 3 for step 2. This stays on step
+                3 and re-opens the level list, for a student who tapped the
+                wrong one — a genuinely different action from "go back". */}
+            <button
+              onClick={() => { setGradeLevel(''); setGradeYear(null); setFieldError(null); }}
+              className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            >
+              {lang === 'th' ? '‹ เปลี่ยนระดับชั้น' : '‹ Change level'}
+            </button>
+            <button
+              onClick={nextStep}
+              className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            >
+              {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
+            </button>
+          </div>
+        </WizardContainer>
+      );
+    }
+
     return (
       <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">

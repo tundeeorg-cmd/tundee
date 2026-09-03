@@ -29,6 +29,10 @@ export const FIELD_MESSAGES: Record<SetupErrorCode, Copy> = {
     th: 'กรุณาเลือกระดับชั้นที่กำลังเรียนอยู่',
     en: 'Please choose your current level of study.',
   },
+  grade_year_invalid: {
+    th: 'กรุณาเลือกชั้นปีจากรายการ',
+    en: 'Please choose your year from the list.',
+  },
   gpa_out_of_range: {
     th: 'เกรดเฉลี่ยต้องอยู่ระหว่าง 0.00 – 4.00',
     en: 'GPA must be between 0.00 and 4.00.',
@@ -100,6 +104,11 @@ export const FIELD_STEP: Record<SetupField, number> = {
   consentTerms:   0,
   priorKnowledge: 2,
   gradeLevel:     3,
+  // Asked as a follow-up inside step 3, right after the level itself — not a
+  // separate step. Inserting a whole new step would renumber every step after
+  // it (4 through 8) for a question that only ever applies to two of the five
+  // grade levels.
+  gradeYear:      3,
   gpa:            4,
   province:       5,
   incomeBracket:  6,

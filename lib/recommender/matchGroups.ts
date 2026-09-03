@@ -22,10 +22,13 @@
  * them: 74 against 228. Ordering by size alone would bury the smaller and more
  * actionable set under the larger one.
  *
- * Within a location, undergraduate scholarships lead for a school student.
- * Nearly every Thai undergraduate scholarship recruits from ม.6, so for the
- * student a year from university they are the highest-value thing on the page —
- * which is exactly what a flat list was hiding.
+ * Within a location, undergraduate scholarships lead only for the student who
+ * can act on one now — ม.6, or ปวช./ปวส. at any year. Nearly every Thai
+ * undergraduate scholarship recruits from ม.6, so for that student they are
+ * the highest-value thing on the page — which is exactly what a flat list was
+ * hiding. A ม.4 or ม.5 student sees the same group lower down, tagged as
+ * something to prepare for rather than something with a deadline today; see
+ * undergraduateLeads() and isPreparingAhead() below.
  *
  * Every scholarship lands in exactly one group. Overlapping groups would show
  * the same card twice and make the counts meaningless.
@@ -33,6 +36,7 @@
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import { normalizeGradeLevel, normalizeScholarshipLevel } from './gradeLevel';
+import { isFinalSchoolYear } from '@/lib/profile/gradeLevels';
 
 export type MatchGroupKey =
   | 'domestic_undergraduate'
@@ -49,6 +53,13 @@ export interface MatchGroup<T> {
   /** One line saying why these are here. Empty when the heading says it all. */
   blurb: { th: string; en: string };
   items: T[];
+  /**
+   * Set only on `domestic_undergraduate` for a ม.4 or ม.5 student: these
+   * scholarships recruit from ม.6, so the deadline shown on each card is not
+   * one this student can act on yet. The page renders `note` as a small tag
+   * next to the heading rather than implying otherwise.
+   */
+  note?: { th: string; en: string };
 }
 
 /**
@@ -86,11 +97,41 @@ export function destinationCountry(
   return s.region_eligibility?.trim() || null;
 }
 
-/** True when this student is at school or in vocational college. */
-function isSchoolStudent(gradeLevel: string | null | undefined): boolean {
-  const bucket = normalizeGradeLevel(gradeLevel);
-  return bucket === 'high_school' || bucket === 'vocational';
+/**
+ * Whether the domestic-undergraduate group should lead the page, ahead of the
+ * ม.ปลาย group.
+ *
+ * ปวช./ปวส. students lead with it unconditionally: there is no year
+ * granularity for vocational (ปวช.1–3 and ปวส.1–2 are two qualifications whose
+ * numbering does not line up, per lib/profile/gradeLevels.ts), and they are
+ * already the intake these scholarships recruit from.
+ *
+ * ม.4–6 students lead with it only in ม.6 — the year these scholarships
+ * actually recruit from. ม.4, ม.5, and an unanswered year all fall through to
+ * `false`: the group still appears (see isFinalSchoolYear's sibling case
+ * below), just not as the first thing on the page for someone who cannot act
+ * on it yet.
+ */
+function undergraduateLeads(
+  gradeLevel: string | null | undefined,
+  gradeYear: number | null,
+): boolean {
+  if (normalizeGradeLevel(gradeLevel) === 'vocational') return true;
+  return isFinalSchoolYear(gradeLevel, gradeYear);
 }
+
+/** ม.4 or ม.5: not yet eligible to apply, but worth knowing the group exists. */
+function isPreparingAhead(
+  gradeLevel: string | null | undefined,
+  gradeYear: number | null,
+): boolean {
+  return gradeLevel === 'M4-M6' && (gradeYear === 4 || gradeYear === 5);
+}
+
+const AHEAD_OF_TIME_NOTE = {
+  th: 'เตรียมไว้ล่วงหน้า — สมัครได้ตอน ม.6',
+  en: 'Getting ready early — you can apply in ม.6',
+};
 
 const TITLES: Record<Exclude<MatchGroupKey, 'all'>, MatchGroup<never>['title']> = {
   domestic_undergraduate: { th: 'ทุนเรียนต่อปริญญาตรีในไทย', en: 'Undergraduate scholarships in Thailand' },
@@ -125,17 +166,16 @@ const BLURBS: Record<Exclude<MatchGroupKey, 'all'>, MatchGroup<never>['blurb']> 
 export function groupMatches<T extends Pick<TdScholarship, 'level' | 'region_eligibility'>>(
   items: T[],
   gradeLevel: string | null | undefined,
-  opts: { minToGroup?: number } = {},
+  opts: { minToGroup?: number; gradeYear?: number | null } = {},
 ): Array<MatchGroup<T>> {
   const minToGroup = opts.minToGroup ?? 8;
+  const gradeYear = opts.gradeYear ?? null;
 
   // Below this, headings cost more than they explain: a student with six
   // results can read all six.
   if (items.length < minToGroup) {
     return [{ key: 'all', title: { th: '', en: '' }, blurb: { th: '', en: '' }, items }];
   }
-
-  const school = isSchoolStudent(gradeLevel);
 
   const buckets: Record<Exclude<MatchGroupKey, 'all'>, T[]> = {
     domestic_undergraduate: [],
@@ -177,19 +217,27 @@ export function groupMatches<T extends Pick<TdScholarship, 'level' | 'region_eli
   }
 
   /*
-   * Undergraduate leads for a school student — they are a year or two from
-   * applying and these are the largest awards they can reach. For anyone else
-   * the school group leads, because an undergraduate already at university is
-   * not served by a "for students finishing ม.6" heading standing above
-   * everything.
+   * Undergraduate leads only for the student who can act on it now: ปวช./ปวส.
+   * unconditionally, ม.4–6 only in ม.6. A ม.4 or ม.5 student — or one whose
+   * year we never asked — sees the ม.ปลาย group first instead, because a
+   * heading of "ทุนเรียนต่อปริญญาตรี" above everything else implies a deadline
+   * they cannot yet act on. The group still appears; see `note` below.
    */
-  const order: Array<Exclude<MatchGroupKey, 'all'>> = school
+  const order: Array<Exclude<MatchGroupKey, 'all'>> = undergraduateLeads(gradeLevel, gradeYear)
     ? ['domestic_undergraduate', 'domestic_school', 'domestic_other', 'abroad', 'graduate']
     : ['domestic_school', 'domestic_undergraduate', 'domestic_other', 'abroad', 'graduate'];
+
+  const aheadOfTime = isPreparingAhead(gradeLevel, gradeYear);
 
   // An empty heading is worse than no heading — it reads as a section that
   // failed to load.
   return order
     .filter(k => buckets[k].length > 0)
-    .map(k => ({ key: k, title: TITLES[k], blurb: BLURBS[k], items: buckets[k] }));
+    .map(k => ({
+      key: k,
+      title: TITLES[k],
+      blurb: BLURBS[k],
+      items: buckets[k],
+      ...(k === 'domestic_undergraduate' && aheadOfTime ? { note: AHEAD_OF_TIME_NOTE } : {}),
+    }));
 }

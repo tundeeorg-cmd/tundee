@@ -68,6 +68,17 @@ export function clearDraft(): void {
  * GPA (step 4) is deliberately absent: it is optional, so an empty gpa is
  * indistinguishable from a declined one, and treating it as unanswered would
  * park returning students on a question they already chose to skip.
+ *
+ * grade_year is absent for a sharper reason: this list has no way to express
+ * "required only when grade_level is M1-M3 or M4-M6". Three of the five levels
+ * — vocational, uni, graduate — never have a year at all, so profile.grade_year
+ * is permanently NULL for those students. Adding a blanket
+ * { step: 3, column: 'grade_year' } entry would trap all three of them on step
+ * 3 forever, resuming there on every visit for a question they can never
+ * answer. The year is asked inline once, inside step 3 (see the wizard's
+ * chooseGradeLevel), and a student who skips it is treated exactly like a
+ * student who skips grade_level itself — free to move on, not re-blocked by
+ * resume.
  */
 const STEP_FIELDS: Array<{ step: number; column: string }> = [
   { step: 0, column: 'consent_version' },
@@ -116,6 +127,7 @@ export function answersFromProfile(profile: Record<string, unknown> | null | und
   return {
     displayName:          typeof profile.display_name === 'string' ? profile.display_name : undefined,
     gradeLevel:           typeof profile.grade_level === 'string' ? profile.grade_level : undefined,
+    gradeYear:            typeof profile.grade_year === 'number' ? profile.grade_year : null,
     gpa:                  profile.gpa == null ? undefined : String(profile.gpa),
     province:             typeof profile.province === 'string' ? profile.province : undefined,
     incomeBracket:        typeof profile.income_bracket === 'number' ? profile.income_bracket : undefined,

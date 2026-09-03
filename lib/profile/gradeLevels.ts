@@ -97,3 +97,72 @@ export function gradeLevelLabel(value: string, lang: 'th' | 'en'): string {
   const opt = GRADE_LEVELS.find(g => g.value === canonical);
   return opt ? opt[lang] : value;
 }
+
+// ─── Year within the range ────────────────────────────────────────────────────
+
+/**
+ * Which years a grade level contains, when it contains distinguishable years.
+ *
+ * Only the two secondary ranges do. 'vocational' spans ปวช.1–3 and ปวส.1–2 —
+ * two different qualifications whose year numbers do not line up, so a single
+ * 1–6 field would mean different things for different students. 'uni' and
+ * 'graduate' have years too, but nothing in the matcher would use them: no
+ * scholarship in the catalogue recruits specifically from second-year
+ * undergraduates.
+ *
+ * Asking a question whose answer changes nothing is a step in a wizard that
+ * already loses people, so it is not asked.
+ */
+export const GRADE_YEARS: Readonly<Record<string, readonly number[]>> = {
+  'M1-M3': [1, 2, 3],
+  'M4-M6': [4, 5, 6],
+} as const;
+
+/** True when this grade level has a year worth asking about. */
+export function hasGradeYear(gradeLevel: string | null | undefined): boolean {
+  return !!gradeLevel && gradeLevel in GRADE_YEARS;
+}
+
+/** The years to offer for a level, or an empty list when there is nothing to ask. */
+export function gradeYearsFor(gradeLevel: string | null | undefined): readonly number[] {
+  return (gradeLevel && GRADE_YEARS[gradeLevel]) || [];
+}
+
+/** Display label for a year, e.g. 6 → 'ม.6' / 'Grade 12'. */
+export function gradeYearLabel(year: number, lang: 'th' | 'en'): string {
+  return lang === 'th' ? `ม.${year}` : `Grade ${year + 6}`;
+}
+
+/**
+ * The year to store, given a level and a proposed year.
+ *
+ * Returns null whenever the pairing does not hold — a year outside the level's
+ * range, or a level that has no years at all. That is the whole coherence rule,
+ * and it lives here rather than in a database CHECK on purpose.
+ *
+ * scripts/20260903_v21_grade_year.sql explains the reasoning: a cross-column
+ * constraint would REFUSE the write when a student changes ม.6 → ม.2 and a
+ * stale year comes along for the ride. profiles_grade_level_check refused every
+ * school student for weeks on that exact shape of mistake, and 16 rows still
+ * carry a NULL grade_level because of it. Correcting a mismatch costs the
+ * student nothing; rejecting it costs them their answers.
+ */
+export function coherentGradeYear(
+  gradeLevel: string | null | undefined,
+  year: unknown,
+): number | null {
+  const allowed = gradeYearsFor(gradeLevel);
+  if (allowed.length === 0) return null;
+  const n = typeof year === 'number' ? year : Number(year);
+  if (!Number.isInteger(n)) return null;
+  return allowed.includes(n) ? n : null;
+}
+
+/** True when the student is in their final school year — the ม.6 case the
+ *  undergraduate scholarship intake actually recruits from. */
+export function isFinalSchoolYear(
+  gradeLevel: string | null | undefined,
+  year: number | null | undefined,
+): boolean {
+  return gradeLevel === 'M4-M6' && year === 6;
+}
