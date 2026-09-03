@@ -113,7 +113,20 @@ describe('/api/client-log', () => {
   });
 
   it('logs under a single searchable prefix', () => {
-    expect(LOG_ROUTE).toContain("console.error('[client]'");
+    expect(LOG_ROUTE).toContain("emit('[client]'");
+  });
+
+  it('picks the console method that matches the level', () => {
+    /*
+     * The viewer classifies severity by the console method, not by the `level`
+     * field in the payload. Sending everything through console.error filed
+     * seven routine "page loaded" lines under Error during the first real
+     * test — and that filter is how a genuine failure gets found in a page of
+     * noise.
+     */
+    expect(LOG_ROUTE).toMatch(/level === 'error' \? console\.error/);
+    expect(LOG_ROUTE).toMatch(/level === 'warn'\s+\? console\.warn/);
+    expect(LOG_ROUTE).toMatch(/console\.log/);
   });
 
   it('never touches the database', () => {
