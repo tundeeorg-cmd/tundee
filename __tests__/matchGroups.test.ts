@@ -82,17 +82,61 @@ describe('groupMatches', () => {
     expect(new Set(seen).size).toBe(items.length);
   });
 
-  it('leads a school student with domestic undergraduate scholarships', () => {
-    // Nearly every Thai undergraduate scholarship recruits from ม.6, so for a
-    // student a year out these are the highest-value thing on the page — and
-    // what the flat list was burying.
+  it('leads a ปวช./ปวส. student with domestic undergraduate scholarships', () => {
+    // Nearly every Thai undergraduate scholarship recruits from ปวส., so these
+    // are the highest-value thing on the page for that student, unconditionally
+    // — there is no year granularity for vocational to gate it on.
     const items = [
       ...padding(4, 'Undergraduate', 'National (Thailand)'),
       ...padding(4, 'High school', 'National (Thailand)'),
       ...padding(4, 'Undergraduate', 'Australia'),
     ];
-    expect(groupMatches(items, 'M4-M6')[0].key).toBe('domestic_undergraduate');
     expect(groupMatches(items, 'vocational')[0].key).toBe('domestic_undergraduate');
+  });
+
+  it('leads a ม.6 student with domestic undergraduate scholarships', () => {
+    // The one year these scholarships actually recruit from.
+    const items = [
+      ...padding(4, 'Undergraduate', 'National (Thailand)'),
+      ...padding(4, 'High school', 'National (Thailand)'),
+      ...padding(4, 'Undergraduate', 'Australia'),
+    ];
+    expect(groupMatches(items, 'M4-M6', { gradeYear: 6 })[0].key).toBe('domestic_undergraduate');
+  });
+
+  /*
+   * This used to assert 'domestic_undergraduate' leads for ANY ม.4–6 student,
+   * with no year distinction available. Once grade_year existed, leading with
+   * "ทุนเรียนต่อปริญญาตรี" for a ม.4 student implies a deadline they cannot act
+   * on for two more years. The ม.ปลาย group leads instead; the undergraduate
+   * one still appears, tagged as something to prepare for — see the
+   * "tags the undergraduate group" test below.
+   */
+  it('leads a ม.4/ม.5 student — or an unanswered year — with the ม.ปลาย group instead', () => {
+    const items = [
+      ...padding(4, 'Undergraduate', 'National (Thailand)'),
+      ...padding(4, 'High school', 'National (Thailand)'),
+      ...padding(4, 'Undergraduate', 'Australia'),
+    ];
+    expect(groupMatches(items, 'M4-M6', { gradeYear: 4 })[0].key).toBe('domestic_school');
+    expect(groupMatches(items, 'M4-M6', { gradeYear: 5 })[0].key).toBe('domestic_school');
+    expect(groupMatches(items, 'M4-M6')[0].key).toBe('domestic_school'); // year not asked
+  });
+
+  it('tags the undergraduate group as "prepare ahead" for ม.4/ม.5, not for ม.6', () => {
+    const items = [
+      ...padding(4, 'Undergraduate', 'National (Thailand)'),
+      ...padding(4, 'High school', 'National (Thailand)'),
+      ...padding(4, 'Undergraduate', 'Australia'),
+    ];
+    const find = (r: ReturnType<typeof groupMatches>) => r.find(g => g.key === 'domestic_undergraduate');
+
+    expect(find(groupMatches(items, 'M4-M6', { gradeYear: 4 }))?.note?.th).toContain('ม.6');
+    expect(find(groupMatches(items, 'M4-M6', { gradeYear: 5 }))?.note?.th).toContain('ม.6');
+    // ม.6 can act now — no "come back later" tag on their own deadline.
+    expect(find(groupMatches(items, 'M4-M6', { gradeYear: 6 }))?.note).toBeUndefined();
+    // ปวช./ปวส. is not the ม.4–6 case this tag exists for.
+    expect(find(groupMatches(items, 'vocational'))?.note).toBeUndefined();
   });
 
   it('puts domestic groups above the foreign one even when far smaller', () => {

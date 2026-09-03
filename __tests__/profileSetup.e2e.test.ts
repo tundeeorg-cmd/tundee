@@ -74,10 +74,11 @@ const STEPS: Array<{ n: number; name: string; field?: SetupField }> = [
 ];
 
 /** A realistic Isan student, answering every step, at the given grade. */
-function answersFor(gradeLevel: string): SetupAnswers {
+function answersFor(gradeLevel: string, gradeYear: number | null = null): SetupAnswers {
   return {
     displayName:          'สมชาย ใจดี',
     gradeLevel,
+    gradeYear,
     gpa:                  '3.25',
     province:             'สุรินทร์',
     incomeBracket:        2,
