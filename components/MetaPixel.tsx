@@ -12,9 +12,6 @@
  * agency's. Each is init'd once and every fbq('track', ...) after that reaches
  * all of them, so no call site needs to know how many pixels exist.
  *
- * Note: /api/meta/capi still mirrors conversions to the PRIMARY pixel only, so
- * the agency dataset receives browser events but not server ones.
- *
  * PageView on client-side navigation is handled separately by MetaPageView —
  * this script only fires the initial one.
  */

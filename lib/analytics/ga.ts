@@ -45,32 +45,32 @@ export function trackSearch(input: {
   });
 }
 
-export function trackViewContent(input: { contentIds: string[]; numItems?: number }): void {
+export function trackViewContent(input: { contentIds?: string[]; contentName?: string; numItems?: number }): void {
   send('view_search_results', {
     search_term: 'scholarship_preview',
     ...(input.numItems != null ? { num_items: input.numItems } : {}),
-    ...(input.contentIds.length ? { item_id: input.contentIds[0] } : {}),
+    ...(input.contentIds?.length ? { item_id: input.contentIds[0] } : {}),
+    ...(input.contentName ? { content_name: input.contentName } : {}),
   });
 }
 
+/** Mirrors meta.trackLead — fires exactly once, when results are seen. */
 export function trackLead(input: {
-  location: string;
+  value: number;
   browser?: { inWebview: boolean; app: string | null };
 }): void {
   send('generate_lead', {
-    link_id: input.location,
+    content_category: 'start_form_completed',
+    value:            input.value,
     ...(input.browser
       ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }
       : {}),
   });
 }
 
-/** GA4's nearest equivalent of the gate tap. */
-export function trackInitiateCheckout(input: { location: string; numItems?: number }): void {
-  send('begin_checkout', {
-    link_id: input.location,
-    ...(input.numItems !== undefined ? { num_items: input.numItems } : {}),
-  });
+/** The visitor reached the login/signup screen. */
+export function trackInitiateCheckout(): void {
+  send('begin_checkout', { content_name: 'auth_page' });
 }
 
 export function trackCompleteRegistration(input: {
@@ -86,6 +86,17 @@ export function trackCompleteRegistration(input: {
   });
 }
 
-export function trackSubmitApplication(input: { scholarshipId: string }): void {
-  send('submit_application', { item_id: input.scholarshipId });
+/** The visitor tapped save/track on a scholarship. */
+export function trackAddToWishlist(input: { scholarshipId: string }): void {
+  send('add_to_wishlist', { item_id: input.scholarshipId });
+}
+
+/** The visitor clicked through to a funder's external application form. */
+export function trackApplyClicked(input: { scholarshipId: string }): void {
+  send('apply_clicked', { item_id: input.scholarshipId });
+}
+
+/** The onboarding wizard was finished — the account is a real, qualified lead. */
+export function trackProfileCompleted(input: { gradeLevel: string; province: string }): void {
+  send('profile_completed', { grade_level: input.gradeLevel, province: input.province });
 }

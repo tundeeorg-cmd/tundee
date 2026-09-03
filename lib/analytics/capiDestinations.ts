@@ -10,6 +10,13 @@
  * dormant; configure one and only that dataset gets server events; configure
  * both and each receives its own copy of every conversion.
  *
+ * The intended production setup is agency-only: set META_CAPI_ACCESS_TOKEN_AGENCY
+ * and leave META_CAPI_ACCESS_TOKEN unset. TunDee's own pixel (NEXT_PUBLIC_FB_PIXEL_ID)
+ * keeps firing browser-side events for data continuity, but is deliberately
+ * not meant to receive server-side ones — setting the plain
+ * META_CAPI_ACCESS_TOKEN would complete that pair and start mirroring to it
+ * too, which is a real footgun this comment exists to head off.
+ *
  * Extracted from the route so the pairing rules are unit-testable without
  * standing up a request or holding a real token.
  */

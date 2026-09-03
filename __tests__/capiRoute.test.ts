@@ -180,4 +180,75 @@ describe('PII handling is unchanged', () => {
     expect(JSON.stringify(body)).not.toContain('Somchai');
     expect(JSON.stringify(body)).not.toContain('example.com');
   });
+
+  it('sends the hashed account id as external_id for a signed-in visitor', async () => {
+    bothDatasets();
+    getUser.mockResolvedValue({ data: { user: { id: 'user-abc-123' } } });
+    await POST(req(VALID));
+
+    const body = JSON.parse(String(
+      (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body));
+    const externalId = body.data[0].user_data.external_id[0];
+    expect(externalId).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(body)).not.toContain('user-abc-123');
+  });
+
+  it('sends no external_id for an anonymous visitor', async () => {
+    bothDatasets();
+    await POST(req(VALID)); // getUser resolves to { user: null } by default
+    const body = JSON.parse(String(
+      (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body));
+    expect(body.data[0].user_data.external_id).toBeUndefined();
+  });
+});
+
+describe('retry on 5xx', () => {
+  it('retries once and succeeds on the second attempt', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FB_PIXEL_ID_AGENCY', AGENCY);
+    vi.stubEnv('META_CAPI_ACCESS_TOKEN_AGENCY', 'tok-agency');
+    let calls = 0;
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      calls++;
+      return calls === 1 ? new Response('down', { status: 503 }) : new Response('{}', { status: 200 });
+    });
+
+    const res = await POST(req(VALID));
+    expect(calls).toBe(2);
+    expect(await res.json()).toMatchObject({ ok: true, delivered: 1 });
+  });
+
+  it('gives up after exactly one retry — a second 5xx does not trigger a third attempt', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FB_PIXEL_ID_AGENCY', AGENCY);
+    vi.stubEnv('META_CAPI_ACCESS_TOKEN_AGENCY', 'tok-agency');
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(new Response('down', { status: 503 }));
+
+    const res = await POST(req(VALID));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(await res.json()).toMatchObject({ ok: false, delivered: 0 });
+  });
+
+  it('does not retry a 4xx — the request itself is wrong, not Meta', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FB_PIXEL_ID_AGENCY', AGENCY);
+    vi.stubEnv('META_CAPI_ACCESS_TOKEN_AGENCY', 'tok-agency');
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(new Response('bad token', { status: 401 }));
+
+    const res = await POST(req(VALID));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toMatchObject({ ok: false, delivered: 0 });
+  });
+
+  it('retries a thrown network error the same as a 5xx', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FB_PIXEL_ID_AGENCY', AGENCY);
+    vi.stubEnv('META_CAPI_ACCESS_TOKEN_AGENCY', 'tok-agency');
+    let calls = 0;
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      calls++;
+      if (calls === 1) throw new Error('ECONNRESET');
+      return new Response('{}', { status: 200 });
+    });
+
+    const res = await POST(req(VALID));
+    expect(calls).toBe(2);
+    expect(await res.json()).toMatchObject({ ok: true, delivered: 1 });
+  });
 });

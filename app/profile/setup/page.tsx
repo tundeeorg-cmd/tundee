@@ -37,6 +37,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
 import { readAdParams } from '@/lib/adTracking';
+import { profileCompleted } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
 import {
@@ -887,6 +888,12 @@ export default function ProfileSetupPage() {
         eventType: 'profile_completed',
         metadata:  { acquisition_source: acquisitionSource },
       });
+
+      // Ad-platform ProfileCompleted — a qualified lead, not just an account.
+      // The wizard is the only place both grade_level and province are known
+      // to be final (mid-form they can still change), so this is the one call
+      // site for it.
+      profileCompleted({ gradeLevel, province });
 
       // No CompleteRegistration here. The account was created at the auth
       // callback and reported there, for every branch — including this one. The

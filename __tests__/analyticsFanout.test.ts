@@ -16,6 +16,8 @@ const gtag = vi.fn();
 
 /** Names each platform received, so assertions read like the mapping table. */
 const fbqEvents = () => fbq.mock.calls.filter(c => c[0] === 'track').map(c => c[1]);
+/** Custom events go through fbq('trackCustom', ...) instead — see lib/analytics/meta.ts. */
+const fbqCustomEvents = () => fbq.mock.calls.filter(c => c[0] === 'trackCustom').map(c => c[1]);
 const ttqEvents = () => ttqTrack.mock.calls.map(c => c[0]);
 const gaEvents  = () => gtag.mock.calls.filter(c => c[0] === 'event').map(c => c[1]);
 
@@ -58,18 +60,32 @@ describe('every event reaches every platform', () => {
     expect(gaEvents()).toEqual(['search']);
   });
 
-  it('viewContent', () => {
+  it('viewContent — scholarship detail', () => {
     analytics.viewContent({ contentIds: ['TD-0001'], numItems: 3 });
     expect(fbqEvents()).toEqual(['ViewContent']);
     expect(ttqEvents()).toEqual(['ViewContent']);
     expect(gaEvents()).toEqual(['view_search_results']);
   });
 
+  it('viewContent — /start arrival, contentName only, no contentIds', () => {
+    analytics.viewContent({ contentName: 'start_page' });
+    expect(fbqEvents()).toEqual(['ViewContent']);
+    expect(ttqEvents()).toEqual(['ViewContent']);
+    expect(gaEvents()).toEqual(['view_search_results']);
+  });
+
   it('lead maps to TikTok SubmitForm', () => {
-    analytics.lead({ location: 'start_hero' });
+    analytics.lead({ value: 12 });
     expect(fbqEvents()).toEqual(['Lead']);
     expect(ttqEvents()).toEqual(['SubmitForm']);
     expect(gaEvents()).toEqual(['generate_lead']);
+  });
+
+  it('initiateCheckout — arriving at /auth, no params needed', () => {
+    analytics.initiateCheckout();
+    expect(fbqEvents()).toEqual(['InitiateCheckout']);
+    expect(ttqEvents()).toEqual(['InitiateCheckout']);
+    expect(gaEvents()).toEqual(['begin_checkout']);
   });
 
   it('completeRegistration', () => {
@@ -79,11 +95,27 @@ describe('every event reaches every platform', () => {
     expect(gaEvents()).toEqual(['sign_up']);
   });
 
-  it('submitApplication maps to TikTok SubmitForm — the event that used to be Meta-only', () => {
-    analytics.submitApplication({ scholarshipId: 'TD-0001' });
-    expect(fbqEvents()).toEqual(['SubmitApplication']);
-    expect(ttqEvents()).toEqual(['SubmitForm']);
-    expect(gaEvents()).toEqual(['submit_application']);
+  it('addToWishlist', () => {
+    analytics.addToWishlist({ scholarshipId: 'TD-0001' });
+    expect(fbqEvents()).toEqual(['AddToWishlist']);
+    expect(ttqEvents()).toEqual(['AddToWishlist']);
+    expect(gaEvents()).toEqual(['add_to_wishlist']);
+  });
+
+  it('applyClicked — a Meta custom event, sent via trackCustom not track', () => {
+    analytics.applyClicked({ scholarshipId: 'TD-0001' });
+    expect(fbqEvents()).toEqual([]);
+    expect(fbqCustomEvents()).toEqual(['ApplyClicked']);
+    expect(ttqEvents()).toEqual(['ApplyClicked']);
+    expect(gaEvents()).toEqual(['apply_clicked']);
+  });
+
+  it('profileCompleted — also a Meta custom event', () => {
+    analytics.profileCompleted({ gradeLevel: 'M4-M6', province: 'ขอนแก่น' });
+    expect(fbqEvents()).toEqual([]);
+    expect(fbqCustomEvents()).toEqual(['ProfileCompleted']);
+    expect(ttqEvents()).toEqual(['ProfileCompleted']);
+    expect(gaEvents()).toEqual(['profile_completed']);
   });
 
   it('fires each event exactly once per platform — no double counting', () => {
@@ -100,9 +132,12 @@ describe('consent gate', () => {
     analytics.pageView();
     analytics.search({ educationLevel: 'm6', gpa: 3.2, province: 'สุรินทร์' });
     analytics.viewContent({ contentIds: ['TD-0001'] });
-    analytics.lead({ location: 'gate' });
+    analytics.lead({ value: 12 });
+    analytics.initiateCheckout();
     analytics.completeRegistration('line');
-    analytics.submitApplication({ scholarshipId: 'TD-0001' });
+    analytics.addToWishlist({ scholarshipId: 'TD-0001' });
+    analytics.applyClicked({ scholarshipId: 'TD-0001' });
+    analytics.profileCompleted({ gradeLevel: 'M4-M6', province: 'ขอนแก่น' });
 
     expect(fbq).not.toHaveBeenCalled();
     expect(ttqTrack).not.toHaveBeenCalled();

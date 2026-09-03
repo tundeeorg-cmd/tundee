@@ -2,15 +2,21 @@
  * The one analytics surface for the whole app.
  *
  * Each function fires ONE logical event to every configured platform, mapped to
- * that platform's nearest standard event:
+ * that platform's nearest standard (or, where none exists, custom) event, at
+ * exactly the touchpoint named on the left — the attribution fix this module
+ * is part of moved lead() and initiateCheckout() to new touchpoints, so the
+ * old call sites (the /start CTA click) no longer fire either:
  *
  *   pageView()               fbq PageView             ttq page()              ga page_view
  *   search()                 fbq Search               ttq Search              ga search
- *   viewContent()            fbq ViewContent          ttq ViewContent         ga view_search_results
- *   lead()                   fbq Lead                 ttq SubmitForm          ga generate_lead
- *   initiateCheckout()       fbq InitiateCheckout     ttq InitiateCheckout    ga begin_checkout
+ *   viewContent(start_page)  fbq ViewContent          ttq ViewContent         ga view_search_results     — arriving at /start
+ *   viewContent(scholarship) fbq ViewContent          ttq ViewContent         ga view_search_results     — opening a scholarship
+ *   lead()                   fbq Lead                 ttq SubmitForm          ga generate_lead           — 3-question form answered, results seen (once/session)
+ *   initiateCheckout()       fbq InitiateCheckout     ttq InitiateCheckout    ga begin_checkout          — arriving at /auth
  *   completeRegistration()   fbq CompleteRegistration ttq CompleteRegistration ga sign_up
- *   submitApplication()      fbq SubmitApplication    ttq SubmitForm          ga submit_application
+ *   profileCompleted()       fbq trackCustom ProfileCompleted ttq ProfileCompleted ga profile_completed  — onboarding wizard finished
+ *   addToWishlist()          fbq AddToWishlist        ttq AddToWishlist       ga add_to_wishlist         — save/track tapped
+ *   applyClicked()           fbq trackCustom ApplyClicked ttq ApplyClicked    ga apply_clicked           — funder link clicked
  *
  * Import from '@/lib/analytics' — never from './meta', './tiktok' or './ga'
  * directly, and never call window.fbq / window.ttq / window.gtag anywhere. A
@@ -31,7 +37,7 @@ import { detectInAppBrowser } from '@/lib/browser/inAppBrowser';
 
 export { gpaBand, signupMethodFrom } from './meta';
 export type { BrowserContext } from './meta';
-export type SignupMethod = 'google' | 'line' | 'password' | 'email';
+export type SignupMethod = 'google' | 'line' | 'password' | 'email_otp';
 
 /**
  * Which browser this event is happening in, resolved once per call.
@@ -83,9 +89,13 @@ export function search(input: {
   ga.trackSearch({ educationLevel: input.educationLevel, gpa_band: band, province: input.province });
 }
 
-/** Real matched results rendered, or a scholarship detail page opened. */
+/**
+ * Arriving at /start ('start_page'), matched results rendered, or a
+ * scholarship detail page opened — content_ids is present only for the last
+ * two, see the note on meta.trackViewContent.
+ */
 export function viewContent(input: {
-  contentIds: string[];
+  contentIds?: string[];
   contentName?: string;
   numItems?: number;
 }): void {
@@ -96,8 +106,13 @@ export function viewContent(input: {
   ga.trackViewContent(input);
 }
 
-/** Pre-account intent — the visitor reached the signup gate. */
-export function lead(input: { location: string }): void {
+/**
+ * The visitor answered the 3-question form and saw real matched scholarships.
+ * This is the event ad delivery optimizes against — call it exactly once per
+ * session (lib/adTracking.ts's trackFormResultsSeen guards this) and from
+ * nowhere else. `value` is the match count, for lead-value reporting.
+ */
+export function lead(input: { value: number }): void {
   if (!allowed()) return;
   const browser = browserContext();
   meta.trackLead({ ...input, browser });
@@ -105,19 +120,13 @@ export function lead(input: { location: string }): void {
   ga.trackLead({ ...input, browser });
 }
 
-/**
- * The visitor tapped the signup gate beneath their preview results.
- *
- * Fires alongside lead(), not instead of it: Lead is the event the live ad sets have
- * been optimising against, and replacing it would discard that learning. This adds the
- * mid-funnel step the platforms report separately.
- */
-export function initiateCheckout(input: { location: string; numItems?: number }): void {
+/** The visitor reached the login/signup screen. */
+export function initiateCheckout(): void {
   if (!allowed()) return;
   const browser = browserContext();
-  meta.trackInitiateCheckout({ ...input, browser });
-  tiktok.trackInitiateCheckout({ ...input, browser });
-  ga.trackInitiateCheckout(input);
+  meta.trackInitiateCheckout({ browser });
+  tiktok.trackInitiateCheckout({ browser });
+  ga.trackInitiateCheckout();
 }
 
 /**
@@ -138,10 +147,26 @@ export function completeRegistration(method: SignupMethod, browser?: meta.Browse
   ga.trackCompleteRegistration({ method, browser: ctx });
 }
 
-/** The visitor clicked through to a funder's external application form. */
-export function submitApplication(input: { scholarshipId: string }): void {
+/** The visitor tapped save/track on a scholarship. */
+export function addToWishlist(input: { scholarshipId: string }): void {
   if (!allowed()) return;
-  meta.trackSubmitApplication(input);
-  tiktok.trackSubmitApplication(input);
-  ga.trackSubmitApplication(input);
+  meta.trackAddToWishlist(input);
+  tiktok.trackAddToWishlist(input);
+  ga.trackAddToWishlist(input);
+}
+
+/** The visitor clicked through to a funder's external application form. */
+export function applyClicked(input: { scholarshipId: string }): void {
+  if (!allowed()) return;
+  meta.trackApplyClicked(input);
+  tiktok.trackApplyClicked(input);
+  ga.trackApplyClicked(input);
+}
+
+/** The onboarding wizard was finished — the account is a real, qualified lead. */
+export function profileCompleted(input: { gradeLevel: string; province: string }): void {
+  if (!allowed()) return;
+  meta.trackProfileCompleted(input);
+  tiktok.trackProfileCompleted(input);
+  ga.trackProfileCompleted(input);
 }

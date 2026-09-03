@@ -11,7 +11,7 @@ import SaveButton from '@/components/SaveButton';
 import { useLang } from '@/lib/LanguageContext';
 import { supabase, getScholarshipById } from '@/lib/supabase';
 import { logScholarshipViewed, logScholarshipApplied } from '@/lib/research/events';
-import { viewContent, submitApplication } from '@/lib/analytics';
+import { viewContent, applyClicked } from '@/lib/analytics';
 import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { translations, PROVINCE_EN_MAP, DOCUMENT_EN_MAP } from '@/lib/translations';
 import { formatUserDate } from '@/lib/formatDate';
@@ -573,7 +573,7 @@ export default function ScholarshipDetailPage() {
                   : `https://www.google.com/search?q=${encodeURIComponent((s.name_th ?? '') + ' สมัคร')}`;
                 const trackClick = async () => {
                   // Synchronous: the link opens a new tab straight away.
-                  submitApplication({ scholarshipId: s.id });
+                  applyClicked({ scholarshipId: s.id });
                   // Outside the auth check below on purpose: an anonymous visitor
                   // clicking Apply is still an apply click, and the `applications`
                   // upsert that follows can only run for a signed-in user.

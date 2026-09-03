@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { useLang } from '@/lib/LanguageContext';
 import { notifyTrackedCountChanged } from '@/lib/tracker/countBus';
+import { addToWishlist } from '@/lib/analytics';
 
 interface Props {
   scholarshipId: string;
@@ -72,6 +73,7 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
       if (!error && data) {
         setTracked(true); setTrackId(data.id);
         logFunnelEvent({ eventType: 'track_add', scholarshipId, userId: user.id });
+        addToWishlist({ scholarshipId });
         notifyTrackedCountChanged();
       }
     }

@@ -9,7 +9,7 @@ import { useLang } from '@/lib/LanguageContext';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import { submitApplication } from '@/lib/analytics';
+import { applyClicked } from '@/lib/analytics';
 import { getSessionId } from '@/lib/research/session';
 import { notifyTrackedCountChanged } from '@/lib/tracker/countBus';
 import {
@@ -595,7 +595,7 @@ export default function TrackerPage() {
   }
 
   async function handleApplyClick(row: TrackedRow) {
-    submitApplication({ scholarshipId: row.scholarship_id });
+    applyClicked({ scholarshipId: row.scholarship_id });
     recordApplyClick(row.scholarship_id);
     const { data: { user } } = await supabase.auth.getUser();
     logFunnelEvent({ eventType: 'click_apply', scholarshipId: row.scholarship_id, userId: user?.id ?? null });

@@ -12,6 +12,7 @@
  */
 
 import { hasAnalyticsConsent } from './consent';
+import type { SignupConversionMethod } from './signupConversion';
 
 declare global {
   interface Window {
@@ -20,7 +21,7 @@ declare global {
   }
 }
 
-/** The six events this app sends. Anything else is a mistake, not a feature. */
+/** Meta's own standard events — sent with fbq('track', ...). */
 export type MetaEventName =
   | 'PageView'
   | 'Search'
@@ -28,10 +29,26 @@ export type MetaEventName =
   | 'Lead'
   | 'InitiateCheckout'
   | 'CompleteRegistration'
-  | 'SubmitApplication';
+  | 'AddToWishlist';
 
-/** How an account was created. 'email' is the retired magic-link flow. */
-export type SignupMethod = 'google' | 'line' | 'password' | 'email';
+/**
+ * Events with no Meta-standard equivalent — sent with fbq('trackCustom', ...)
+ * instead of fbq('track', ...). Meta's own docs treat this as a hard split,
+ * not a naming convention: 'track' expects one of its enumerated standard
+ * names for automatic matching and Events Manager categorisation.
+ */
+export type MetaCustomEventName = 'ProfileCompleted' | 'ApplyClicked';
+
+export type MetaAnyEventName = MetaEventName | MetaCustomEventName;
+
+/**
+ * How an account was created, as sent to Meta/TikTok/GA. signupMethodFrom()
+ * below returns the separate SignupConversionMethod type instead (it can be
+ * 'email', the SIGNUP_CONVERSION cookie's own backward-compat-constrained
+ * value — see lib/analytics/signupConversion.ts); lib/adTracking.ts
+ * translates 'email' -> 'email_otp' at the one call site that reaches here.
+ */
+export type SignupMethod = 'google' | 'line' | 'password' | 'email_otp';
 
 /**
  * Which browser the event happened in.
@@ -56,15 +73,18 @@ export function browserParams(ctx?: BrowserContext): Record<string, unknown> {
 }
 
 /**
- * Events mirrored to the Conversions API. PageView/Search/ViewContent are
- * high-volume and low-value server-side; the three conversions are what ad
- * delivery optimizes against and what browser blockers most often drop.
+ * Events mirrored to the Conversions API. PageView/Search/ViewContent/
+ * AddToWishlist are high-volume and low-value server-side; these four are
+ * what ad delivery optimizes against and what browser blockers most often
+ * drop. ProfileCompleted is a mid-funnel qualification signal, not one of the
+ * conversions ad delivery is optimized against, so it stays browser-only —
+ * same treatment as ViewContent.
  */
-const CAPI_EVENTS: ReadonlySet<MetaEventName> = new Set<MetaEventName>([
+const CAPI_EVENTS: ReadonlySet<MetaAnyEventName> = new Set<MetaAnyEventName>([
   'InitiateCheckout',
   'Lead',
   'CompleteRegistration',
-  'SubmitApplication',
+  'ApplyClicked',
 ]);
 
 // ─── Configuration ────────────────────────────────────────────────────────────
@@ -145,17 +165,27 @@ function newEventId(): string {
 
 type EventParams = Record<string, unknown>;
 
-function send(name: MetaEventName, params: EventParams = {}): void {
+/** Shared by send() and sendCustom() — only the fbq call name differs. */
+function dispatch(fbqMethod: 'track' | 'trackCustom', name: MetaAnyEventName, params: EventParams): void {
   if (typeof window === 'undefined') return;
   if (!hasAnalyticsConsent()) return;
 
   const eventId = newEventId();
 
-  window.fbq?.('track', name, params, { eventID: eventId });
+  window.fbq?.(fbqMethod, name, params, { eventID: eventId });
 
   if (CAPI_EVENTS.has(name)) {
     void sendToCapi(name, eventId, params);
   }
+}
+
+function send(name: MetaEventName, params: EventParams = {}): void {
+  dispatch('track', name, params);
+}
+
+/** For events with no Meta-standard equivalent — see MetaCustomEventName. */
+function sendCustom(name: MetaCustomEventName, params: EventParams = {}): void {
+  dispatch('trackCustom', name, params);
 }
 
 /**
@@ -167,7 +197,7 @@ function send(name: MetaEventName, params: EventParams = {}): void {
  * server-side and hashes the email there, so raw PII never travels through
  * client code.
  */
-async function sendToCapi(eventName: MetaEventName, eventId: string, params: EventParams): Promise<void> {
+async function sendToCapi(eventName: MetaAnyEventName, eventId: string, params: EventParams): Promise<void> {
   try {
     await fetch('/api/meta/capi', {
       method:    'POST',
@@ -201,11 +231,17 @@ export function gpaBand(gpa: number): string {
   return '3.50_4.00';
 }
 
-/** Which method created the account, for the CompleteRegistration param. */
+/**
+ * Which method created the account — for the SIGNUP_CONVERSION cookie
+ * (lib/analytics/signupConversion.ts), NOT the pixel directly, hence the
+ * SignupConversionMethod return type rather than SignupMethod: this can
+ * return 'email', which lib/adTracking.ts's trackSignupComplete() translates
+ * to 'email_otp' before it ever reaches fbq/ttq/gtag.
+ */
 export function signupMethodFrom(
   appMetadataProvider?: string | null,
   userMetadataProvider?: string | null,
-): SignupMethod {
+): SignupConversionMethod {
   // The LINE bridge (app/api/auth/line/callback) marks its users in
   // user_metadata; Supabase itself reports them as email-provider accounts.
   // The password route marks its own the same way, for the same reason.
@@ -240,48 +276,47 @@ export function trackSearch(input: {
   });
 }
 
+/**
+ * Two distinct call shapes: arriving at /start passes only `contentName`
+ * ('start_page'); opening a scholarship passes only `contentIds`. content_type
+ * only makes sense for the second — a landing page isn't a scholarship — so it
+ * rides along with content_ids rather than being sent unconditionally.
+ */
 export function trackViewContent(input: {
-  contentIds: string[];
+  contentIds?: string[];
   contentName?: string;
   numItems?: number;
   browser?: BrowserContext;
 }): void {
   send('ViewContent', {
-    content_type: 'scholarship',
-    content_ids:  input.contentIds,
+    ...(input.contentIds?.length ? { content_type: 'scholarship', content_ids: input.contentIds } : {}),
     ...(input.contentName ? { content_name: input.contentName } : {}),
     ...(input.numItems != null ? { num_items: input.numItems } : {}),
     ...browserParams(input.browser),
   });
 }
 
-/** Pre-account intent — the visitor reached the signup gate. */
-export function trackLead(input: { location: string; browser?: BrowserContext }): void {
+/**
+ * The visitor answered the 3-question form and saw real matched scholarships —
+ * the moment they have something worth signing up for. This is the event ad
+ * delivery optimizes against, so it must fire exactly once per session (see
+ * lib/adTracking.ts's session guard) and nowhere else; it used to fire on the
+ * signup-gate CTA click instead, a step later and easier to miss entirely if
+ * the visitor never taps through.
+ */
+export function trackLead(input: { value: number; browser?: BrowserContext }): void {
   send('Lead', {
-    content_category: 'signup_gate',
-    content_name:     input.location,
+    content_category: 'start_form_completed',
+    value:            input.value,
     ...browserParams(input.browser),
   });
 }
 
-/**
- * The visitor tapped the signup gate under their preview results.
- *
- * Fired alongside Lead rather than instead of it. Lead is what the existing ad sets
- * have been optimising against since launch, and swapping the event would reset that
- * learning; InitiateCheckout adds the funnel step Meta reports on separately. The two
- * carry different eventIDs, so CAPI dedup treats them as the distinct events they are.
- */
-export function trackInitiateCheckout(input: {
-  location: string;
-  numItems?: number;
-  browser?: BrowserContext;
-}): void {
+/** The visitor reached the login/signup screen. */
+export function trackInitiateCheckout(input?: { browser?: BrowserContext }): void {
   send('InitiateCheckout', {
-    content_category: 'signup_gate',
-    content_name:     input.location,
-    ...(input.numItems !== undefined ? { num_items: input.numItems } : {}),
-    ...browserParams(input.browser),
+    content_name: 'auth_page',
+    ...browserParams(input?.browser),
   });
 }
 
@@ -303,9 +338,25 @@ export function trackCompleteRegistration(input: {
   });
 }
 
-export function trackSubmitApplication(input: { scholarshipId: string }): void {
-  send('SubmitApplication', {
+/** The visitor tapped save/track on a scholarship. */
+export function trackAddToWishlist(input: { scholarshipId: string }): void {
+  send('AddToWishlist', {
     content_type: 'scholarship',
     content_ids:  [input.scholarshipId],
+  });
+}
+
+/** The visitor clicked through to a funder's external application form. */
+export function trackApplyClicked(input: { scholarshipId: string }): void {
+  sendCustom('ApplyClicked', {
+    content_ids: [input.scholarshipId],
+  });
+}
+
+/** The onboarding wizard was finished — the account is a real, qualified lead. */
+export function trackProfileCompleted(input: { gradeLevel: string; province: string }): void {
+  sendCustom('ProfileCompleted', {
+    grade_level: input.gradeLevel,
+    province:    input.province,
   });
 }
