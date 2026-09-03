@@ -267,6 +267,16 @@ function WizardContainer({
  */
 const SAVE_TIMEOUT_MS = 15_000;
 
+/**
+ * Which build the browser is actually running.
+ *
+ * Vercel injects NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA at build time, so this is
+ * baked into the bundle rather than read at runtime — which is the point: a
+ * cached bundle reports the commit it was built from, not the one currently
+ * deployed. That difference is exactly what we could not see.
+ */
+const BUILD_ID = (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7);
+
 export default function ProfileSetupPage() {
   const { lang } = useLang();
   const router   = useRouter();
@@ -409,6 +419,35 @@ export default function ProfileSetupPage() {
    */
   useEffect(() => {
     const removeErrorReporting = installGlobalErrorReporting(() => userIdRef.current);
+
+    /*
+     * One line the moment this page is alive, before the student touches
+     * anything.
+     *
+     * It exists because "no log arrived" has two completely different meanings
+     * and we could not tell them apart: the handler never ran, or the phone is
+     * running a cached bundle from before the logging existed. A student saved
+     * a profile successfully on Android and NOTHING reached us — no client log,
+     * no POST to /api/profile/setup — which is only possible if the JavaScript
+     * doing the saving predates both.
+     *
+     * `build` settles it. If this line arrives at all, the browser is running
+     * code that can report; if it names the current commit, it is running THIS
+     * code. Absence is then a real finding rather than an ambiguity.
+     */
+    clientLog({
+      level:   'info',
+      message: '[setup] page loaded',
+      context: {
+        build:      BUILD_ID,
+        step,
+        referrer:   typeof document !== 'undefined' ? document.referrer || null : null,
+        // Whether the browser can report at all, since a beacon that is
+        // refused is another way for a log to silently not exist.
+        canBeacon:  typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function',
+        online:     typeof navigator !== 'undefined' ? navigator.onLine : null,
+      },
+    });
 
     const onPageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
