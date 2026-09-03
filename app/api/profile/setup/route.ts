@@ -38,7 +38,7 @@ import {
 
 /** Fields a partial (per-step) save is allowed to validate and write. */
 const PARTIAL_VALIDATED_FIELDS: SetupField[] = [
-  'gradeLevel', 'gpa', 'province', 'incomeBracket', 'heardAboutUs', 'priorKnowledge',
+  'gradeLevel', 'gradeYear', 'gpa', 'province', 'incomeBracket', 'heardAboutUs', 'priorKnowledge',
 ];
 
 function readAnswers(body: Record<string, unknown>): Partial<SetupAnswers> {
@@ -49,6 +49,9 @@ function readAnswers(body: Record<string, unknown>): Partial<SetupAnswers> {
   return {
     displayName:          str(a.displayName),
     gradeLevel:           str(a.gradeLevel),
+    // Range-checked by validateField; the level pairing is corrected, not
+    // rejected, in buildProfilePayload — see lib/profile/gradeLevels.ts.
+    gradeYear:            typeof a.gradeYear === 'number' ? a.gradeYear : null,
     gpa:                  typeof a.gpa === 'number' ? String(a.gpa) : str(a.gpa),
     province:             str(a.province),
     incomeBracket:        typeof a.incomeBracket === 'number' ? a.incomeBracket : undefined,

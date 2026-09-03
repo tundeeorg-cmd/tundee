@@ -158,7 +158,30 @@ describe('/api/profile/save', () => {
   it('turns a cleared grade level into NULL, not an empty string', () => {
     // profiles_grade_level_check rejects '' explicitly, so passing it through
     // would answer save_failed to a student who simply cleared the field.
-    expect(SAVE_ROUTE).toMatch(/grade_level = grade === '' \? null : grade/);
+    // canonicalizeGradeLevel is what performs the '' → null conversion now
+    // (see 'never writes a grade_level the canonicalizer would not' below);
+    // this asserts the surrounding code still routes through it.
+    expect(SAVE_ROUTE).toMatch(/patch\.grade_level\s*=\s*canonical/);
+  });
+
+  it('never writes a grade_level the canonicalizer would not', () => {
+    // grade_level moved from a raw pass-through to canonicalizeGradeLevel, the
+    // same function buildProfilePayload uses, so a stale value from the
+    // retired 'M4'/'M5'/'M6' vocabulary upgrades here too rather than only in
+    // the wizard.
+    expect(SAVE_ROUTE).toContain('canonicalizeGradeLevel(grade)');
+  });
+
+  it('writes grade_year in the same patch as grade_level, coupled to it', () => {
+    // /profile sends both from one component's state on one save, which is
+    // what lets this correct a stale year rather than merely ignore it — see
+    // scripts/20260903_v21_grade_year.sql for why that correction has to
+    // happen in code and not a database CHECK.
+    const block = SAVE_ROUTE.slice(
+      SAVE_ROUTE.indexOf("if (has('gradeLevel')) {"),
+      SAVE_ROUTE.indexOf("if (has('gpa')) {"),
+    );
+    expect(block).toContain('coherentGradeYear(canonical, body.gradeYear)');
   });
 
   it('reports a CHECK violation as a field problem, not "try again"', () => {
