@@ -4,7 +4,10 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
-import { GRADE_LEVELS, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
+import {
+  GRADE_LEVELS, canonicalizeGradeLevel, hasGradeYear, gradeYearsFor,
+  gradeYearLabel, coherentGradeYear,
+} from '@/lib/profile/gradeLevels';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
@@ -204,6 +207,9 @@ export default function ProfilePage() {
   const [incomeBracket, setIncomeBracket] = useState<number>(4);
   const [welfareCard, setWelfareCard] = useState(false);
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>('');
+  /** Only meaningful when hasGradeYear(gradeLevel). Reset to null the moment
+   *  the level changes, so the screen never shows ม.6 next to ม.1–3. */
+  const [gradeYear,  setGradeYear]  = useState<number | null>(null);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [schoolType, setSchoolType] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -239,7 +245,12 @@ export default function ProfilePage() {
         setWelfareCard(data.welfare_card ?? false);
         // Defaulting an unreadable value to 'M6' put a grade on the record that
         // the student never claimed — and then saved it back. Blank means blank.
-        setGradeLevel(canonicalizeGradeLevel(data.grade_level) ?? '');
+        const canonicalGrade = canonicalizeGradeLevel(data.grade_level);
+        setGradeLevel(canonicalGrade ?? '');
+        // Read through the same coherence check the write side uses: a stored
+        // year that does not belong to this (possibly just-upgraded) level is
+        // not shown as if it did.
+        setGradeYear(coherentGradeYear(canonicalGrade, data.grade_year));
         setSelectedFields(
           data.fields_of_interest?.filter((f: string) => f !== 'any') ?? []
         );
@@ -401,6 +412,11 @@ export default function ProfilePage() {
         incomeBracket,
         welfareCard,
         gradeLevel,
+        // Bundled in the SAME request as gradeLevel, always — /api/profile/save
+        // only corrects a stale grade_year when both arrive together in one
+        // patch. Sending them separately would let an old year survive a level
+        // change until the next save.
+        gradeYear,
         fields: selectedFields,
       });
       if (!saved) return;
@@ -618,7 +634,14 @@ export default function ProfilePage() {
                   <button
                     key={gl.value}
                     type="button"
-                    onClick={() => setGradeLevel(gl.value)}
+                    onClick={() => {
+                      setGradeLevel(gl.value);
+                      // A year answered under a PREVIOUS level must not survive
+                      // a switch to a new one — the write-time coherence check
+                      // would clear it on save regardless, but the screen
+                      // should not go on showing ม.6 next to ม.1–3 in between.
+                      setGradeYear(null);
+                    }}
                     className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
                       gradeLevel === gl.value
                         ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-semibold'
@@ -629,6 +652,33 @@ export default function ProfilePage() {
                   </button>
                 ))}
               </div>
+
+              {/* Inline follow-up, not a separate section: only M1-M3 and
+                  M4-M6 have a year inside them, and it belongs right next to
+                  the choice it refines. */}
+              {hasGradeYear(gradeLevel) && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-[#6E6E73] dark:text-[#8E8E93] mb-1.5">
+                    {lang === 'th' ? 'ชั้นปี' : 'Year'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {gradeYearsFor(gradeLevel).map(year => (
+                      <button
+                        key={year}
+                        type="button"
+                        onClick={() => setGradeYear(year)}
+                        className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
+                          gradeYear === year
+                            ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-semibold'
+                            : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/60'
+                        }`}
+                      >
+                        {gradeYearLabel(year, lang === 'th' ? 'th' : 'en')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* GPA */}

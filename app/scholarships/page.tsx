@@ -36,6 +36,9 @@ interface StudentProfile {
   fields_of_interest: string[];
   welfare_card: boolean;
   grade_level: string;
+  /** Only meaningful when grade_level is M1-M3 or M4-M6. null for every other
+   *  level, and for a school student who has not answered it yet. */
+  grade_year: number | null;
   // PREREG §5.6. Replaces ab_arm, which is pilot-era history: it was hashed
   // from a different byte of the UUID than the mechanism that actually drove
   // treatment, so the two agreed only at chance.
@@ -478,6 +481,7 @@ export default function BrowsePage() {
             fields_of_interest: profile.fields_of_interest ?? ['any'],
             welfare_card:       profile.welfare_card     ?? false,
             grade_level:        profile.grade_level      ?? '',
+            grade_year:         typeof profile.grade_year === 'number' ? profile.grade_year : null,
             ranking_variant:    variant,
             fairness_eligible:  eligible,
           });
@@ -856,16 +860,24 @@ export default function BrowsePage() {
                      them. Order inside each group is untouched, so whatever the
                      sort control selected still holds under every heading. */
                   <div className="space-y-10">
-                    {groupMatches(matchesToRender, userProfile?.grade_level).map(group => (
+                    {groupMatches(matchesToRender, userProfile?.grade_level, { gradeYear: userProfile?.grade_year }).map(group => (
                       <section key={group.key}>
                         {group.key !== 'all' && (
                           <header className="mb-4">
-                            <h2 className="text-base font-bold text-[#0A2342] dark:text-[#E8EDF5]"
+                            <h2 className="text-base font-bold text-[#0A2342] dark:text-[#E8EDF5] flex items-center flex-wrap gap-2"
                                 style={{ fontFamily: font }}>
                               {group.title[lo === 'th' ? 'th' : 'en']}
-                              <span className="ml-2 text-sm font-normal text-[#8A96A8]">
+                              <span className="text-sm font-normal text-[#8A96A8]">
                                 {group.items.length}
                               </span>
+                              {/* Only set for ม.4–5: these scholarships recruit
+                                  from ม.6, so the deadline on each card is not
+                                  one this student can act on yet. */}
+                              {group.note && (
+                                <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-[#FFF4E5] dark:bg-[#3A2E15] text-[#8A5A00] dark:text-[#E0B060]">
+                                  {group.note[lo === 'th' ? 'th' : 'en']}
+                                </span>
+                              )}
                             </h2>
                             <p className="mt-1 text-sm text-[#6E6E73] dark:text-[#8E8E93]"
                                style={{ fontFamily: font, lineHeight: 1.7 }}>
