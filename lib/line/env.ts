@@ -307,7 +307,31 @@ function missingFrom(names: readonly LineVar[]): LineVar[] {
  * the flow cannot complete against localhost regardless, and making every
  * contributor hold production secrets to run `next dev` is its own problem.
  */
+/**
+ * Is this the real production deployment?
+ *
+ * NOT `NODE_ENV === 'production'`, which was the first version of this and was
+ * wrong in a way that only showed up on Vercel: a Preview build is a production
+ * build, so NODE_ENV is 'production' there too. Preview environments routinely
+ * have a narrower set of secrets — LINE's are commonly scoped to Production
+ * alone — so the missing-variable check refused to boot every Preview, and the
+ * 500 it produced was indistinguishable from the misconfiguration it exists to
+ * catch. It also broke the one workflow that makes a startup throw safe:
+ * opening the Preview to confirm the config before merging.
+ *
+ * VERCEL_ENV is 'production' | 'preview' | 'development' and is the only value
+ * that distinguishes them. Off Vercel it is unset, and NODE_ENV is the best
+ * available answer.
+ */
+function isProductionDeployment(): boolean {
+  const vercelEnv = process.env.VERCEL_ENV?.trim();
+  if (vercelEnv) return vercelEnv === 'production';
+  return process.env.NODE_ENV === 'production';
+}
+
 export function validateLineEnvAtStartup(): void {
+  // Always, everywhere. A value in the wrong slot is wrong in Preview too, and
+  // catching it there is the entire point of having a Preview.
   assertLineEnvCoherent();
 
   const forBot = missingFrom(REQUIRED_FOR_BOT);
@@ -319,9 +343,23 @@ export function validateLineEnvAtStartup(): void {
     );
   }
 
-  if (process.env.NODE_ENV !== 'production') return;
-
   const forLogin = missingFrom(REQUIRED_FOR_LOGIN);
+
+  if (!isProductionDeployment()) {
+    // Preview and local: report and carry on. A Preview without LINE secrets is
+    // a normal, useful thing — every page that does not need them still works,
+    // and the email sign-in path, which is the one most worth testing, needs
+    // none of them.
+    if (forLogin.length) {
+      console.error(
+        `[line/env] LINE sign-in is not configured in this ${process.env.VERCEL_ENV ?? 'non-production'} ` +
+        'environment, so the LINE button will not work here. Not fatal outside production:\n' +
+        forLogin.map((n) => `  ${n} — ${VARS[n].what}`).join('\n'),
+      );
+    }
+    return;
+  }
+
   if (forLogin.length) {
     throw new LineEnvError(
       'LINE sign-in cannot start — required environment variables are missing:\n\n' +

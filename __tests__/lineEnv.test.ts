@@ -167,6 +167,7 @@ describe('a missing variable names itself', () => {
 describe('the startup check', () => {
   it('passes on a correctly configured production deployment', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', 'production');
     setAll();
     const { validateLineEnvAtStartup } = await env();
     expect(() => validateLineEnvAtStartup()).not.toThrow();
@@ -174,9 +175,46 @@ describe('the startup check', () => {
 
   it('refuses to boot production when LINE sign-in cannot work', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', 'production');
     setAll({ LINE_LOGIN_CHANNEL_SECRET: undefined });
     const { validateLineEnvAtStartup } = await env();
     expect(() => validateLineEnvAtStartup()).toThrow(/LINE_LOGIN_CHANNEL_SECRET/);
+  });
+
+  it('does NOT refuse a Preview deployment that lacks the LINE secrets', async () => {
+    /*
+     * The first version of this check tested NODE_ENV, which Vercel sets to
+     * 'production' on Preview builds as well. LINE's secrets are commonly
+     * scoped to the Production environment alone, so every Preview 500'd — and
+     * that broke the one workflow that makes a startup throw safe: opening the
+     * Preview to confirm the configuration BEFORE merging to production.
+     */
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    setAll({
+      LINE_LOGIN_CHANNEL_ID:     undefined,
+      LINE_LOGIN_CHANNEL_SECRET: undefined,
+      LINE_AUTH_REDIRECT_URI:    undefined,
+    });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { validateLineEnvAtStartup } = await env();
+
+    expect(() => validateLineEnvAtStartup()).not.toThrow();
+    // Reported, so a Preview whose LINE button does nothing is explainable.
+    expect(spy.mock.calls.flat().join(' ')).toContain('LINE_LOGIN_CHANNEL_SECRET');
+    spy.mockRestore();
+  });
+
+  it('still refuses a Preview whose secrets are duplicated', async () => {
+    // A value in the wrong slot is wrong in every environment, and catching it
+    // in Preview is the entire point of having one. This is also what makes a
+    // redeployed Preview a diagnostic: if it boots, the fault was missing
+    // variables; if it still 500s, two values are the same.
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    setAll({ LINE_LOGIN_CHANNEL_SECRET: 'messaging-secret' });
+    const { validateLineEnvAtStartup } = await env();
+    expect(() => validateLineEnvAtStartup()).toThrow(/SAME value/);
   });
 
   it('does not take the site down over the bot-only variables', async () => {
