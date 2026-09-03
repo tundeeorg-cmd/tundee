@@ -121,9 +121,23 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // One line per report, prefix first, so `[client]` finds every one of them in
-  // Vercel's search box and nothing else.
-  console.error('[client]', JSON.stringify({
+  /*
+   * The console method has to match the level, because that — not the `level`
+   * field inside the payload — is what the log viewer classifies on.
+   *
+   * Everything went through console.error at first, which put seven routine
+   * "page loaded" lines under Error in Vercel's severity filter during the
+   * first real test. That filter is how someone finds a genuine failure in a
+   * page of noise; a counter that says 7 when the answer is 0 makes it useless
+   * exactly when it is needed.
+   */
+  const emit =
+    level === 'error' ? console.error :
+    level === 'warn'  ? console.warn  :
+                        console.log;
+
+  // Prefix first, so `[client]` finds every one of them and nothing else.
+  emit('[client]', JSON.stringify({
     level,
     message,
     userId: userId || null,
