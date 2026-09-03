@@ -145,6 +145,25 @@ describe('the wizard reports where it got to', () => {
     expect(SETUP_CODE).toContain('[setup] save rejected: no session');
   });
 
+  it('reports on page load, with the build it is running', () => {
+    /*
+     * "No log arrived" had two meanings we could not separate: the handler
+     * never ran, or the phone was running a bundle cached from before the
+     * logging existed. A student saved a profile on Android and nothing
+     * reached us at all — not even a POST to /api/profile/setup — which is
+     * only possible if the JavaScript predates both.
+     *
+     * A line on load, stamped with the commit the bundle was BUILT from,
+     * turns that ambiguity into an answer.
+     */
+    expect(SETUP_CODE).toContain('[setup] page loaded');
+    expect(SETUP_CODE).toContain('BUILD_ID');
+    expect(SETUP_CODE).toContain('NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA');
+    // Whether the browser can report at all — a refused beacon is another way
+    // for a log to silently not exist.
+    expect(SETUP_CODE).toContain('canBeacon');
+  });
+
   it('installs global handlers for errors nothing else catches', () => {
     // An unhandled rejection is how a button stops responding with no trace.
     expect(SETUP_CODE).toContain('installGlobalErrorReporting');
