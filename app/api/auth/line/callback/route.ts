@@ -1,6 +1,12 @@
 /**
  * GET /api/auth/line/callback — completes one-tap LINE login.
  *
+ * NOT /api/line/callback, which links a LINE account to a user who is ALREADY
+ * signed in (entry: /api/line/connect, from the /tracker button, env
+ * LINE_REDIRECT_URI). This route creates the account; that one decorates it.
+ * Both write profiles.line_user_id, which is why the two are easy to confuse —
+ * see the table in app/api/line/callback/route.ts.
+ *
  * Supabase Auth has no native LINE provider, so this route bridges the two:
  *
  *   LINE code → LINE token → verified id_token (sub = LINE user id)
@@ -23,7 +29,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { getLineAuthRedirectUri } from '@/lib/line/redirectUri';
+import { getLineAuthRedirectUri, getLineLoginChannelId, getLineLoginChannelSecret } from '@/lib/line/env';
 import {
   LINE_AUTH_STATE_COOKIE,
   LINE_AUTH_NEXT_COOKIE,
@@ -31,10 +37,12 @@ import {
   LINE_AUTH_VERIFIER_COOKIE,
   LINE_AUTH_PREVIEW_COOKIE,
   LINE_AUTH_UTM_COOKIE,
+  LINE_AUTH_INTAKE_COOKIE,
   LINE_AUTH_RETRY_COOKIE,
 } from '@/lib/line/authCookies';
 import { syntheticEmail } from '@/lib/line/syntheticEmail';
 import { PREVIEW_PARAM } from '@/lib/preview/types';
+import { INTAKE_PARAM } from '@/lib/intake/pendingIntake';
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import { findUserByEmail } from '@/lib/auth/adminUsers';
 
@@ -119,6 +127,7 @@ export async function GET(request: NextRequest) {
   const savedVerifier = jar.get(LINE_AUTH_VERIFIER_COOKIE)?.value;
   const savedPreview  = jar.get(LINE_AUTH_PREVIEW_COOKIE)?.value;
   const savedUtm      = jar.get(LINE_AUTH_UTM_COOKIE)?.value;
+  const savedIntake   = jar.get(LINE_AUTH_INTAKE_COOKIE)?.value;
   const next = jar.get(LINE_AUTH_NEXT_COOKIE)?.value || '/scholarships';
   jar.delete(LINE_AUTH_STATE_COOKIE);
   jar.delete(LINE_AUTH_NEXT_COOKIE);
@@ -161,6 +170,7 @@ export async function GET(request: NextRequest) {
       again.searchParams.set('retry', '1');
       again.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
       if (savedPreview) again.searchParams.set(PREVIEW_PARAM, savedPreview);
+      if (savedIntake) again.searchParams.set(INTAKE_PARAM, savedIntake);
       if (savedUtm) again.searchParams.set('utm_campaign', savedUtm);
       console.warn('[auth/line/callback] state mismatch — retrying with disable_auto_login');
       return NextResponse.redirect(again.toString());
@@ -170,13 +180,29 @@ export async function GET(request: NextRequest) {
 
   if (!code) return fail('line_no_code');
 
-  const channelId     = process.env.LINE_LOGIN_CHANNEL_ID;
-  const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
-  const supabaseUrl   = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey    = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // The LINE pair comes from lib/line/env, which trims and names the variable
+  // in its error. The Supabase pair is not this module's business, so it keeps
+  // the plain read — but is reported separately, or a missing service key would
+  // be indistinguishable from a missing channel secret in the log.
+  let channelId: string;
+  let channelSecret: string;
+  try {
+    channelId     = getLineLoginChannelId();
+    channelSecret = getLineLoginChannelSecret();
+  } catch (e) {
+    console.error('[auth/line/callback] LINE env misconfigured:', e);
+    return fail('line_not_configured');
+  }
 
-  if (!channelId || !channelSecret || !supabaseUrl || !serviceKey) {
-    console.error('[auth/line/callback] required env vars are missing');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    console.error(
+      '[auth/line/callback] Supabase env missing:',
+      !supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL' : '',
+      !serviceKey  ? 'SUPABASE_SERVICE_ROLE_KEY' : '',
+    );
     return fail('line_not_configured');
   }
 
@@ -292,6 +318,10 @@ export async function GET(request: NextRequest) {
   // without these the merge would re-ask their grade, GPA and province and
   // record the signup as 'organic'.
   if (savedPreview) handoff.searchParams.set(PREVIEW_PARAM, savedPreview);
+  // The parked-answers id too. /auth/callback only reads it when the preview is
+  // absent, so this costs nothing when both are present and rescues the case
+  // where the student reached LINE from a browser that never had the cookie.
+  if (savedIntake) handoff.searchParams.set(INTAKE_PARAM, savedIntake);
   if (savedUtm) handoff.searchParams.set('utm_campaign', savedUtm);
   handoff.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
 

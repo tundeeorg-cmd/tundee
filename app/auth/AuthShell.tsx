@@ -1,35 +1,30 @@
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
-import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
+import { OTP_LENGTH } from '@/lib/auth/otp';
 
 /**
- * Server-rendered shell for /auth.
- *
- * This is the Suspense fallback, and it is deliberately a working page rather
- * than a spinner.
+ * Server-rendered shell for /auth — a working page, not a spinner.
  *
  * AuthForm is a client component that calls useSearchParams(), which makes Next
- * bail out of SSR for that subtree and render THIS instead. Previously that
- * meant a spinner: the served HTML contained zero inputs and zero buttons, so a
- * student on a stalled 3G connection watched a spinner while ~240 KB of gzipped
- * JavaScript downloaded, with no way to know whether anything was happening.
+ * bail out of SSR for that subtree and render THIS instead. So this is the
+ * markup a student on a stalled 3G connection actually gets, and on paid
+ * traffic that is the difference between a signup and a blank screen.
  *
- * What survives without JavaScript:
+ * What works here with no JavaScript at all:
  *
- *   • the whole page is readable — heading, sign-in options, consent text
- *   • the email + password form is a real <form method="POST"> handled by
- *     /api/auth/password, so it creates an account and signs the student in
- *     with no JavaScript at all, and no email round trip either
- *   • the LINE button is a real <a href> to the authorize entry point
+ *   • LINE is a real <a href> to the authorize entry point
+ *   • the email form is a real <form method="POST"> to /api/auth/otp/send,
+ *     which mails a six-digit code and redirects back with ?stage=code
+ *   • the code form posts to /api/auth/otp/verify, which establishes the
+ *     session on its redirect response
  *
- * It receives the same in-app-browser reading the hydrated form does, resolved
- * server-side from the request User-Agent — so even the no-JS page puts email
- * first inside a webview and hides the Google button that cannot work there.
+ * So the entire passwordless flow completes without a line of our JavaScript.
+ * The hydrated form adds inline errors, the resend countdown, autofill of the
+ * code from the email, and the Android escape to Chrome.
  *
- * Once hydration finishes React swaps in AuthForm, which adds inline errors,
- * loading states, the password strength hint and the browser escape hatch.
- * Nothing here is load-bearing after that point — it only has to be correct and
- * usable before it.
+ * Same order as AuthForm, deliberately: heading, LINE, divider, email, consent.
+ * A student whose JavaScript arrives mid-page must not watch the layout
+ * reshuffle under their thumb.
  */
 
 const THAI = { fontFamily: 'Sarabun, sans-serif' } as const;
@@ -41,117 +36,160 @@ const NOT_IN_APP: InAppBrowserInfo = {
 export default function AuthShell({
   next = '/scholarships',
   iab = NOT_IN_APP,
+  stage = 'choose',
+  email = '',
 }: {
   next?: string;
   iab?: InAppBrowserInfo;
+  /** 'code' once /api/auth/otp/send has redirected back. */
+  stage?: 'choose' | 'code';
+  email?: string;
 }) {
   const webview = iab.lineAppToAppBlocked;
 
-  const emailBlock = (
+  const hidden = (
     <>
-      <label
-        htmlFor="auth-email"
-        className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2"
-        style={THAI}
-      >
-        อีเมล
-      </label>
-      <input
-        id="auth-email"
-        type="email"
-        name="email"
-        autoComplete="email"
-        inputMode="email"
-        required
-        placeholder="you@example.com"
-        // 16px minimum: anything smaller makes iOS and several Android
-        // browsers zoom the viewport on focus.
-        style={{ ...THAI, fontSize: '16px' }}
-        className="w-full min-h-[52px] border-2 border-[#E8ECF2] dark:border-[#1A2E4A] rounded-xl px-4 text-[#0A2342] dark:text-[#E8EDF5] bg-white dark:bg-[#0D1F35] placeholder-[#A8B2C0] mb-3"
-      />
-
-      <label
-        htmlFor="auth-password"
-        className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2"
-        style={THAI}
-      >
-        รหัสผ่าน
-      </label>
-      <input
-        id="auth-password"
-        type="password"
-        name="password"
-        autoComplete="new-password"
-        required
-        minLength={MIN_PASSWORD_LENGTH}
-        style={{ ...THAI, fontSize: '16px' }}
-        className="w-full min-h-[52px] border-2 border-[#E8ECF2] dark:border-[#1A2E4A] rounded-xl px-4 text-[#0A2342] dark:text-[#E8EDF5] bg-white dark:bg-[#0D1F35] placeholder-[#A8B2C0]"
-      />
-      <p className="mt-1.5 mb-3 text-xs text-[#8A96A8]" style={THAI}>
-        อย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร ไม่ต้องยืนยันอีเมล เข้าใช้งานได้ทันที
-      </p>
-
-      <button
-        type="submit"
-        className="w-full min-h-[56px] bg-[#1B3A6B] text-white rounded-xl font-bold text-base px-4"
-        style={THAI}
-      >
-        สมัคร / เข้าสู่ระบบ
-      </button>
+      <input type="hidden" name="next" value={next} />
+      <input type="hidden" name={CONSENT_PARAM} value={CONSENT_VERSION} />
     </>
   );
 
-  // A plain link, because without JavaScript there is nothing to escape a
-  // webview with — an intent:// URL needs a click handler to build it, and the
-  // /start answers it would have to carry live in a cookie this markup cannot
-  // read. The hydrated form adds the real escape hatch.
-  const lineBlock = (
-    <a
-      href={`/api/auth/line/start?next=${encodeURIComponent(next)}&${CONSENT_PARAM}=${CONSENT_VERSION}`}
-      className={
-        webview
-          ? 'flex items-center justify-center gap-3 w-full min-h-[52px] border-2 border-[#06C755] rounded-xl text-[#06C755] font-bold text-sm px-4'
-          : 'flex items-center justify-center gap-3 w-full min-h-[56px] bg-[#06C755] rounded-xl text-white font-bold text-base px-4'
-      }
-      style={THAI}
-    >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-      </svg>
-      เข้าสู่ระบบด้วย LINE
-    </a>
-  );
+  // ── Code entry ────────────────────────────────────────────────────────────
+  if (stage === 'code') {
+    return (
+      <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07111F] flex items-center justify-center px-4 py-6 sm:py-12">
+        <div className="w-full max-w-[420px]">
+          <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
+            <div className="h-1 bg-[#1B3A6B]" />
+            <div className="px-6 sm:px-8 pt-7 pb-7">
+              <h1 className="text-lg font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-1" style={THAI}>
+                ส่งรหัสไปที่
+              </h1>
+              <p className="text-center text-sm font-semibold text-[#1B3A6B] dark:text-[#8FB4FF] mb-5 break-all" style={THAI}>
+                {email}
+              </p>
 
+              <form method="POST" action="/api/auth/otp/verify">
+                {hidden}
+                <input type="hidden" name="email" value={email} />
+                <label htmlFor="shell-code" className="sr-only">รหัส {OTP_LENGTH} หลัก</label>
+                <input
+                  id="shell-code"
+                  name="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={OTP_LENGTH}
+                  required
+                  placeholder="123456"
+                  style={{ ...THAI, fontSize: '28px', letterSpacing: '0.4em' }}
+                  className="w-full text-center border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-4 font-bold text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#d0d0d5] mb-4"
+                />
+                <button
+                  type="submit"
+                  className="w-full min-h-[52px] bg-[#1B3A6B] text-white rounded-xl font-bold"
+                  style={THAI}
+                >
+                  ยืนยัน
+                </button>
+              </form>
+
+              <form method="POST" action="/api/auth/otp/send" className="mt-4 text-center">
+                {hidden}
+                <input type="hidden" name="email" value={email} />
+                <button type="submit" className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF] underline" style={THAI}>
+                  ส่งใหม่
+                </button>
+              </form>
+
+              <p className="text-center mt-3">
+                <a href="/auth" className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF] underline" style={THAI}>
+                  แก้อีเมล
+                </a>
+              </p>
+
+              <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={{ ...THAI, lineHeight: 1.8 }}>
+                หรือกดลิงก์ในอีเมลก็ได้
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── The choice ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07111F] flex items-center justify-center px-4 py-6 sm:py-12">
       <div className="w-full max-w-[420px]">
         <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
           <div className="h-1 bg-[#1B3A6B]" />
+          <div className="px-6 sm:px-8 pt-7 pb-7">
 
-          <div className={webview ? 'px-6 py-5' : 'px-6 py-8'}>
-            <h1
-              className="text-center text-2xl font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1"
+            {/* 1 ── Heading */}
+            <h1 className="text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-6 leading-snug" style={THAI}>
+              เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ
+            </h1>
+
+            {/* 2 ── LINE. A plain link: without JavaScript there is nothing to
+                    build an intent:// URL with, so a webview visitor gets the
+                    ordinary authorize URL. The hydrated form adds the escape. */}
+            <a
+              href={`/api/auth/line/start?next=${encodeURIComponent(next)}&${CONSENT_PARAM}=${CONSENT_VERSION}`}
+              className="flex items-center justify-center gap-3 w-full min-h-[56px] bg-[#06C755] rounded-xl text-white font-bold text-base px-4"
               style={THAI}
             >
-              เข้าสู่ระบบทุนดี
-            </h1>
-            <p
-              className="text-center text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mb-5"
-              style={{ ...THAI, lineHeight: 1.8 }}
-            >
-              ใช้เวลาไม่ถึง 1 นาที ไม่มีค่าใช้จ่าย
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+              </svg>
+              เข้าสู่ระบบด้วย LINE
+            </a>
+            <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={THAI}>
+              เร็วที่สุด ไม่ต้องจำรหัสผ่าน
             </p>
 
-            {/* One consent checkbox for the whole page. Both routes enforce PDPA
-                consent server-side, so this shell has to carry it or the no-JS
-                path — the whole reason this component exists — would be turned
-                away at both doors. A single `required` checkbox does it with no
-                JavaScript: the browser refuses to submit until it is ticked. */}
-            <form method="POST" action="/api/auth/password">
-              <input type="hidden" name="next" value={next} />
-              <input type="hidden" name="noscript" value="1" />
+            {webview && (
+              <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
+                ถ้า LINE ไม่ขึ้น ให้ใช้อีเมลด้านล่าง ใช้ได้เลยในหน้านี้
+              </p>
+            )}
 
-              <label className="flex items-start gap-3 mb-5 cursor-pointer select-none" style={THAI}>
+            {/* 3 ── Divider */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+              <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium" style={THAI}>หรือ</span>
+              <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+            </div>
+
+            {/* 4 + 5 ── Email and consent, in one real POST. `required` on the
+                    checkbox is what enforces consent without JavaScript; the
+                    route re-checks it regardless. */}
+            <form method="POST" action="/api/auth/otp/send">
+              <input type="hidden" name="next" value={next} />
+
+              <label htmlFor="shell-email" className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5" style={THAI}>
+                อีเมล
+              </label>
+              <input
+                id="shell-email"
+                name="email"
+                type="email"
+                required
+                defaultValue={email}
+                placeholder="you@example.com"
+                autoComplete="email"
+                inputMode="email"
+                style={{ ...THAI, fontSize: '16px' }}
+                className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#aeaeb2] mb-3"
+              />
+              <button
+                type="submit"
+                className="w-full min-h-[52px] bg-[#1B3A6B] text-white rounded-xl font-bold text-base px-4"
+                style={THAI}
+              >
+                ส่งรหัสเข้าอีเมล
+              </button>
+
+              <label className="flex items-start gap-3 mt-5 cursor-pointer select-none" style={THAI}>
                 <input
                   type="checkbox"
                   name={CONSENT_PARAM}
@@ -159,7 +197,7 @@ export default function AuthShell({
                   required
                   className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
                 />
-                <span className="text-sm leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
+                <span className="text-xs leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
                   ฉันยอมรับ{' '}
                   <a href="/terms" className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">ข้อกำหนดการใช้งาน</a>
                   {' '}และ{' '}
@@ -167,47 +205,16 @@ export default function AuthShell({
                   {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
                 </span>
               </label>
-
-              {/* Inside a webview email leads: it is the only method that
-                  completes there, and it is the only one this markup can
-                  complete without JavaScript in any case. */}
-              {webview ? emailBlock : (
-                <>
-                  {lineBlock}
-                  <div className="flex items-center gap-3 my-5">
-                    <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-                    <span className="text-xs text-[#8A96A8]" style={THAI}>หรือ</span>
-                    <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-                  </div>
-                  {emailBlock}
-                </>
-              )}
             </form>
 
-            {/* Outside the form, because a nested <a> submit would be ambiguous
-                and because the LINE link carries its own consent param. */}
-            {webview && (
-              <div className="mt-4">
-                <p className="text-xs text-[#6e6e73] dark:text-[#aeaeb2] mb-2" style={{ ...THAI, lineHeight: 1.8 }}>
-                  เปิดในเบราว์เซอร์ เพื่อเข้าสู่ระบบด้วย LINE หรือ Google
-                </p>
-                {lineBlock}
-              </div>
-            )}
-
-            <p
-              className="mt-5 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]"
-              style={{ ...THAI, lineHeight: 1.8 }}
-            >
-              <a href="/auth/reset" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">ลืมรหัสผ่าน</a>
+            <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={THAI}>
+              ฟรีตลอด ไม่มีค่าใช้จ่าย
             </p>
           </div>
         </div>
 
         <p className="text-center mt-4">
-          <a href="/" className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={THAI}>
-            ← กลับหน้าแรก
-          </a>
+          <a href="/" className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={THAI}>← กลับหน้าแรก</a>
         </p>
       </div>
     </div>

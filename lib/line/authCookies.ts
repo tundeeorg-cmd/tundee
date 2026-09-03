@@ -36,6 +36,13 @@ export const LINE_AUTH_PREVIEW_COOKIE = 'line_auth_preview';
 export const LINE_AUTH_UTM_COOKIE = 'line_auth_utm';
 
 /**
+ * Id of the /start answers parked by /api/intake, held across the LINE round
+ * trip for the same reason LINE_AUTH_PREVIEW_COOKIE is: the visitor leaves for
+ * access.line.me and comes back, and whatever was in the URL is gone by then.
+ */
+export const LINE_AUTH_INTAKE_COOKIE = 'line_auth_intake';
+
+/**
  * Set only on the one retry after an auto-login failure, so the retry cannot
  * loop.
  *

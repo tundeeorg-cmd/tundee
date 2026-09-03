@@ -18,6 +18,7 @@ import { PROVINCES_TH } from '@/lib/translations';
 import { trackPreviewSearch } from '@/lib/adTracking';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import PreviewResults from './PreviewResults';
+import { storeIntakeId, isIntakeId } from '@/lib/intake/pendingIntake';
 import TrustStrip from '@/components/trust/TrustStrip';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
@@ -151,6 +152,31 @@ export default function PreviewMatcher({
     } catch {
       // non-fatal — the server cookie is the source of truth through signup
     }
+
+    /**
+     * Park the answers on the server too, and remember the id.
+     *
+     * The cookie and the sessionStorage draft above are both tied to THIS
+     * browser. The most common path in our funnel leaves it: a student inside
+     * the Facebook webview taps the sign-in link in their email, the OS opens
+     * Chrome or Safari, and every in-browser carrier is gone. An id survives
+     * that, because it can ride the email redirect URL.
+     *
+     * Fire-and-forget, and never blocking: if it fails the student still sees
+     * their matches and the same-browser path still works. Only the
+     * cross-browser rescue is lost, and that is logged rather than silent.
+     */
+    void fetch('/api/intake', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ answers: input }),
+    })
+      .then(async (res) => {
+        if (!res.ok) { console.error('[TunDee] intake park rejected:', res.status); return; }
+        const body = await res.json().catch(() => null);
+        if (isIntakeId(body?.id)) storeIntakeId(body.id);
+      })
+      .catch((err) => console.error('[TunDee] intake park failed:', err));
 
     try {
       const res = await fetch('/api/preview-match', {

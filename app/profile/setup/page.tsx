@@ -1,8 +1,16 @@
 'use client';
 
 /**
- * /profile/setup Duolingo-style 8-step onboarding wizard.
+ * /profile/setup Duolingo-style 9-step onboarding wizard.
  * Redirected here from /auth/callback when profile is incomplete.
+ *
+ * NOTHING HERE IS HELD TO THE END.
+ * Every step is written as the student advances — to localStorage immediately
+ * and to /api/profile/setup as a partial upsert — because until 31 Aug 2026 all
+ * nine steps lived in React state until a single write at 100%, and when that
+ * write was refused by profiles_grade_level_check the student lost about eight
+ * minutes of answers and was shown raw Postgres in English on a Thai page.
+ * A failure at step 9 must now cost the student step 9 and nothing else.
  *
  * Steps:
  *   0  Consent (PDPA)
@@ -22,7 +30,7 @@
  * Consent (step 0) is never skipped — PDPA requires it explicitly.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
@@ -31,18 +39,39 @@ import { logEvent } from '@/lib/research/events';
 import { readAdParams } from '@/lib/adTracking';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
+import { GRADE_LEVELS, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
+import {
+  validateField,
+  validateSetupAnswers,
+  hasErrors,
+  type SetupAnswers,
+  type SetupErrorCode,
+  type SetupField,
+} from '@/lib/profile/setupAnswers';
+import {
+  clientLog,
+  installGlobalErrorReporting,
+  withTimeout,
+  TimeoutError,
+} from '@/lib/clientLog';
+import {
+  saveDraft, loadDraft, clearDraft, resumeStep, answersFromProfile,
+} from '@/lib/profile/setupDraft';
+import {
+  fieldMessage, saveMessage, RETRY_LABEL, FIELD_STEP, type SaveErrorCode,
+} from '@/lib/profile/setupMessages';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 9;
 
-const GRADE_OPTIONS = [
-  { value: 'M1-M3',     th: 'ม.1–3',        en: 'Grade 7–9' },
-  { value: 'M4-M6',     th: 'ม.4–6',        en: 'Grade 10–12' },
-  { value: 'vocational', th: 'ปวช./ปวส.',   en: 'Vocational' },
-  { value: 'uni',        th: 'ปริญญาตรี',   en: 'Undergraduate' },
-  { value: 'graduate',   th: 'บัณฑิตศึกษา', en: 'Graduate' },
-];
+/**
+ * The five grade options come from lib/profile/gradeLevels.ts and are NOT
+ * declared here. They were, once — and the database CHECK constraint was written
+ * against a different list, so three of the five could never be saved. The
+ * database's domain is now generated from that same module.
+ */
+const GRADE_OPTIONS = GRADE_LEVELS;
 
 const INCOME_OPTIONS = [
   { value: 1, th: 'ต่ำกว่า 5,000 บาท/เดือน',   en: 'Under ฿5,000/month' },
@@ -92,54 +121,17 @@ function clearCookie(name: string) {
 }
 
 /**
- * Drops undefined keys so an upsert never overwrites a stored value with null.
- *
- * Since /auth/callback now writes grade_level, province_id, gpa and consent for
- * anyone arriving from the /start preview, reopening this wizard with empty state
- * would otherwise wipe exactly the fields that made onboarding skippable.
+ * Drops keys that carry no answer, so a stored row can be layered over a draft
+ * without its blanks erasing the draft's values.
  */
-function compact<T extends Record<string, unknown>>(o: T): Partial<T> {
+function stripEmpty<T extends Record<string, unknown>>(o: T): Partial<T> {
   return Object.fromEntries(
-    Object.entries(o).filter(([, v]) => v !== undefined),
+    Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''),
   ) as Partial<T>;
 }
 
-// ─── Helper: determine signup cohort from Thai province name or TH-XX code ───
-
-function determineSignupCohort(provinceId: string): string {
-  const v = provinceId.trim();
-
-  // Bangkok
-  if (v === 'TH-10' || v === 'กรุงเทพมหานคร') return 'wave_1_bangkok';
-
-  // TH-XX codes — Northeast: 30–49, North: 50–58
-  const codeMatch = v.match(/^TH-(\d+)$/);
-  if (codeMatch) {
-    const n = parseInt(codeMatch[1], 10);
-    if (n >= 30 && n <= 49) return 'wave_2_northeast';
-    if (n >= 50 && n <= 58) return 'wave_2_north';
-    return 'wave_3_national';
-  }
-
-  // Thai province names — Northeast (อีสาน)
-  const northeast = [
-    'นครราชสีมา','ขอนแก่น','อุดรธานี','อุบลราชธานี','นครพนม','บึงกาฬ',
-    'หนองคาย','หนองบัวลำภู','เลย','ชัยภูมิ','กาฬสินธุ์','มหาสารคาม',
-    'ร้อยเอ็ด','ยโสธร','ศรีสะเกษ','อำนาจเจริญ','มุกดาหาร','สุรินทร์',
-    'บุรีรัมย์','สกลนคร',
-  ];
-  if (northeast.includes(v)) return 'wave_2_northeast';
-
-  // Thai province names — North
-  const north = [
-    'เชียงใหม่','เชียงราย','แม่ฮ่องสอน','ลำปาง','ลำพูน','พะเยา',
-    'แพร่','น่าน','พิษณุโลก','สุโขทัย','ตาก','อุตรดิตถ์',
-    'กำแพงเพชร','พิจิตร','เพชรบูรณ์','นครสวรรค์','อุทัยธานี',
-  ];
-  if (north.includes(v)) return 'wave_2_north';
-
-  return 'wave_3_national';
-}
+// Signup cohort derivation moved to lib/profile/setupAnswers.ts, so the API
+// route derives the same wave the client would have.
 
 // ─── Sub-components (defined OUTSIDE page to prevent remount on re-render) ────
 
@@ -161,6 +153,16 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
   );
 }
 
+/** One short sentence, at the field, in the student's language. */
+function FieldError({ code, lang }: { code: SetupErrorCode | null; lang: string }) {
+  if (!code) return null;
+  return (
+    <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400 text-center">
+      {fieldMessage(code, lang)}
+    </p>
+  );
+}
+
 function Spinner() {
   return <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />;
 }
@@ -170,10 +172,19 @@ interface WizardContainerProps {
   step: number;
   total: number;
   lang: string;
-  error?: string;
+  /**
+   * A code, never a message. The raw Postgres error is logged server-side by
+   * /api/profile/setup and never crosses the wire; this component cannot render
+   * it even by accident, because it is never given it.
+   */
+  error?: SaveErrorCode | null;
+  onRetry?: () => void;
+  retrying?: boolean;
   onBack?: () => void;
 }
-function WizardContainer({ children, step, total, lang, error, onBack }: WizardContainerProps) {
+function WizardContainer({
+  children, step, total, lang, error, onRetry, retrying, onBack,
+}: WizardContainerProps) {
   return (
     <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#111111] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -194,11 +205,46 @@ function WizardContainer({ children, step, total, lang, error, onBack }: WizardC
           <div className="h-1 bg-[#2E6BE6]" />
           <div className="px-7 py-8">
             {error && (
-              <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
-                <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-0.5">
-                  {lang === 'th' ? 'บันทึกไม่สำเร็จ' : 'Could not save profile'}
+              <div
+                role="alert"
+                className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl"
+              >
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {saveMessage(error, lang)}
                 </p>
-                <p className="text-xs font-mono text-red-500 dark:text-red-400 break-all">{error}</p>
+                {onRetry && (error === 'save_failed' || error === 'network') && (
+                  <button
+                    onClick={onRetry}
+                    disabled={retrying}
+                    className="mt-3 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                  >
+                    {retrying
+                      ? (lang === 'th' ? 'กำลังลองใหม่…' : 'Retrying…')
+                      : RETRY_LABEL[lang === 'th' ? 'th' : 'en']}
+                  </button>
+                )}
+
+                {/* An expired session cannot be retried, so a retry button would
+                    be a lie. It needs the one action that does work — and the
+                    reassurance that the answers are still here, because the
+                    reason students do not come back from this screen is that
+                    they assume eight minutes of typing is gone. The draft is in
+                    localStorage and is reloaded on return. */}
+                {error === 'unauthorized' && (
+                  <>
+                    <a
+                      href="/auth?next=/profile/setup"
+                      className="mt-3 inline-block px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+                    >
+                      {lang === 'th' ? 'เข้าสู่ระบบอีกครั้ง' : 'Sign in again'}
+                    </a>
+                    <p className="mt-2 text-xs text-red-600/80 dark:text-red-400/80">
+                      {lang === 'th'
+                        ? 'คำตอบของคุณถูกเก็บไว้แล้ว กลับมากรอกต่อได้เลย'
+                        : 'Your answers are saved — you can pick up where you left off.'}
+                    </p>
+                  </>
+                )}
               </div>
             )}
             {children}
@@ -211,6 +257,16 @@ function WizardContainer({ children, step, total, lang, error, onBack }: WizardC
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * How long the final save may take before we stop waiting.
+ *
+ * fetch has no default timeout, so without this a request that never settles
+ * owns the spinner forever — which is the bug this page was reported for. Long
+ * enough that a slow 3G save still completes, short enough that a student is
+ * not staring at a spinner wondering whether to close the tab.
+ */
+const SAVE_TIMEOUT_MS = 15_000;
+
 export default function ProfileSetupPage() {
   const { lang } = useLang();
   const router   = useRouter();
@@ -218,8 +274,20 @@ export default function ProfileSetupPage() {
 
   const [step,          setStep]          = useState(0);
   const [authLoading,   setAuthLoading]   = useState(true);
+
+  /**
+   * The signed-in user's id, for log lines only.
+   *
+   * A ref rather than state: the global error handlers are installed once and
+   * would otherwise close over whatever the id was at mount — which is null.
+   * Nothing renders from this, and nothing branches on it.
+   */
+  const userIdRef = useRef<string | null>(null);
   const [saving,        setSaving]        = useState(false);
-  const [error,         setError]         = useState('');
+  /** Save-level failure, as a code. Never a database message — see WizardContainer. */
+  const [error,         setError]         = useState<SaveErrorCode | null>(null);
+  /** Field-level rejection, shown at the answer rather than eight minutes later. */
+  const [fieldError,    setFieldError]    = useState<SetupErrorCode | null>(null);
   const [provinceQuery, setProvinceQuery] = useState('');
 
   // Form values
@@ -242,6 +310,40 @@ export default function ProfileSetupPage() {
   // /start preview prefill
   const [prefilled,              setPrefilled]              = useState(false);
   const [destination,            setDestination]            = useState('/scholarships');
+
+  /** Everything the student has answered, in the shape the validator expects. */
+  const answers: Partial<SetupAnswers> = {
+    displayName, gradeLevel, gpa, province,
+    incomeBracket, welfareCard,
+    fields: selectedFields,
+    priorKnowledge, heardAboutUs: recruitmentSource,
+    consentTerms, researchOptIn, guardianAcknowledged,
+    acquisitionSource,
+  };
+
+  /**
+   * Persist what has been answered so far, immediately and then durably.
+   *
+   * localStorage first and synchronously, so the answers survive even a request
+   * that never leaves the device. The partial upsert follows; it is deliberately
+   * not awaited and its failure is deliberately not shown — a student walking
+   * through step 5 must not be interrupted by a background write, and the draft
+   * plus the final save both still cover them. It IS logged, because a partial
+   * save failing is how we would learn about the next constraint mismatch before
+   * a student does.
+   */
+  function persistStep(currentStep: number, snapshot: Partial<SetupAnswers> = answers) {
+    saveDraft(currentStep, snapshot);
+    void fetch('/api/profile/setup', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ partial: true, answers: snapshot }),
+    })
+      .then((res) => {
+        if (!res.ok) console.error('[TunDee Setup] partial save rejected:', res.status, 'at step', currentStep);
+      })
+      .catch((err) => console.error('[TunDee Setup] partial save failed:', err));
+  }
 
   // Read acquisition source set by /students?src= landing page
   useEffect(() => {
@@ -274,19 +376,165 @@ export default function ProfileSetupPage() {
     } catch { /* malformed query string — keep the default */ }
   }, []);
 
-  // Auth guard
+  /**
+   * Auth guard, and resume.
+   *
+   * A student who reached step 7 and lost the save used to come back to step 1
+   * and retype everything. Both halves of that are fixed here: the stored
+   * profile row is read back and replayed into the form, and the wizard opens on
+   * the first question they have not answered.
+   *
+   * The database row wins over the local draft where they disagree — it is the
+   * thing that will actually be there on another device — but a draft answer for
+   * a question the row has no value for is still restored, which is what covers
+   * the answers given while a partial save was failing.
+   */
+  /**
+   * Report what the browser sees, and recover the session after a bfcache
+   * restore.
+   *
+   * BOTH HALVES EXIST FOR THE ANDROID-AFTER-LINE CASE.
+   *
+   * A student who signs in with LINE leaves for the LINE app and comes back.
+   * On Android Chrome that return is frequently served from the back/forward
+   * cache: the page is resurrected exactly as it was, JavaScript timers and
+   * all, without a reload. Nothing re-runs. The Supabase client is the same
+   * object it was before the trip, holding whatever access token it had then —
+   * which, after an OAuth round trip, may already be stale. The refresh timer
+   * that would have replaced it did not run while the page was frozen.
+   *
+   * `pageshow` with `event.persisted` is the only signal that this happened.
+   * Without it the page looks alive and behaves as though signed in, and the
+   * first thing that actually needs the token is the save.
+   */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    const removeErrorReporting = installGlobalErrorReporting(() => userIdRef.current);
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+
+      clientLog({
+        level:   'info',
+        message: '[setup] restored from bfcache — refreshing session',
+        context: { visibility: document.visibilityState },
+      });
+
+      // Bounded: this runs on a page that has just been resurrected on a phone
+      // whose network may have changed underneath it. An unbounded refresh here
+      // would reintroduce exactly the hang this page was reported for.
+      withTimeout(supabase.auth.refreshSession(), 10_000, 'refreshSession after bfcache')
+        .then(({ data, error }) => {
+          clientLog({
+            level:   error ? 'error' : 'info',
+            message: error ? '[setup] session refresh failed after bfcache' : '[setup] session refreshed after bfcache',
+            context: { hasSession: !!data?.session, detail: error?.message },
+          });
+        })
+        .catch((err) => {
+          // Reported, not acted on. The save path already handles a missing
+          // session by showing the sign-in message and keeping the draft, and
+          // redirecting someone away mid-wizard on a guess would be worse.
+          clientLog({
+            level:   'error',
+            message: '[setup] session refresh threw after bfcache',
+            context: { detail: err instanceof Error ? err.message : String(err) },
+          });
+        });
+    };
+
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+      removeErrorReporting();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      /*
+       * Bounded, for the same reason as the save.
+       *
+       * getSession() reads from storage but refreshes over the network when the
+       * token has expired — which is precisely the state a phone returning from
+       * the LINE app is in. Unbounded, a stall here leaves the wizard on its
+       * loading spinner with no way forward and nothing logged.
+       */
+      let data: Awaited<ReturnType<typeof supabase.auth.getSession>>['data'];
+      try {
+        ({ data } = await withTimeout(supabase.auth.getSession(), 10_000, 'getSession on mount'));
+      } catch (err) {
+        clientLog({
+          level:   'error',
+          message: '[setup] getSession failed or timed out on mount',
+          context: { detail: err instanceof Error ? err.message : String(err) },
+        });
+        // Not a redirect to /auth: that would throw away a draft over what may
+        // be a transient stall. Stop loading and let the student proceed; the
+        // save path reports 401 honestly and keeps their answers.
+        if (!cancelled) setAuthLoading(false);
+        return;
+      }
+
       if (!data.session) {
         router.replace('/auth');
-      } else {
-        setAuthLoading(false);
-        const name =
-          data.session.user.user_metadata?.full_name ??
-          data.session.user.user_metadata?.name ?? '';
-        if (name) setDisplayName(name);
+        return;
       }
+      if (cancelled) return;
+
+      const user = data.session.user;
+      userIdRef.current = user.id;
+      const metadataName =
+        user.user_metadata?.full_name ?? user.user_metadata?.name ?? '';
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select(
+          'display_name, grade_level, gpa, province, income_bracket, welfare_card, ' +
+          'fields_of_interest, prior_scholarship_knowledge, heard_about_us, ' +
+          'consent_version, research_opt_in, guardian_acknowledged',
+        )
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      const draft = loadDraft();
+      const stored = answersFromProfile(profile as Record<string, unknown> | null);
+      // Draft underneath, stored row on top: the row is authoritative, the draft
+      // fills the gaps it does not cover.
+      const merged: Partial<SetupAnswers> = { ...(draft?.answers ?? {}), ...stripEmpty(stored) };
+
+      if (merged.displayName || metadataName) setDisplayName(merged.displayName || metadataName);
+      // A grade stored under the retired vocabulary is upgraded, not dropped.
+      const grade = canonicalizeGradeLevel(merged.gradeLevel);
+      if (grade) setGradeLevel(grade);
+      if (merged.gpa) setGpa(merged.gpa);
+      if (merged.province) setProvince(merged.province);
+      if (typeof merged.incomeBracket === 'number') setIncomeBracket(merged.incomeBracket);
+      if (typeof merged.welfareCard === 'boolean') setWelfareCard(merged.welfareCard);
+      if (merged.fields?.length) setSelectedFields(merged.fields);
+      if (typeof merged.priorKnowledge === 'number') setPriorKnowledge(merged.priorKnowledge);
+      if (merged.heardAboutUs) setRecruitmentSource(merged.heardAboutUs);
+      if (merged.consentTerms) setConsentTerms(true);
+      if (typeof merged.researchOptIn === 'boolean') setResearchOptIn(merged.researchOptIn);
+      if (typeof merged.guardianAcknowledged === 'boolean') setGuardianAcknowledged(merged.guardianAcknowledged);
+
+      // Where to open. The stored row decides, so the resume point is the same on
+      // any device; a draft further along only moves them forward, never back.
+      const fromProfile = resumeStep(profile as Record<string, unknown> | null);
+      setStep(Math.max(fromProfile, draft?.step ?? 0));
+
+      setAuthLoading(false);
+    })().catch((err) => {
+      // A failed read must not strand anyone on a spinner — start at the top.
+      console.error('[TunDee Setup] resume failed:', err);
+      if (!cancelled) setAuthLoading(false);
     });
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -296,16 +544,34 @@ export default function ProfileSetupPage() {
     );
   }
 
+  /** Which answer each step owns, so leaving a step validates the right one. */
+  const STEP_FIELD: Partial<Record<number, SetupField>> = {
+    0: 'consentTerms',
+    2: 'priorKnowledge',
+    3: 'gradeLevel',
+    4: 'gpa',
+    5: 'province',
+    6: 'incomeBracket',
+    8: 'heardAboutUs',
+  };
+
   function nextStep() {
-    setError('');
-    // GPA is now step 4 (shifted by consent step 0)
-    if (step === 4 && gpa) {
-      const n = parseFloat(gpa);
-      if (isNaN(n) || n < 0 || n > 4) {
-        setError(lang === 'th' ? 'GPA ต้องอยู่ระหว่าง 0.00 – 4.00' : 'GPA must be between 0.00 and 4.00');
-        return;
-      }
+    setError(null);
+
+    // Validate against the same module the API and the database agree on, so a
+    // value that cannot be stored is refused here — at the field, on the step
+    // that owns it — rather than at 100% eight minutes later.
+    const field = STEP_FIELD[step];
+    if (field) {
+      const code = validateField(field, (answers as Record<string, unknown>)[field]);
+      if (code) { setFieldError(code); return; }
     }
+    setFieldError(null);
+
+    // Everything answered so far is now durable. Do this before moving, so the
+    // step the student is leaving is saved even if the next one crashes.
+    persistStep(step);
+
     // Already answered on /start → jump over grade/GPA/province
     if (prefilled && step === PREFILLED_STEPS.before) {
       setStep(PREFILLED_STEPS.after);
@@ -315,7 +581,8 @@ export default function ProfileSetupPage() {
   }
 
   function prevStep() {
-    setError('');
+    setError(null);
+    setFieldError(null);
     if (prefilled && step === PREFILLED_STEPS.after) {
       setStep(PREFILLED_STEPS.before);
       return;
@@ -323,77 +590,151 @@ export default function ProfileSetupPage() {
     setStep((s) => s - 1);
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setError('');
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+  /**
+   * Choose a grade level. Rejected here if it is not one the database accepts —
+   * which is the whole point of this change, and is why the option list and the
+   * constraint are now generated from one module.
+   */
+  function chooseGradeLevel(value: string) {
+    const code = validateField('gradeLevel', value);
+    if (code) { setFieldError(code); return; }
+    setFieldError(null);
+    setGradeLevel(value);
+    persistStep(3, { ...answers, gradeLevel: value });
+    setStep(4);
+  }
 
-      if (authError || !user) {
-        console.error('[TunDee] getUser failed:', authError?.message);
-        router.replace('/auth');
+  async function handleSave() {
+    /*
+     * (0a) The tap itself, before anything can go wrong.
+     *
+     * This exists to answer one question that could not be answered before: did
+     * the handler run at all? A button that spins forever and a button whose
+     * onClick never fired look the same on a phone. If this line appears in the
+     * Vercel log and the next one does not, the hang is between here and the
+     * request; if this line is missing, the tap never reached React.
+     */
+    clientLog({
+      level:   'info',
+      message: '[setup] save tapped',
+      context: { step, savingAlready: saving },
+    });
+
+    setSaving(true);
+    setError(null);
+    setFieldError(null);
+
+    try {
+      /*
+       * There is deliberately no supabase.auth.getUser() here.
+       *
+       * There was, and it sat between the tap and the only network call that
+       * matters. getUser() is a request to Supabase with no timeout, so in the
+       * Facebook webview — where nearly all our traffic is — a stalled
+       * connection left the button spinning forever and /api/profile/setup was
+       * never reached. Nothing appeared in the Vercel log because nothing was
+       * ever sent to Vercel, which is exactly how this became invisible.
+       *
+       * It also bought nothing. The route re-checks the session server-side and
+       * answers 401, which the handler below already handles.
+       *
+       * (0b) — "did we have a session" is answered by the route's 401 instead,
+       * and reported below. That is strictly better than asking here: it is the
+       * server's own view of the session, and it costs no extra round trip.
+       */
+
+      // Client-side first, so a rejection costs no round trip and lands the
+      // student on the step that owns the answer rather than on a wall of red.
+      const errors = validateSetupAnswers(answers);
+      if (hasErrors(errors)) {
+        const [field, code] = Object.entries(errors)[0] as [SetupField, SetupErrorCode];
+        clientLog({ level: 'warn', message: '[setup] client validation rejected', context: { field, code } });
+        setFieldError(code);
+        setError('validation');
+        setStep(FIELD_STEP[field]);
         return;
       }
 
-      const gpaNum = gpa ? parseFloat(gpa) : null;
-
-      const payload = compact({
-        id:                          user.id,
-        // undefined, not null: these may already be set by /auth/callback from
-        // the /start preview, and must not be wiped by an empty wizard field.
-        display_name:                displayName.trim() || undefined,
-        grade_level:                 gradeLevel || undefined,
-        province:                    province || undefined,
-        gpa:                         gpaNum ?? undefined,
-        income_bracket:              incomeBracket,
-        welfare_card:                welfareCard,
-        fields_of_interest:          selectedFields.length > 0 ? selectedFields : ['any'],
-        // Research fields
-        prior_scholarship_knowledge: priorKnowledge !== null ? priorKnowledge : null,
-        // Renamed in v16: this is the self-reported "how did you hear about
-        // TunDee?" answer. The pre-registered recruitment_source (§5.4) is a
-        // different variable, derived from utm_campaign and written server-side
-        // by /api/experiment/assign. Writing a self-report slug into that
-        // column now violates its CHECK constraint, by design.
-        heard_about_us:              recruitmentSource || 'unknown',
-        signup_cohort:               province ? determineSignupCohort(province) : undefined,
-        // Consent (PDPA). undefined when unticked here, because consent may
-        // already have been recorded on /auth — never downgrade it to null.
-        consent_version:             consentTerms ? CONSENT_VERSION : undefined,
-        consent_at:                  consentTerms ? new Date().toISOString() : undefined,
-        research_opt_in:             researchOptIn,
-        guardian_acknowledged:       guardianAcknowledged,
-        // Channel attribution (from /students?src= landing page)
-        acquisition_source:          acquisitionSource,
-        updated_at:                  new Date().toISOString(),
+      // (1) Everything about to be sent, before it is sent.
+      clientLog({
+        level:   'info',
+        message: '[setup] posting answers',
+        context: { answers, step },
       });
 
-      console.log('[TunDee Setup] upserting profile for', user.id);
+      // The write happens server-side. The browser gets a code back and never a
+      // Postgres message — the real error is logged in the route with the user
+      // id, the step and the payload.
+      let res: Response;
+      try {
+        /*
+         * Bounded, because unbounded is how the button hangs.
+         *
+         * fetch has no default timeout. A phone returning from the LINE app has
+         * a suspended tab, possibly a changed network, and a request that may
+         * never settle either way. 15 seconds is far longer than this call ever
+         * legitimately takes and far shorter than "forever".
+         */
+        res = await withTimeout(
+          fetch('/api/profile/setup', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ partial: false, answers }),
+          }),
+          SAVE_TIMEOUT_MS,
+          'POST /api/profile/setup',
+        );
+      } catch (err) {
+        const timedOut = err instanceof TimeoutError;
+        // (3) The failure, with everything we know about it.
+        clientLog({
+          level:   'error',
+          message: timedOut ? '[setup] save timed out' : '[setup] save request failed',
+          context: {
+            name:    err instanceof Error ? err.name : typeof err,
+            detail:  err instanceof Error ? err.message : String(err),
+            online:  typeof navigator !== 'undefined' ? navigator.onLine : null,
+            timeout: timedOut ? SAVE_TIMEOUT_MS : undefined,
+          },
+        });
+        // Both cases mean the same thing to the student and offer the same
+        // remedy: the answers are safe, press the button again.
+        setError(timedOut ? 'save_failed' : 'network');
+        return;
+      }
 
-      const { error: upsertErr } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' });
-
-      if (upsertErr) {
-        console.error('[TunDee Setup] upsert error:', upsertErr.code, upsertErr.message, upsertErr.details);
-
-        const { id: _id, ...updateFields } = payload;
-        const { error: updateErr } = await supabase
-          .from('profiles')
-          .update(updateFields)
-          .eq('id', user.id);
-
-        if (updateErr) {
-          console.error('[TunDee Setup] update error:', updateErr.code, updateErr.message, updateErr.details);
-          setError(`[${updateErr.code}] ${updateErr.message}`);
-          setSaving(false);
+      if (!res.ok) {
+        if (res.status === 401) {
+          // (0b), answered by the server: there was no usable session.
+          // Never a silent return — the draft is preserved and the student is
+          // told to sign in rather than left tapping a button that cannot work.
+          clientLog({ level: 'error', message: '[setup] save rejected: no session', context: { status: 401 } });
+          persistStep(step);
+          setError('unauthorized');
           return;
         }
-
-        console.log('[TunDee Setup] saved via update fallback');
-      } else {
-        console.log('[TunDee Setup] saved via upsert');
+        if (res.status === 422) {
+          // The server disagreed with the client's validation. Put the student
+          // on the offending step instead of failing at 100%.
+          const body = await res.json().catch(() => ({}));
+          const entries = Object.entries(body?.fields ?? {}) as Array<[SetupField, SetupErrorCode]>;
+          clientLog({ level: 'error', message: '[setup] server validation rejected', context: body?.fields ?? null });
+          if (entries.length > 0) {
+            setFieldError(entries[0][1]);
+            setStep(FIELD_STEP[entries[0][0]]);
+          }
+          setError('validation');
+          return;
+        }
+        // Anything else: the answers are already saved step by step, so the
+        // honest message is "try again", with a button that does exactly that.
+        clientLog({ level: 'error', message: '[setup] save failed', context: { status: res.status } });
+        setError('save_failed');
+        return;
       }
+
+      // (2) It worked.
+      clientLog({ level: 'info', message: '[setup] saved' });
 
       // ── Randomize into a ranking arm (PREREG §4) ──────────────────────────
       // Awaited, unlike the baseline snapshot below: the arm decides which
@@ -404,15 +745,15 @@ export default function ProfileSetupPage() {
       // utm_campaign is sent raw and validated server-side against the closed
       // set in §5.4; it is never trusted as a free-text value.
       try {
-        const res = await fetch('/api/experiment/assign', {
+        const armRes = await fetch('/api/experiment/assign', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ utm_campaign: readAdParams().utm_campaign ?? null }),
         });
-        if (!res.ok) {
+        if (!armRes.ok) {
           // Non-fatal for the student: they get the product either way. It is a
           // research defect, so it is logged loudly rather than swallowed.
-          console.error('[TunDee Setup] arm assignment failed:', res.status);
+          console.error('[TunDee Setup] arm assignment failed:', armRes.status);
         }
       } catch (err) {
         console.error('[TunDee Setup] arm assignment request failed:', err);
@@ -425,7 +766,7 @@ export default function ProfileSetupPage() {
       // dataset. This propagates the decision — including an explicit FALSE,
       // which is a recorded decision and not an absence of one (PREREG §12.4).
       try {
-        const res = await fetch('/api/profile/student', {
+        const consentRes = await fetch('/api/profile/student', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -434,8 +775,8 @@ export default function ProfileSetupPage() {
             consent_method:   'signup_inline',
           }),
         });
-        if (!res.ok) {
-          console.error('[TunDee Setup] research consent not recorded:', res.status);
+        if (!consentRes.ok) {
+          console.error('[TunDee Setup] research consent not recorded:', consentRes.status);
         }
       } catch (err) {
         console.error('[TunDee Setup] research consent request failed:', err);
@@ -446,6 +787,9 @@ export default function ProfileSetupPage() {
       void fetch('/api/profile/baseline', { method: 'POST' }).catch(() => {
         console.warn('[TunDee Setup] baseline snapshot failed — non-fatal');
       });
+
+      // The profile is written; the local draft has nothing left to protect.
+      clearDraft();
 
       // Clear acquisition source from localStorage after it's been saved to profile
       try { localStorage.removeItem('tundee_src'); } catch { /* ignore */ }
@@ -471,9 +815,31 @@ export default function ProfileSetupPage() {
       // own matched results, not a generic list.
       router.replace(destination);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error('[TunDee Setup] exception:', e);
-      setError(msg);
+      // Anything unforeseen. Reported rather than only console.error'd, because
+      // a console on a student's phone is not somewhere we can look.
+      clientLog({
+        level:   'error',
+        message: '[setup] unexpected exception in handleSave',
+        context: {
+          name:   e instanceof Error ? e.name : typeof e,
+          detail: e instanceof Error ? e.message : String(e),
+          stack:  e instanceof Error ? e.stack?.slice(0, 1_000) : undefined,
+        },
+      });
+      setError('save_failed');
+    } finally {
+      /*
+       * The single exit point for the spinner.
+       *
+       * Every branch above used to clear it individually, which meant every new
+       * branch was a chance to forget — and forgetting looks exactly like the
+       * hang we are chasing. A `finally` cannot be forgotten.
+       *
+       * It runs on the success path too, after router.replace has been called.
+       * That is harmless: the navigation is already under way, and if it does
+       * not happen the student is left with a working button rather than a dead
+       * one.
+       */
       setSaving(false);
     }
   }
@@ -500,7 +866,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 0) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">🔒</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -577,15 +943,9 @@ export default function ProfileSetupPage() {
           </span>
         </label>
 
+        <FieldError code={fieldError} lang={lang} />
         <button
-          onClick={() => {
-            if (!consentTerms) {
-              setError(lang === 'th' ? 'กรุณายอมรับข้อกำหนดและนโยบายความเป็นส่วนตัวก่อน' : 'Please accept the Terms and Privacy Policy to continue.');
-              return;
-            }
-            setError('');
-            nextStep();
-          }}
+          onClick={nextStep}
           className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
           style={{ fontFamily: font }}
         >
@@ -605,7 +965,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">👋</div>
           <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -652,7 +1012,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 2) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">🔍</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -703,7 +1063,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 3) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">🎓</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -715,7 +1075,7 @@ export default function ProfileSetupPage() {
           {GRADE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => { setGradeLevel(opt.value); setStep(4); }}
+              onClick={() => chooseGradeLevel(opt.value)}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all ${
                 gradeLevel === opt.value
                   ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
@@ -733,9 +1093,10 @@ export default function ProfileSetupPage() {
           ))}
         </div>
 
+        <FieldError code={fieldError} lang={lang} />
         <p className="text-center">
           <button
-            onClick={() => setStep(4)}
+            onClick={nextStep}
             className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
@@ -750,7 +1111,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 4) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">📊</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -768,7 +1129,10 @@ export default function ProfileSetupPage() {
             max="4"
             step="0.01"
             value={gpa}
-            onChange={(e) => setGpa(e.target.value)}
+            onChange={(e) => {
+              setGpa(e.target.value);
+              setFieldError(validateField('gpa', e.target.value));
+            }}
             placeholder="3.50"
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
@@ -779,6 +1143,7 @@ export default function ProfileSetupPage() {
           <p className="text-xs text-[#aeaeb2] mt-2">0.00 – 4.00</p>
         </div>
 
+        <FieldError code={fieldError} lang={lang} />
         <button
           onClick={nextStep}
           className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors mb-3"
@@ -803,7 +1168,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 5) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">📍</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -847,6 +1212,7 @@ export default function ProfileSetupPage() {
           )}
         </div>
 
+        <FieldError code={fieldError} lang={lang} />
         <p className="text-center">
           <button
             onClick={() => setStep(6)}
@@ -864,7 +1230,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 6) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">💰</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
@@ -917,6 +1283,7 @@ export default function ProfileSetupPage() {
           </button>
         </div>
 
+        <FieldError code={fieldError} lang={lang} />
         <button
           onClick={nextStep}
           className="w-full bg-[#2E6BE6] hover:bg-[#1E57CC] text-white font-bold py-4 rounded-xl transition-colors"
@@ -933,7 +1300,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 7) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">📚</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
@@ -986,7 +1353,7 @@ export default function ProfileSetupPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (step === 8) {
     return (
-      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onBack={prevStep}>
+      <WizardContainer step={step} total={TOTAL_STEPS} lang={lang} error={error} onRetry={handleSave} retrying={saving} onBack={prevStep}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">📣</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
@@ -1021,6 +1388,7 @@ export default function ProfileSetupPage() {
           ))}
         </div>
 
+        <FieldError code={fieldError} lang={lang} />
         <button
           onClick={handleSave}
           disabled={saving}

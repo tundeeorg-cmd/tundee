@@ -9,11 +9,20 @@
  * These read the actual source files, so a change to either side that breaks
  * the pairing fails here.
  *
- * The magic link is gone. Email accounts now sign in with a password at
- * /api/auth/password with no email round trip at all — the round trip is what
- * turned 79 Lead events into 10 accounts. What survives is the token_hash
- * machinery, because two flows still need it: the LINE bridge mints one
- * internally, and password recovery sends one by email.
+ * Email sign-in is a SIX-DIGIT CODE — not a password, and not a bare link.
+ *
+ * The history matters, because this reads like a reversal and is not one. The
+ * magic link was removed on 30 Aug because the email round trip turned 79 Lead
+ * events into 10 accounts. What failed was LEAVING THE PAGE: a link opens in
+ * Chrome or Safari, a different browser with a different cookie jar, so the
+ * student lands signed out with their /start answers gone.
+ *
+ * A code does not leave the page. It is typed into the same Facebook webview
+ * that asked for it, which is why it is the primary email path — and why the
+ * assertions below require it in BOTH the hydrated form and the no-JavaScript
+ * shell. The same email still carries a link for anyone who prefers to tap,
+ * and pending_intake now carries the /start answers across the browser
+ * boundary so that path no longer loses them either.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -31,22 +40,41 @@ const authForm     = read('app/auth/AuthForm.tsx');
 const authShell    = read('app/auth/AuthShell.tsx');
 const lineCallback = read('app/api/auth/line/callback/route.ts');
 
-describe('the magic-link flow is actually gone, not merely unused', () => {
-  it('has no email-link route left to fall back to', () => {
+describe('email sign-in is a code that never leaves the page', () => {
+  it('has no standalone email-link route — the code is the primary path', () => {
     expect(existsSync(join(ROOT, 'app/api/auth/email-link/route.ts'))).toBe(false);
-    expect(existsSync(join(ROOT, 'emails/supabase/magic-link.paste.html'))).toBe(false);
   });
 
-  it('the form never calls signInWithOtp', () => {
-    // signInWithOtp is the call that emails a link. Its return would put a
-    // student in a mail app, which is the drop-off being removed.
-    expect(authForm).not.toContain('signInWithOtp');
-    expect(authShell).not.toContain('email-link');
+  it('the hydrated form requests and verifies a code', () => {
+    expect(authForm).toContain('signInWithOtp');
+    expect(authForm).toContain('verifyOtp');
+    // It has to be typeable on a phone: numeric keypad, plus the attribute iOS
+    // needs to offer the code from the email above the keyboard.
+    expect(authForm).toContain('inputMode="numeric"');
+    expect(authForm).toContain('autoComplete="one-time-code"');
   });
 
-  it('signup itself sends no mail — the form posts to the password route', () => {
-    expect(authForm).toContain("fetch('/api/auth/password'");
-    expect(authShell).toContain('action="/api/auth/password"');
+  it('the no-JavaScript shell completes the same flow', () => {
+    // /auth renders this shell until hydration, so on a stalled connection it
+    // IS the page. Both halves must be real form posts or the student is stuck.
+    expect(authShell).toContain('/api/auth/otp/send');
+    expect(authShell).toContain('/api/auth/otp/verify');
+    expect(existsSync(join(ROOT, 'app/api/auth/otp/send/route.ts'))).toBe(true);
+    expect(existsSync(join(ROOT, 'app/api/auth/otp/verify/route.ts'))).toBe(true);
+  });
+
+  it('no password field survives on the sign-in page', () => {
+    for (const [name, src] of [['form', authForm], ['shell', authShell]] as const) {
+      expect(src, `${name} still has a password input`).not.toContain("type=\"password\"");
+      expect(src, `${name} still posts to the password route`).not.toContain('/api/auth/password');
+    }
+  });
+
+  it('but existing password accounts keep their credential', () => {
+    // Nothing in this change deletes one. /auth/reset stays reachable for
+    // anyone holding an old link, and the password route still exists for it.
+    expect(existsSync(join(ROOT, 'app/auth/reset/page.tsx'))).toBe(true);
+    expect(existsSync(join(ROOT, 'app/api/auth/password/route.ts'))).toBe(true);
   });
 });
 
@@ -147,8 +175,17 @@ describe('user-facing copy tells the truth', () => {
     expect(authForm).toContain('เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
   });
 
-  it('promises no email at signup, because none is sent', () => {
-    expect(authForm).toContain('ไม่ต้องยืนยันอีเมล เข้าใช้งานได้ทันที');
+  it('no longer promises that no email is sent — one now is', () => {
+    // The copy said "ไม่ต้องยืนยันอีเมล เข้าใช้งานได้ทันที" while the password
+    // route sent nothing. A code is emailed now, so that promise would be a lie.
+    expect(authForm).not.toContain('ไม่ต้องยืนยันอีเมล เข้าใช้งานได้ทันที');
+  });
+
+  it('says what the two ways in actually cost the student', () => {
+    expect(authForm).toContain('เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ');
+    expect(authForm).toContain('เร็วที่สุด ไม่ต้องจำรหัสผ่าน');
+    expect(authForm).toContain('ส่งรหัสเข้าอีเมล');
+    expect(authForm).toContain('หรือกดลิงก์ในอีเมลก็ได้');
   });
 
   it('handles both callback error codes', () => {

@@ -41,6 +41,7 @@ import {
   OPEN_SURVEY_STATES,
   type SurveyState,
 } from '@/lib/line/survey';
+import { getLineMessagingChannelSecret } from '@/lib/line/env';
 
 function verifySignature(rawBody: string, signature: string, secret: string): boolean {
   const expected = crypto
@@ -340,8 +341,16 @@ async function handleLinkCode(db: Db, lineUserId: string, text: string): Promise
 // ── route ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.LINE_CHANNEL_SECRET;
-  if (!secret) return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  // The MESSAGING API channel secret, not the Login one. lib/line/env trims it
+  // and refuses to let the two hold the same value — an untrimmed secret makes
+  // every signature mismatch, which looks identical to a forged request.
+  let secret: string;
+  try {
+    secret = getLineMessagingChannelSecret();
+  } catch (e) {
+    console.error('[line/webhook] LINE env misconfigured:', e);
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
 
   const rawBody = await request.text();
   const signature = request.headers.get('x-line-signature') ?? '';

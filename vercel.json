@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/line-outcomes",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/intake-cleanup",
+      "schedule": "30 3 * * *"
     }
   ]
 }

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
+import { GRADE_LEVELS, canonicalizeGradeLevel } from '@/lib/profile/gradeLevels';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/contexts/UserContext';
 import { createClient } from '@/lib/supabase/client';
@@ -109,16 +110,13 @@ const FIELDS = [
   { id: 'arts',             th: 'ศิลปะ',                 en: 'Arts' },
 ];
 
-const GRADE_LEVELS = ['M4', 'M5', 'M6', 'uni', 'graduate'] as const;
-type GradeLevel = typeof GRADE_LEVELS[number];
-
-const GRADE_LABELS: Record<GradeLevel, { th: string; en: string }> = {
-  M4: { th: 'ม.4', en: 'M4 (Gr.10)' },
-  M5: { th: 'ม.5', en: 'M5 (Gr.11)' },
-  M6: { th: 'ม.6', en: 'M6 (Gr.12)' },
-  uni: { th: 'ป.ตรี', en: 'Bachelor' },
-  graduate: { th: 'ป.โท/เอก', en: 'Graduate' },
-};
+/**
+ * This page used to declare its own list — 'M4','M5','M6','uni','graduate' —
+ * which matched the database CHECK but not the signup wizard's. A student who
+ * signed up choosing ม.4–6 and then opened this page saw no option selected,
+ * and saving rewrote their answer. One list now, in lib/profile/gradeLevels.ts.
+ */
+type GradeLevel = string;
 
 // ── Section label ──────────────────────────────────────────────────────────
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -205,7 +203,7 @@ export default function ProfilePage() {
   const [provinceSearch, setProvinceSearch] = useState('');
   const [incomeBracket, setIncomeBracket] = useState<number>(4);
   const [welfareCard, setWelfareCard] = useState(false);
-  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('M6');
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [schoolType, setSchoolType] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -239,11 +237,13 @@ export default function ProfilePage() {
         setProvince(data.province ?? '');
         setIncomeBracket(data.income_bracket ?? 4);
         setWelfareCard(data.welfare_card ?? false);
-        setGradeLevel((data.grade_level as GradeLevel) ?? 'M6');
+        // Defaulting an unreadable value to 'M6' put a grade on the record that
+        // the student never claimed — and then saved it back. Blank means blank.
+        setGradeLevel(canonicalizeGradeLevel(data.grade_level) ?? '');
         setSelectedFields(
           data.fields_of_interest?.filter((f: string) => f !== 'any') ?? []
         );
-        setSchoolType(data.school_type ?? '');
+        // school_type lives on student_profile, not profiles — see loadSchoolType.
       }
     } catch { /* row may not exist yet */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,45 +316,116 @@ export default function ProfilePage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  /**
+   * Send one patch to /api/profile/save and turn the answer into a toast.
+   *
+   * Both save buttons go through here rather than writing to PostgREST from the
+   * browser. A write from the page reaches supabase.co and never us, so when it
+   * failed the whole record was a toast on a phone we cannot see — see the
+   * route for what that cost. Now every failure is logged server-side with the
+   * user id and the values.
+   */
+  async function saveProfilePatch(patch: Record<string, unknown>): Promise<boolean> {
+    let res: Response;
+    try {
+      res = await fetch('/api/profile/save', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(patch),
+      });
+    } catch (err) {
+      // The request never left the device — offline, or the webview dropped it.
+      console.error('[TunDee Profile] save request failed:', err);
+      showToast(
+        lang === 'th'
+          ? 'เชื่อมต่อไม่ได้ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่'
+          : 'Connection failed. Check your internet and try again.',
+        'error',
+      );
+      return false;
+    }
+
+    if (res.ok) return true;
+
+    if (res.status === 401) {
+      // The session went away while the page was open. Saying "save failed"
+      // would send them round a retry loop that cannot succeed.
+      showToast(
+        lang === 'th' ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : 'Session expired. Please sign in again.',
+        'error',
+      );
+      router.replace('/auth');
+      return false;
+    }
+
+    if (res.status === 422) {
+      showToast(
+        lang === 'th'
+          ? 'ข้อมูลบางช่องไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+          : 'Some values are not valid. Please check and try again.',
+        'error',
+      );
+      return false;
+    }
+
+    showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    return false;
+  }
+
   async function handleSaveName() {
     if (!user) return;
     setSavingName(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
-      if (error) throw error;
-      setSavedDisplayName(displayName.trim());
-      setNavDisplayName(displayName.trim());
-      showToast(lang === 'th' ? 'บันทึกเรียบร้อย ✓' : 'Saved ✓', 'success');
-    } catch {
-      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+      const name = displayName.trim();
+      if (await saveProfilePatch({ displayName: name })) {
+        setSavedDisplayName(name);
+        setNavDisplayName(name);
+        showToast(lang === 'th' ? 'บันทึกเรียบร้อย ✓' : 'Saved ✓', 'success');
+      }
+    } finally {
+      // finally, not a trailing statement: an unexpected throw above used to
+      // leave the button spinning with no way to try again.
+      setSavingName(false);
     }
-    setSavingName(false);
   }
 
   async function handleSaveProfile() {
     if (!user) return;
     setSavingProfile(true);
     try {
-      const gpaNum = parseFloat(gpa);
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        gpa: !isNaN(gpaNum) && gpaNum >= 0 && gpaNum <= 4 ? gpaNum : null,
-        province: province || null,
-        income_bracket: incomeBracket,
-        welfare_card: welfareCard,
-        grade_level: gradeLevel,
-        fields_of_interest: selectedFields.length > 0 ? selectedFields : ['any'],
-        school_type: schoolType || null,
-        updated_at: new Date().toISOString(),
+      // Sent as the page holds them — strings and all. The route parses and
+      // validates, so the two screens cannot disagree about what is legal.
+      const saved = await saveProfilePatch({
+        gpa,
+        province,
+        incomeBracket,
+        welfareCard,
+        gradeLevel,
+        fields: selectedFields,
       });
-      if (error) throw error;
+      if (!saved) return;
+
+      // school_type belongs to student_profile. It was being sent to `profiles`,
+      // which has no such column, so PostgREST answered PGRST204 and the whole
+      // upsert failed — every profile save on this page has been failing, shown
+      // to the user only as "บันทึกไม่สำเร็จ".
+      const schoolRes = await fetch('/api/profile/student', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ school_type: schoolType || null }),
+      }).catch((err) => {
+        console.error('[TunDee Profile] school_type request failed:', err);
+        return null;
+      });
+      // Non-fatal: the profile itself is saved. Reporting failure here would
+      // send the student back to re-enter answers that are already stored.
+      if (!schoolRes?.ok) {
+        console.error('[TunDee Profile] school_type not saved:', schoolRes?.status ?? 'network');
+      }
       showToast(lang === 'th' ? 'บันทึกโปรไฟล์เรียบร้อย ✓' : 'Profile saved ✓', 'success');
-    } catch {
-      showToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Save failed. Please try again.', 'error');
+    } finally {
+      setSavingProfile(false);
     }
-    setSavingProfile(false);
   }
 
   async function handleSignOut() {
@@ -545,16 +616,16 @@ export default function ProfilePage() {
               <div className="flex flex-wrap gap-2">
                 {GRADE_LEVELS.map(gl => (
                   <button
-                    key={gl}
+                    key={gl.value}
                     type="button"
-                    onClick={() => setGradeLevel(gl)}
+                    onClick={() => setGradeLevel(gl.value)}
                     className={`text-sm px-3 py-1.5 rounded-full border transition-all ${
-                      gradeLevel === gl
+                      gradeLevel === gl.value
                         ? 'bg-[#1B3A6B] text-white border-[#1B3A6B] font-semibold'
                         : 'border-[#E5E5EA] dark:border-[#1A2E4A] text-[#6E6E73] dark:text-[#8E8E93] hover:border-[#1B3A6B]/60'
                     }`}
                   >
-                    {GRADE_LABELS[gl][lang as 'th' | 'en']}
+                    {gl[lang === 'th' ? 'th' : 'en']}
                   </button>
                 ))}
               </div>

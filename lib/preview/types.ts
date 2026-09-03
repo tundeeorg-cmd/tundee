@@ -2,11 +2,12 @@
  * Shared contract for the logged-out /start preview matcher.
  *
  * The three inputs are deliberately the same three values /profile/setup stores
- * (`grade_level`, `gpa`, `province_id`) so a visitor's preview answers can be
+ * (`grade_level`, `gpa`, `province`) so a visitor's preview answers can be
  * replayed into the signup wizard without any re-typing.
  */
 
 import { PROVINCES_TH } from '@/lib/translations';
+import { GRADE_LEVELS, GRADE_LEVEL_VALUES } from '@/lib/profile/gradeLevels';
 
 /** Cookie carrying the visitor's answers across the signup redirect. */
 export const PREVIEW_COOKIE = 'tundee_preview';
@@ -36,18 +37,19 @@ export const PREVIEW_LIMIT = 50;
 export const PREVIEW_BROADENED_N = 5;
 
 /**
- * Education levels offered on /start. Values are byte-identical to
- * GRADE_OPTIONS in app/profile/setup/page.tsx — do not diverge.
+ * Education levels offered on /start.
+ *
+ * Derived from GRADE_LEVELS rather than restated. The old comment here said
+ * "byte-identical to GRADE_OPTIONS in app/profile/setup/page.tsx — do not
+ * diverge", which is exactly the kind of instruction a comment cannot enforce:
+ * both lists were right about each other and both were wrong about the database,
+ * so three of these five values could not be stored at all. Now there is one
+ * list, in lib/profile/gradeLevels.ts, and the database CHECK is generated from
+ * it too.
  */
-export const PREVIEW_LEVELS = [
-  { value: 'M1-M3',      th: 'ม.1–3' },
-  { value: 'M4-M6',      th: 'ม.4–6' },
-  { value: 'vocational', th: 'ปวช./ปวส.' },
-  { value: 'uni',        th: 'ปริญญาตรี' },
-  { value: 'graduate',   th: 'ปริญญาโท/เอก' },
-] as const;
+export const PREVIEW_LEVELS = GRADE_LEVELS.map(g => ({ value: g.value, th: g.th }));
 
-const VALID_LEVELS = new Set<string>(PREVIEW_LEVELS.map(l => l.value));
+const VALID_LEVELS = new Set<string>(GRADE_LEVEL_VALUES);
 const VALID_PROVINCES = new Set<string>(PROVINCES_TH);
 
 export interface PreviewInput {
