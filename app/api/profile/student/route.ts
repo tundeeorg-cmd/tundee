@@ -86,9 +86,12 @@ export async function POST(request: NextRequest) {
 
   // Only stamp consent_at/consent_version when the consent decision actually
   // changes — this is the study's audit trail, not a "last edited" timestamp.
+  //
+  // The audit columns are selected too, not just the decision. They have to be
+  // carried into the payload even when nothing changed; see below.
   const { data: existing, error: existingError } = await supabase
     .from('student_profile')
-    .select('consent_research')
+    .select('consent_research, consent_version, consent_at, consent_method')
     .eq('user_id', user.id)
     .maybeSingle();
   if (existingError) {
@@ -102,6 +105,50 @@ export async function POST(request: NextRequest) {
     CONSENT_METHODS.includes(body.consent_method as ConsentMethod)
       ? (body.consent_method as ConsentMethod)
       : 'profile_settings';
+
+  /**
+   * The consent columns, always present in the payload when consent is on.
+   *
+   * student_profile_consent_auditable_check is:
+   *
+   *   CHECK (consent_research = FALSE
+   *          OR (consent_version IS NOT NULL AND consent_at IS NOT NULL))
+   *
+   * The previous version omitted the audit columns entirely whenever the
+   * decision had not changed, which made every repeat save by an already-
+   * consenting student fail with 23514. A student who consented on 30 Aug and
+   * finished the wizard again on 3 Sep hit it — the profile itself saved, then
+   * this route 500'd, and because the caller treats that as non-fatal the
+   * failure was invisible until client logging arrived.
+   *
+   * Either mechanism produces it and this covers both: Postgres evaluating the
+   * CHECK against the proposed row before ON CONFLICT picks the update path,
+   * or a legacy row carrying consent_research = true with null audit columns
+   * from before v17 added them.
+   *
+   * Carrying the stored values forward rather than re-stamping keeps the audit
+   * trail honest — consent_at still means "when they decided", not "when they
+   * last pressed save". A stamp only happens when the decision actually
+   * changed, or when consent is on and the trail is missing, which is the one
+   * case where writing nothing would be both illegal and untrue.
+   */
+  const carriedVersion = typeof existing?.consent_version === 'string' ? existing.consent_version : null;
+  const carriedAt      = typeof existing?.consent_at      === 'string' ? existing.consent_at      : null;
+  const carriedMethod  = typeof existing?.consent_method  === 'string' ? existing.consent_method  : null;
+
+  const mustStamp = consentChanged || (consentResearch && (!carriedVersion || !carriedAt));
+
+  const consentColumns = mustStamp
+    ? {
+        consent_version: CURRENT_CONSENT_VERSION,
+        consent_at:      new Date().toISOString(),
+        consent_method:  consentMethod,
+      }
+    : {
+        consent_version: carriedVersion,
+        consent_at:      carriedAt,
+        consent_method:  carriedMethod,
+      };
 
   const preferredTypes = Array.isArray(body.preferred_scholarship_types)
     ? (body.preferred_scholarship_types as unknown[]).filter((v): v is string => typeof v === 'string')
@@ -130,11 +177,7 @@ export async function POST(request: NextRequest) {
     language_pref:               body.language_pref        || 'th',
     guardian_consent:            guardianConsent,
     consent_research:            consentResearch,
-    ...(consentChanged ? {
-      consent_version: CURRENT_CONSENT_VERSION,
-      consent_at:      new Date().toISOString(),
-      consent_method:  consentMethod,
-    } : {}),
+    ...consentColumns,
   };
 
   let { data, error } = await supabase
