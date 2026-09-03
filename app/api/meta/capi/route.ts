@@ -32,8 +32,15 @@ export const dynamic = 'force-dynamic';
 
 const GRAPH_API_VERSION = 'v21.0';
 
-/** Only conversions are mirrored — see CAPI_EVENTS in lib/analytics/meta.ts. */
-const ALLOWED_EVENTS = new Set(['Lead', 'CompleteRegistration', 'SubmitApplication']);
+/**
+ * Only conversions are mirrored — must match CAPI_EVENTS in
+ * lib/analytics/meta.ts exactly. A name mirrored there but rejected here
+ * fails silently: the browser call is fire-and-forget, so a 400 from a
+ * mismatch like this went unnoticed until this file was audited — see commit
+ * history for InitiateCheckout, which was in CAPI_EVENTS from the start but
+ * missing here the whole time.
+ */
+const ALLOWED_EVENTS = new Set(['InitiateCheckout', 'Lead', 'CompleteRegistration', 'ApplyClicked']);
 
 interface CapiRequestBody {
   eventName?: string;

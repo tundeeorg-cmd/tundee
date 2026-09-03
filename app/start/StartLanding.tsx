@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { persistAdParams, buildSignupHref, trackCTAClick, type AdParams } from '@/lib/adTracking';
+import { persistAdParams, buildSignupHref, trackStartPageView, type AdParams } from '@/lib/adTracking';
 import PreviewMatcher from './PreviewMatcher';
 import {
   DEFAULT_LANDING_VARIANT,
@@ -49,11 +49,13 @@ const FAQ = [
   { q: 'ข้อมูลของฉันปลอดภัยไหม?', a: 'เราเก็บข้อมูลอย่างปลอดภัยและไม่ขายให้ใคร' },
 ];
 
-function CtaButton({ href, location, children }: { href: string; location: string; children: React.ReactNode }) {
+// No ad-pixel call here: this button scrolls to the on-page matcher form, not
+// to /auth, and the attribution fix moved lead()/initiateCheckout() off click
+// handlers entirely — see lib/adTracking.ts.
+function CtaButton({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      onClick={() => trackCTAClick(location)}
       style={th}
       className="block w-full max-w-sm mx-auto text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
     >
@@ -89,6 +91,7 @@ export default function StartLanding({
 
   useEffect(() => {
     persistAdParams(adParams);
+    trackStartPageView();
 
     // landing_variant is logged as a covariate, NOT as a treatment. It records
     // which headline recruited the visitor; it must never reach the ranking
@@ -310,7 +313,7 @@ export default function StartLanding({
         </h2>
         {/* Sends the visitor back to the matcher, not to signup — they should
             see their own matches before we ask for an account. */}
-        <CtaButton href={`#${MATCHER_ANCHOR}`} location="final">
+        <CtaButton href={`#${MATCHER_ANCHOR}`}>
           ดูทุนที่ฉันมีสิทธิ์ (ฟรี) →
         </CtaButton>
       </section>
@@ -385,7 +388,6 @@ export default function StartLanding({
       >
         <a
           href={`#${MATCHER_ANCHOR}`}
-          onClick={() => trackCTAClick('sticky_mobile')}
           style={th}
           className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 rounded-2xl font-bold text-base transition-colors active:opacity-90"
         >

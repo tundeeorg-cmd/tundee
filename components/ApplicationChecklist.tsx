@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatUserDate } from '@/lib/formatDate';
 import { recordApplyClick } from '@/lib/analytics/applyClick';
+import { applyClicked } from '@/lib/analytics';
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
 
@@ -452,6 +453,9 @@ export default function ApplicationChecklist({
                             rel="noopener noreferrer"
                             onClick={() => {
                               recordApplyClick(scholarshipId);
+                              // Previously missing entirely — this apply
+                              // touchpoint never reached the ad platforms.
+                              applyClicked({ scholarshipId });
                               if (!done) void toggleStep(step.id);
                             }}
                             className="inline-flex items-center gap-1.5 bg-[#2E6BE6] text-white

@@ -46,6 +46,7 @@ import {
   type InAppBrowserInfo,
 } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { trackAuthPageView } from '@/lib/adTracking';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
   isPlausibleEmail,
@@ -359,6 +360,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     const info = detectInAppBrowser();
     setIab(info);
     logFunnelEvent({ eventType: 'signup_started', context: inAppContext(info) });
+    trackAuthPageView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -25,16 +25,19 @@ declare global {
 }
 
 /**
- * TikTok's standard event names. Its vocabulary is smaller than Meta's, so two
- * distinct logical events (reaching the signup gate, clicking an apply link)
- * both map to SubmitForm — they stay distinguishable by their params.
+ * Event names sent to TikTok. Unlike Meta, TikTok's SDK takes any string in
+ * ttq.track() — standard and custom names go through the same call, so this
+ * union just documents which ones this app actually sends.
  */
 export type TikTokEventName =
   | 'Search'
   | 'ViewContent'
   | 'SubmitForm'
   | 'InitiateCheckout'
-  | 'CompleteRegistration';
+  | 'CompleteRegistration'
+  | 'AddToWishlist'
+  | 'ProfileCompleted'
+  | 'ApplyClicked';
 
 export function getTikTokPixelId(): string | undefined {
   return process.env.NEXT_PUBLIC_TIKTOK_PIXEL_ID || undefined;
@@ -78,41 +81,35 @@ export function trackSearch(input: {
   });
 }
 
+/** Mirrors meta.trackViewContent's two call shapes — see the note there. */
 export function trackViewContent(input: {
-  contentIds: string[];
+  contentIds?: string[];
   contentName?: string;
   numItems?: number;
   browser?: BrowserContext;
 }): void {
   track('ViewContent', {
-    content_type: 'scholarship',
-    content_id:   input.contentIds[0],
+    ...(input.contentIds?.length ? { content_type: 'scholarship', content_id: input.contentIds[0] } : {}),
     ...(input.contentName ? { content_name: input.contentName } : {}),
     ...(input.numItems != null ? { quantity: input.numItems } : {}),
     ...browserParams(input.browser),
   });
 }
 
-/** Pre-account intent — the visitor reached the signup gate. */
-export function trackLead(input: { location: string; browser?: BrowserContext }): void {
+/** Mirrors meta.trackLead — see the note there on why this fires exactly once, here only. */
+export function trackLead(input: { value: number; browser?: BrowserContext }): void {
   track('SubmitForm', {
-    content_type: 'signup_gate',
-    content_name: input.location,
+    content_type:     'start_form_completed',
+    value:            input.value,
     ...browserParams(input.browser),
   });
 }
 
-/** Gate CTA. Mirrors meta.trackInitiateCheckout — see the note there on why both fire. */
-export function trackInitiateCheckout(input: {
-  location: string;
-  numItems?: number;
-  browser?: BrowserContext;
-}): void {
+/** The visitor reached the login/signup screen. */
+export function trackInitiateCheckout(input?: { browser?: BrowserContext }): void {
   track('InitiateCheckout', {
-    content_type: 'product',
-    description:  input.location,
-    ...(input.numItems !== undefined ? { quantity: input.numItems } : {}),
-    ...browserParams(input.browser),
+    content_type: 'auth_page',
+    ...browserParams(input?.browser),
   });
 }
 
@@ -127,6 +124,17 @@ export function trackCompleteRegistration(input: {
   });
 }
 
-export function trackSubmitApplication(input: { scholarshipId: string }): void {
-  track('SubmitForm', { content_type: 'scholarship', content_id: input.scholarshipId });
+/** The visitor tapped save/track on a scholarship. */
+export function trackAddToWishlist(input: { scholarshipId: string }): void {
+  track('AddToWishlist', { content_type: 'scholarship', content_id: input.scholarshipId });
+}
+
+/** The visitor clicked through to a funder's external application form. */
+export function trackApplyClicked(input: { scholarshipId: string }): void {
+  track('ApplyClicked', { content_id: input.scholarshipId });
+}
+
+/** The onboarding wizard was finished — the account is a real, qualified lead. */
+export function trackProfileCompleted(input: { gradeLevel: string; province: string }): void {
+  track('ProfileCompleted', { grade_level: input.gradeLevel, province: input.province });
 }

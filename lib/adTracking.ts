@@ -77,24 +77,43 @@ export function buildSignupHref(adParams: AdParams, next?: string): string {
   return `/auth?${qs.toString()}`;
 }
 
-/** The visitor reached the signup gate. */
-export function trackCTAClick(location: string) {
-  analytics.lead({ location });
+/** The visitor arrived at /start. */
+export function trackStartPageView() {
+  analytics.viewContent({ contentName: 'start_page' });
 }
 
+const LEAD_FIRED_KEY = 'tundee_lead_fired';
+
 /**
- * The signup gate under the /start preview results.
+ * The visitor answered the 3-question form and saw real matched
+ * scholarships — Lead, the event ad delivery optimizes against. This is the
+ * one call site: it used to fire on the signup-gate CTA click instead, a step
+ * later and easy to miss if the visitor never tapped through.
  *
- * Distinct from trackCTAClick because this tap means something the other CTAs do not:
- * the visitor has already seen real matched scholarships and is choosing to unlock the
- * rest. It fires Lead *and* InitiateCheckout — Lead to keep the existing ad-set
- * optimisation intact, InitiateCheckout because that is the funnel step the platforms
- * report on. `matchCount` travels with it so drop-off can be read against how much was
- * actually behind the gate.
+ * Guarded by sessionStorage, not just a component-level ref — a visitor who
+ * navigates back to /start and resubmits the form within the same tab session
+ * must not re-fire it, since Meta counts a lead once per person, not once per
+ * render. (components/PreviewResults.tsx also holds its own mount-level ref,
+ * which is what stops a same-mount double-invoke; the two guards cover
+ * different repeats.)
  */
-export function trackGateCTA(location: string, matchCount: number) {
-  analytics.lead({ location });
-  analytics.initiateCheckout({ location, numItems: matchCount });
+export function trackFormResultsSeen(matchCount: number) {
+  if (typeof window !== 'undefined') {
+    try {
+      if (sessionStorage.getItem(LEAD_FIRED_KEY)) return;
+      sessionStorage.setItem(LEAD_FIRED_KEY, '1');
+    } catch {
+      // sessionStorage unavailable (private mode, embedded webview) — fire
+      // once for this render and accept the small risk of a repeat on a
+      // second mount; the alternative is dropping the lead entirely.
+    }
+  }
+  analytics.lead({ value: matchCount });
+}
+
+/** The visitor reached the login/signup screen. */
+export function trackAuthPageView() {
+  analytics.initiateCheckout();
 }
 
 /**
@@ -130,7 +149,11 @@ export function trackPreviewResults(matchCount: number, scholarshipIds: string[]
  */
 export function trackSignupComplete(conversion: SignupConversion) {
   const { method, inWebview, app } = conversion;
-  analytics.completeRegistration(method, { inWebview, app });
+  // The cookie's own 'email' value (kept for backward compat — see
+  // lib/analytics/signupConversion.ts) is translated to the ad platforms'
+  // outward-facing name right here, the one place it reaches them.
+  const adMethod = method === 'email' ? 'email_otp' : method;
+  analytics.completeRegistration(adMethod, { inWebview, app });
 
   // signup_completed rides along here rather than being wired separately at
   // both call sites. The two paths above are already mutually exclusive and

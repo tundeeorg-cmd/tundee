@@ -9,7 +9,7 @@ import VerificationMeta from '@/components/scholarships/VerificationMeta';
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import { viewContent, submitApplication } from '@/lib/analytics';
+import { viewContent, applyClicked } from '@/lib/analytics';
 import TrackButton from '@/components/TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 
@@ -320,7 +320,7 @@ export default function TdScholarshipDetailPage() {
   function handleApplyClick() {
     // Fired synchronously: the link opens a new tab and this component may stop
     // being interacted with immediately after.
-    submitApplication({ scholarshipId: s.scholarship_id });
+    applyClicked({ scholarshipId: s.scholarship_id });
     recordApplyClick(s.scholarship_id);
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
