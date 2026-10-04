@@ -138,6 +138,50 @@ describe('/api/auth/line/start', () => {
   });
 });
 
+describe('/api/auth/line/start refuses to start LINE where it cannot open the app', () => {
+  // The /auth page shows the Safari help itself — once hydrated. Anything that
+  // reaches the route directly (an early tap, a cached page, a typed URL) must
+  // get the same, never LINE's email + password form.
+  const UA = {
+    chromeIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1',
+    fbIos:     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/450.0]',
+    safari:    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    chromeAndroid: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  };
+  const startAs = (ua: string, qs = '') =>
+    LINE_START(new NextRequest(`http://localhost/api/auth/line/start?${CONSENT_PARAM}=${CONSENT_VERSION}${qs}`, {
+      headers: { cookie: `${CONSENT_COOKIE}=${CONSENT_VERSION}`, 'user-agent': ua },
+    }));
+
+  it.each([['Chrome on iPhone', UA.chromeIos], ['the Facebook webview on iPhone', UA.fbIos]])(
+    '%s goes back to /auth with the Safari help, answers and campaign kept',
+    async (_name, ua) => {
+      const res = await startAs(ua, `&next=/tracker&${PREVIEW_PARAM}=${encodeURIComponent(PREVIEW)}&utm_campaign=fb_sept`);
+      const to = new URL(res.headers.get('location')!);
+      expect(to.origin + to.pathname).toBe('https://www.tundee.org/auth');
+      expect(to.searchParams.get('error')).toBe('line_open_in_safari');
+      expect(to.searchParams.get('next')).toBe('/tracker');
+      expect(to.searchParams.get(PREVIEW_PARAM)).toBe(PREVIEW);
+      expect(to.searchParams.get('utm_campaign')).toBe('fb_sept');
+    },
+  );
+
+  it.each([['Safari on iPhone', UA.safari], ['Chrome on Android', UA.chromeAndroid]])(
+    '%s goes to LINE as before',
+    async (_name, ua) => {
+      const url = new URL((await startAs(ua)).headers.get('location')!);
+      expect(url.origin + url.pathname).toBe(`${PROJECT}/auth/v1/authorize`);
+    },
+  );
+
+  it('the /auth page opens the Safari help when sent back with it', async () => {
+    const { readFileSync } = await import('node:fs');
+    const form = readFileSync('app/auth/AuthForm.tsx', 'utf8');
+    expect(form).toContain("if (err === 'line_open_in_safari') {");
+    expect(form).toMatch(/line_open_in_safari'\) \{\s*setIosHelp\(true\);/);
+  });
+});
+
 describe('/auth/callback for a LINE sign-in', () => {
   it('writes the LINE id onto the profile after a successful exchange', async () => {
     exchangeCodeForSession.mockResolvedValue({

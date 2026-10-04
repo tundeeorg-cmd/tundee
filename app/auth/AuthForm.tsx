@@ -363,7 +363,13 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     }
 
     const err = searchParams.get('error');
-    if (err) {
+    // /api/auth/line/start sent an iPhone browser that cannot open the LINE app
+    // back here (a tap before this page hydrated, a cached page, a typed URL).
+    // Not a failure and not a message: show the same Safari help a hydrated
+    // tap would have shown.
+    if (err === 'line_open_in_safari') {
+      setIosHelp(true);
+    } else if (err) {
       // OTP failures carry their own Thai copy; anything else is a callback
       // code and belongs to authMessage.
       setMessage(

@@ -44,6 +44,7 @@ import { CONSENT_COOKIE, CONSENT_PARAM, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION,
 import { PREVIEW_PARAM, PREVIEW_COOKIE, PREVIEW_COOKIE_MAX_AGE, decodePreviewInput } from '@/lib/preview/types';
 import { INTAKE_PARAM, isIntakeId } from '@/lib/intake/pendingIntake';
 import { LINE_PROVIDER, LINE_CALLBACK_FLAG, LINE_CALLBACK_RETRY_FLAG } from '@/lib/line/authMode';
+import { inspectUserAgent } from '@/lib/browser/inAppBrowser';
 
 /** Only same-origin paths may be used as a post-login destination. */
 function safeNext(raw: string | null): string {
@@ -183,6 +184,35 @@ export async function GET(request: NextRequest) {
     back.searchParams.set('error', 'consent_required');
     back.searchParams.set('next', next);
     return NextResponse.redirect(back);
+  }
+
+  /*
+   * An iPhone browser LINE cannot open its app from — Chrome and the other
+   * non-Safari browsers, and the Facebook/Instagram/TikTok webviews. Starting
+   * LINE there lands on LINE's own email + password form and then a QR code
+   * that cannot be scanned from the same phone (production, 2026-10-04).
+   *
+   * The /auth page already shows "open in Safari" instead of coming here — but
+   * only once its JavaScript has run. A tap before hydration, a cached copy of
+   * an older page, the no-JS shell or a typed URL all arrive here directly, so
+   * this route makes the same check and sends them back to that help, with
+   * their answers and campaign in the URL for the copied link to carry.
+   */
+  const iab = inspectUserAgent(request.headers.get('user-agent'));
+  if (iab.platform === 'ios' && iab.lineAppToAppBlocked) {
+    const back = new URL(`${siteUrl}/auth`);
+    back.searchParams.set('error', 'line_open_in_safari');
+    back.searchParams.set('next', next);
+    const previewParam = searchParams.get(PREVIEW_PARAM);
+    if (previewParam && decodePreviewInput(previewParam)) back.searchParams.set(PREVIEW_PARAM, previewParam);
+    const intakeParam = searchParams.get(INTAKE_PARAM);
+    if (isIntakeId(intakeParam)) back.searchParams.set(INTAKE_PARAM, intakeParam);
+    const utmCampaign = searchParams.get('utm_campaign');
+    if (utmCampaign) back.searchParams.set('utm_campaign', utmCampaign);
+    console.info('[auth/line/start] iOS browser cannot open the LINE app — sent to the Safari help:', iab.app ?? 'non-Safari browser');
+    const response = NextResponse.redirect(back);
+    persistGuestCookies(response, searchParams, consentParam, consentCookie);
+    return response;
   }
 
   const response = await startWithSupabase(siteUrl, next, request, searchParams);
