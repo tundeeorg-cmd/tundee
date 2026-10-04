@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LINE OIDC Spike</title>
+<!--
+  Spike step 2 — sign in to the STAGING project through Supabase's custom OIDC
+  provider, and show what Supabase hands back. Served by ./serve.mjs on
+  http://localhost:3999 (add that URL to staging's Auth → URL Configuration →
+  Redirect URLs). Only the public anon key is entered here; it is kept in this
+  browser's localStorage and nowhere else.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root { --bg:#fff; --fg:#111; --muted:#666; --line:#06C755; --border:#ddd; --err:#c00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --fg:#eee; --muted:#999; --border:#333; --err:#f66; } }
+  body { background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; margin:0; padding:16px; max-width:640px; }
+  label { display:block; margin:10px 0 4px; color:var(--muted); font-size:13px; }
+  input { width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border); border-radius:6px; background:transparent; color:inherit; }
+  button { margin:14px 8px 0 0; padding:10px 16px; border:0; border-radius:8px; font-size:15px; cursor:pointer; }
+  #go { background:var(--line); color:#fff; }
+  pre { white-space:pre-wrap; word-break:break-all; border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; }
+  .err { color:var(--err); }
+</style>
+</head>
+<body>
+<h1>LINE → Supabase custom OIDC (staging)</h1>
+<label for="url">Staging Supabase URL</label>
+<input id="url" placeholder="https://xxxx.supabase.co">
+<label for="anon">Staging anon key (public)</label>
+<input id="anon">
+<label for="provider">Custom provider id, exactly as the dashboard shows it</label>
+<input id="provider" placeholder="custom:line">
+<button id="go">เข้าสู่ระบบด้วย LINE</button>
+<button id="out">Sign out</button>
+<h2>Result</h2>
+<pre id="result">Not signed in.</pre>
+
+<script>
+  const FIELDS = ['url', 'anon', 'provider'];
+  const $ = id => document.getElementById(id);
+  const show = (text, isErr) => { $('result').textContent = text; $('result').className = isErr ? 'err' : ''; };
+
+  for (const f of FIELDS) {
+    try { $(f).value = localStorage.getItem('spike_' + f) ?? ''; } catch {}
+    $(f).addEventListener('change', () => { try { localStorage.setItem('spike_' + f, $(f).value.trim()); } catch {} });
+  }
+
+  function client() {
+    const url = $('url').value.trim(), anon = $('anon').value.trim();
+    if (!url || !anon) return null;
+    return supabase.createClient(url, anon, { auth: { flowType: 'pkce', detectSessionInUrl: true } });
+  }
+
+  // Errors come back on the redirect, from LINE or from Supabase's verifier.
+  // The signature failure we are testing for would surface here.
+  const params = new URLSearchParams(location.search + '&' + location.hash.slice(1));
+  if (params.get('error')) {
+    show(`ERROR ${params.get('error')}\n${params.get('error_code') ?? ''}\n${params.get('error_description') ?? ''}`, true);
+  }
+
+  const sb = client();
+  if (sb) {
+    sb.auth.getSession().then(({ data, error }) => {
+      if (error) { show('getSession error: ' + error.message, true); return; }
+      const u = data.session?.user;
+      if (!u) return;
+      show(JSON.stringify({
+        signed_in: true,
+        email: u.email || null,
+        app_metadata: u.app_metadata,
+        identities: (u.identities ?? []).map(i => ({ provider: i.provider, identity_data: i.identity_data })),
+        user_metadata: u.user_metadata,
+      }, null, 2));
+      history.replaceState(null, '', location.pathname);
+    });
+  }
+
+  $('go').addEventListener('click', async () => {
+    const c = client();
+    const provider = $('provider').value.trim();
+    if (!c || !provider) { show('Fill in all three fields first.', true); return; }
+    const { error } = await c.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: location.origin + location.pathname, scopes: 'openid profile email' },
+    });
+    if (error) show('signInWithOAuth error: ' + error.message, true);
+  });
+
+  $('out').addEventListener('click', async () => {
+    const c = client();
+    if (c) await c.auth.signOut();
+    show('Not signed in.');
+  });
+</script>
+</body>
+</html>
