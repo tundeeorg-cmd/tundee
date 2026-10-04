@@ -1,7 +1,7 @@
 /**
  * Auth email content, in version control.
  *
- * TunDee sends exactly TWO auth emails, and neither is sent at signup:
+ * TunDee sends exactly THREE auth emails, and none is sent at signup:
  *
  *   setPasswordEmail  — recovery. The only way back in for an account with no
  *                       usable password, including the 27 accounts created by
@@ -9,6 +9,9 @@
  *   verifyEmailEmail  — sent ONLY when a student opts into email deadline
  *                       reminders. Nothing else in the product depends on a
  *                       verified address, so nothing else may trigger it.
+ *   claimEmailEmail   — the same trigger, for an account with no address (a
+ *                       LINE account): the address the student types becomes
+ *                       their account email once they tap the link.
  *
  * Signup itself sends no mail at all: email + password creates an active,
  * signed-in account in one request. That is the entire point — every send is a
@@ -208,6 +211,24 @@ export function setPasswordEmail(url: string, lang: Language = 'th'): AuthEmail 
  * it, which protects the sending domain from bouncing at addresses nobody
  * proved they own.
  */
+/**
+ * Sent when a student whose account has no email (a LINE account) types one in
+ * to get reminders. Same trigger rule as verifyEmailEmail — only the reminder
+ * opt-in sends it — but tapping it also makes the address their account email,
+ * so the copy says that too: the student should know they are adding a way in.
+ */
+export function claimEmailEmail(url: string, lang: Language = 'th'): AuthEmail {
+  void lang;
+  return render(url, {
+    subject: 'ยืนยันอีเมลเพื่อรับการแจ้งเตือนกำหนดส่งทุน',
+    heading: 'ยืนยันอีเมลของคุณ',
+    body:    'กดปุ่มด้านล่างเพื่อเพิ่มอีเมลนี้ให้บัญชีทุนดีของคุณ เราจะได้ส่งการแจ้งเตือนก่อนทุนหมดเขตให้คุณ และคุณจะใช้อีเมลนี้เข้าสู่ระบบแทน LINE ได้ด้วย หากไม่ยืนยัน บัญชีของคุณยังใช้งานได้ตามปกติ',
+    button:  'ยืนยันอีเมล',
+    en:      'Tap the button above to add this address to your TunDee account. You will get deadline reminders, and can also sign in with it instead of LINE.',
+    notYou:  'หากคุณไม่ได้ขอเพิ่มอีเมลนี้ คุณสามารถละเว้นอีเมลฉบับนี้ได้ ไม่มีอะไรเปลี่ยนแปลง',
+  });
+}
+
 export function verifyEmailEmail(url: string, lang: Language = 'th'): AuthEmail {
   void lang;
   return render(url, {

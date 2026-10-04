@@ -16,6 +16,7 @@ import {
   resolveName, resolveFunder, formatDeadline,
   DEADLINE_COLOR_CLASS, DEADLINE_BADGE_CLASS,
 } from '@/lib/tracker/display';
+import { isSyntheticEmail } from '@/lib/line/syntheticEmail';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,13 +200,22 @@ function LineSection({ profile, lang, onUnlink }: { profile: Profile | null; lan
  * one moment it actually matters — when someone asks us to mail them — and the
  * copy says plainly that declining costs them nothing else.
  */
+/** A LINE account asked for email reminders and has no address to send to. */
+type EmailAsk =
+  | { mode: 'ask'; error?: string }
+  | { mode: 'sent'; address: string };
+
 function EmailReminderSection({
-  profile, lang, onChange,
+  profile, lang, onChange, ask, onClaim,
 }: {
   profile: Profile | null;
   lang: string;
   onChange: (optIn: boolean) => void;
+  ask: EmailAsk | null;
+  onClaim: (email: string) => Promise<void>;
 }) {
+  const [address, setAddress] = useState('');
+  const [sending, setSending] = useState(false);
   const optedIn  = !!profile?.email_reminders_opt_in;
   const verified = !!profile?.email_verified_at;
 
@@ -217,6 +227,10 @@ function EmailReminderSection({
       ? (lang === 'th'
           ? 'เปิดอยู่ — จะส่งอีเมลแจ้งเตือนก่อนหมดเขต 7 วัน'
           : 'On — we email you 7 days before a deadline')
+      : ask?.mode === 'ask'
+        ? (lang === 'th'
+            ? 'ใส่อีเมลด้านล่างเพื่อเริ่มรับแจ้งเตือน'
+            : 'Add an email below to start receiving reminders')
       : (lang === 'th'
           ? 'เราส่งอีเมลยืนยันไปให้แล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน'
           : 'Check your inbox and tap the link to start receiving reminders');
@@ -251,6 +265,57 @@ function EmailReminderSection({
           </span>
         </label>
       </div>
+
+      {/* LINE accounts have no address to send to. Asked here — at the moment
+          the student wants email — rather than during signup, where every
+          extra field costs signups. The address becomes their account email
+          once they tap the link (app/api/auth/verify-email, claim). */}
+      {optedIn && ask?.mode === 'ask' && (
+        <form
+          className="mt-4"
+          onSubmit={async e => {
+            e.preventDefault();
+            if (!address.trim() || sending) return;
+            setSending(true);
+            try { await onClaim(address); } finally { setSending(false); }
+          }}
+        >
+          <label htmlFor="reminder-email" className="block text-xs text-[#6E6E73] dark:text-[#8E8E93] mb-2" style={{ lineHeight: 1.8 }}>
+            {lang === 'th'
+              ? 'บัญชี LINE ไม่มีอีเมล ใส่อีเมลที่ใช้อยู่ เราจะส่งลิงก์ยืนยันไปให้ เมื่อกดแล้วจะได้รับแจ้งเตือน และใช้อีเมลนี้เข้าสู่ระบบได้ด้วย'
+              : 'LINE accounts have no email. Enter yours and we will send a confirmation link — once tapped, reminders start and you can sign in with it too.'}
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="reminder-email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="you@example.com"
+              // 16px minimum or iOS zooms the viewport on focus.
+              style={{ fontSize: '16px' }}
+              className="flex-1 min-w-0 border border-[#E5E5EA] dark:border-[#3a3a3c] rounded-[10px] px-3 py-2 dark:bg-[#0D1F35] dark:text-white focus:outline-none focus:border-[#1B3A6B]"
+            />
+            <button
+              type="submit"
+              disabled={sending || !address.trim()}
+              className="shrink-0 bg-[#1B3A6B] text-white text-sm font-semibold rounded-[10px] px-4 py-2 disabled:opacity-50"
+            >
+              {lang === 'th' ? 'ส่งลิงก์' : 'Send link'}
+            </button>
+          </div>
+          {ask.error && <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">{ask.error}</p>}
+        </form>
+      )}
+      {optedIn && ask?.mode === 'sent' && (
+        <p className="mt-4 text-xs text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ lineHeight: 1.8 }}>
+          {lang === 'th'
+            ? `ส่งลิงก์ยืนยันไปที่ ${ask.address} แล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน`
+            : `Confirmation link sent to ${ask.address}. Tap it to start receiving reminders.`}
+        </p>
+      )}
     </div>
   );
 }
@@ -445,6 +510,7 @@ export default function TrackerPage() {
   const [rows,     setRows]     = useState<TrackedRow[]>([]);
   const [profile,  setProfile]  = useState<Profile | null>(null);
   const [toast,    setToast]    = useState<string | null>(null);
+  const [emailAsk, setEmailAsk] = useState<EmailAsk | null>(null);
   const [lineMsg,  setLineMsg]  = useState<string | null>(null);
   const [selfReport, setSelfReport] = useState<{ scholarshipId: string; name: string } | null>(null);
   const [srOutcome,  setSrOutcome]  = useState('');
@@ -501,15 +567,43 @@ export default function TrackerPage() {
           ? 'ส่งอีเมลยืนยันแล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน'
           : 'Verification email sent — tap the link to start receiving reminders');
       } else if (optIn && body?.reason === 'no_address') {
-        setToast(lang === 'th'
-          ? 'บัญชีนี้ยังไม่มีอีเมลที่ส่งได้ ใช้แจ้งเตือนทาง LINE แทนได้เลย'
-          : 'This account has no deliverable email address — use LINE reminders instead');
+        // A LINE account: ask for an address instead of giving up.
+        setEmailAsk({ mode: 'ask' });
       }
+      if (!optIn) setEmailAsk(null);
     } catch {
       // Put the checkbox back rather than leaving it showing a state the server
       // never accepted.
       setProfile(p => p ? { ...p, email_reminders_opt_in: !optIn } : p);
       setToast(lang === 'th' ? 'บันทึกไม่สำเร็จ กรุณาลองใหม่' : 'Could not save — please try again');
+    }
+  }, [lang]);
+
+  /** The address a LINE student typed: mail them the link that adds it. */
+  const handleClaimEmail = useCallback(async (address: string) => {
+    const th = lang === 'th';
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ optIn: true, email: address }),
+      });
+      const body = await res.json().catch(() => null);
+      if (res.ok && body?.verificationSent) {
+        setEmailAsk({ mode: 'sent', address: body.address ?? address.trim() });
+        return;
+      }
+      const reason: string | undefined = body?.reason;
+      setEmailAsk({
+        mode: 'ask',
+        error: reason === 'invalid_email'
+          ? (th ? 'อีเมลไม่ถูกต้อง ตรวจสอบอีกครั้ง' : 'That email address looks wrong — please check it.')
+          : reason === 'rate_limited'
+            ? (th ? 'ขอลิงก์บ่อยเกินไป ลองใหม่ในอีกหนึ่งชั่วโมง' : 'Too many requests — try again in an hour.')
+            : (th ? 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่' : 'Could not send the email — please try again.'),
+      });
+    } catch {
+      setEmailAsk({ mode: 'ask', error: th ? 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่' : 'Could not send the email — please try again.' });
     }
   }, [lang]);
 
@@ -532,6 +626,17 @@ export default function TrackerPage() {
 
     setRows((tracked ?? []) as unknown as TrackedRow[]);
     setProfile(prof as Profile | null);
+
+    // Reminders on, never verified, and no address to verify: a LINE account
+    // that opted in before it could add one. Offer the field straight away
+    // rather than a "check your inbox" for mail that was never sent.
+    const p = prof as Profile | null;
+    if (p?.email_reminders_opt_in && !p.email_verified_at) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email || isSyntheticEmail(user.email)) {
+        setEmailAsk(current => current ?? { mode: 'ask' });
+      }
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -734,7 +839,13 @@ export default function TrackerPage() {
         <LineSection profile={profile} lang={lang} onUnlink={handleUnlink} />
 
         {/* Email reminders — the one place verification mail originates */}
-        <EmailReminderSection profile={profile} lang={lang} onChange={handleEmailReminders} />
+        <EmailReminderSection
+          profile={profile}
+          lang={lang}
+          onChange={handleEmailReminders}
+          ask={emailAsk}
+          onClaim={handleClaimEmail}
+        />
 
         {/* Empty state */}
         {rows.length === 0 && (

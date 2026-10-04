@@ -91,3 +91,64 @@ export function verifyVerificationToken(
 
   return { ok: true, userId };
 }
+
+// ─── Claiming an address ─────────────────────────────────────────────────────
+
+/**
+ * A link that adds an email address to an account that has none.
+ *
+ * LINE accounts made through Supabase's `custom:line` provider have no email,
+ * and older bridge-era ones carry an undeliverable placeholder. When such a
+ * student asks for email reminders they type an address; this token is mailed
+ * to it, and tapping it is what makes the address their account email.
+ *
+ * Unlike the verification token above, the address cannot come from the
+ * account record — the account has none — so it travels in the link beside the
+ * token. That is safe because the signature covers user id, address and expiry
+ * under a server secret: nobody can mint one for an address they chose, and one
+ * minted for (user, address) is useless for any other pair. Only the inbox the
+ * link was mailed to can use it, which is the proof of ownership.
+ *
+ * `claim:` separates the two kinds, so a verification token can never be
+ * replayed as a claim, or the reverse.
+ */
+export function createClaimToken(
+  userId: string,
+  email: string,
+  now: number = Date.now(),
+): string | null {
+  const key = secret();
+  if (!key) {
+    console.error('[emailVerification] no signing secret configured');
+    return null;
+  }
+  const expires = now + VERIFICATION_TTL_MS;
+  return `${userId}.${expires}.${sign(`claim:${userId}:${email.toLowerCase()}:${expires}`, key)}`;
+}
+
+export function verifyClaimToken(
+  token: string | null | undefined,
+  email: string,
+  now: number = Date.now(),
+): VerificationResult {
+  const key = secret();
+  if (!key) return { ok: false, reason: 'no_secret' };
+  if (!token) return { ok: false, reason: 'malformed' };
+
+  const parts = token.split('.');
+  if (parts.length !== 3) return { ok: false, reason: 'malformed' };
+
+  const [userId, expiresRaw, signature] = parts;
+  const expires = Number(expiresRaw);
+  if (!userId || !Number.isFinite(expires)) return { ok: false, reason: 'malformed' };
+  if (now > expires) return { ok: false, reason: 'expired' };
+
+  const expected = sign(`claim:${userId}:${email.toLowerCase()}:${expires}`, key);
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return { ok: false, reason: 'bad_signature' };
+  }
+
+  return { ok: true, userId };
+}

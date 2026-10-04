@@ -120,6 +120,24 @@ function authMessage(code: string, lang: string): { text: string; tone: 'error' 
   const info  = (text: string) => ({ text, tone: 'info'  as const });
 
   switch (code) {
+    // A LINE student tapped the link that adds an email to their account
+    // (app/api/auth/verify-email, claim). Information, not failure: they can
+    // sign in with that address right here, and it is already filled in.
+    case 'email_added':
+      return info(th
+        ? 'เพิ่มอีเมลให้บัญชีของคุณแล้ว เราจะส่งการแจ้งเตือนก่อนทุนหมดเขตไปที่อีเมลนี้ และใช้อีเมลนี้เข้าสู่ระบบได้เลย'
+        : 'Email added to your account. Deadline reminders will go there, and you can sign in with it right here.');
+
+    case 'email_taken':
+      return info(th
+        ? 'อีเมลนี้มีบัญชีทุนดีอยู่แล้ว จึงเพิ่มให้บัญชี LINE ไม่ได้ เข้าสู่ระบบด้วยอีเมลนี้เพื่อใช้บัญชีนั้น'
+        : 'This email already has a TunDee account, so it was not added to your LINE account. Sign in with it to use that account.');
+
+    case 'claim_failed':
+      return error(th
+        ? 'ลิงก์เพิ่มอีเมลหมดอายุหรือใช้ไม่ได้ ลองขอใหม่จากหน้าติดตามทุน'
+        : 'That link has expired or is invalid. Request a new one from your tracker.');
+
     case 'reset_sent':
       return info(th
         ? 'อีเมลนี้มีบัญชีอยู่แล้ว เราส่งลิงก์ตั้งรหัสผ่านไปให้แล้ว เปิดอีเมลเพื่อตั้งรหัสผ่านใหม่'
@@ -351,10 +369,14 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           ? { tone: 'error', text: otpMessage(err as OtpErrorCode, lang) }
           : authMessage(err, lang),
       );
-      logFunnelEvent({
-        eventType: 'signup_failed',
-        context: { reason: err, ...inAppContext(detectInAppBrowser()) },
-      });
+      // 'email_added' rides the error param but is a success: an existing
+      // account just gained an address. Not a failed signup.
+      if (err !== 'email_added') {
+        logFunnelEvent({
+          eventType: 'signup_failed',
+          context: { reason: err, ...inAppContext(detectInAppBrowser()) },
+        });
+      }
     }
 
     setHydrated(true);
