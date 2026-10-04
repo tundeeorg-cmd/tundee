@@ -47,7 +47,7 @@ import {
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
-import { lineStartUrl, lineLaunch, iosLineHelp } from '@/lib/line/launch';
+import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
 import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
@@ -557,7 +557,12 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     const launch = lineLaunch(startUrl(), iab);
     if (launch.kind === 'ios_webview_help') { setIosHelp(true); return; }
     setLineLoading(true);
-    window.location.href = launch.url;
+    // A Chrome hand-off that goes nowhere must not leave the spinner turning:
+    // stop it, and offer the copy-link way out (androidLineHelp).
+    followLineLaunch(launch.url, (stuck) => {
+      setLineLoading(false);
+      if (stuck) setIosHelp(true);
+    });
   }
 
   /** iOS fallback: hand them the URL so they can paste it into Safari. */
@@ -738,11 +743,12 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
 
       {/* iOS inside a webview, or in Chrome and the other non-Safari iPhone
           browsers: LINE cannot open its app from here, so the way out is shown
-          ABOVE the button rather than after a dead tap. */}
-      {iosHelp && iab.platform !== 'android' && (
+          ABOVE the button rather than after a dead tap. On Android it appears
+          only when the hand-off to Chrome did not happen. */}
+      {iosHelp && (
         <div className="mb-3 rounded-xl border border-[#C7DBFF] dark:border-[#1A2E4A] bg-[#EBF2FF] dark:bg-[#0D1F35] px-4 py-3">
           <p className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...THAI, lineHeight: 1.8 }}>
-            {iosLineHelp(iab, th)}
+            {iab.platform === 'android' ? androidLineHelp(th) : iosLineHelp(iab, th)}
           </p>
           <button
             type="button"
