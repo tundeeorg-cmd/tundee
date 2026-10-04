@@ -50,17 +50,31 @@ describe('LINE columns: app code writes them through the service role only', () 
       'app/api/line/callback/route.ts',
       'app/api/line/unlink/route.ts',
       'app/api/line/webhook/route.ts',
+      'lib/line/linkProfile.ts',
     ]) {
       expect(files, `${expected} no longer matched — has the write moved?`).toContain(expected);
     }
   });
 
   it.each(writers.map(w => [w.file, w]))('%s writes with a service-role client', (_file, w) => {
-    const { src, receivers } = w as (typeof writers)[number];
+    const { file, src, receivers } = w as (typeof writers)[number];
     for (const r of receivers) {
       expect(SERVICE_RECEIVERS.has(r), `writes line_user_id through "${r}", not a service-role client`).toBe(true);
     }
-    expect(src).toMatch(/createAdminClient\(|SUPABASE_SERVICE_ROLE_KEY/);
+    if (/createAdminClient\(|SUPABASE_SERVICE_ROLE_KEY/.test(src)) return;
+
+    // A lib helper that takes the client as a parameter (`admin: SupabaseClient`)
+    // does not create one itself — so every file importing it must.
+    expect(file.startsWith('lib/'), `${file} writes line_user_id but never creates a service-role client`).toBe(true);
+    expect(src).toMatch(/\badmin:\s*SupabaseClient\b/);
+    const modulePath = '@/' + file.replace(/\.tsx?$/, '');
+    const importers = [...sourceFiles('app'), ...sourceFiles('lib')]
+      .filter(f => read(f).includes(`'${modulePath}'`));
+    expect(importers.length, `nothing imports ${modulePath}`).toBeGreaterThan(0);
+    for (const importer of importers) {
+      expect(read(importer), `${importer} calls ${modulePath} without a service-role client`)
+        .toMatch(/createAdminClient\(|SUPABASE_SERVICE_ROLE_KEY/);
+    }
   });
 
   it('the user-session routes authenticate with the session but write with the admin client', () => {
