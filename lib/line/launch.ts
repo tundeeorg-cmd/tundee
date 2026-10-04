@@ -55,6 +55,12 @@ export type LineLaunch =
  */
 export function lineLaunch(startUrl: string, iab: InAppBrowserInfo): LineLaunch {
   if (!iab.lineAppToAppBlocked) return { kind: 'navigate', url: startUrl };
+  // HUAWEI Browser ignores intent:// outright, so it gets Chrome's own URL
+  // scheme instead — an experiment (2026-10-05). If that is ignored as well,
+  // followLineLaunch notices and the copy-link help appears as before.
+  if (iab.platform === 'android' && iab.huaweiBrowser) {
+    return { kind: 'navigate', url: `googlechrome://navigate?url=${encodeURIComponent(startUrl)}` };
+  }
   if (iab.platform === 'android') {
     const escape = buildEscapeUrl(startUrl, 'android');
     if (escape) return { kind: 'navigate', url: escape };
@@ -90,7 +96,8 @@ export const CHROME_HANDOFF_WAIT_MS = 2500;
  *
  * An https URL is an ordinary navigation: the page goes away, nothing more to do.
  *
- * An Android `intent://` URL (the hand-off to Chrome) is followed by clicking a
+ * An app hand-off — Android `intent://`, or `googlechrome://` for HUAWEI
+ * Browser (see lineLaunch) — is followed by clicking a
  * real link rather than assigning window.location. Some browsers only honour an
  * app-switching link when it is an actual link activation inside the tap — and
  * some ignore intents altogether: HUAWEI Browser 17 on 2026-10-05 left the
@@ -101,7 +108,8 @@ export const CHROME_HANDOFF_WAIT_MS = 2500;
  * was hidden) — the spinner should stop too, for when the student comes back.
  */
 export function followLineLaunch(url: string, onSettled: (stuck: boolean) => void): void {
-  if (!url.startsWith('intent:')) {
+  // Anything but http(s) hands off to another app (intent://, googlechrome://).
+  if (/^https?:/i.test(url)) {
     window.location.href = url;
     return;
   }

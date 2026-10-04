@@ -131,7 +131,7 @@ const ANDROID_OTHER = {
 describe('Android browsers other than Chrome', () => {
   const start = lineStartUrl(ORIGIN, { next: '/scholarships', preview: 'ENC' });
 
-  it.each(Object.entries(ANDROID_OTHER))('%s: LINE is handed to Chrome, Google still works', (_name, ua) => {
+  it.each(Object.entries(ANDROID_OTHER).filter(([name]) => name !== 'huawei'))('%s: LINE is handed to Chrome, Google still works', (_name, ua) => {
     const iab = inspectUserAgent(ua);
     expect(iab.androidOtherBrowser).toBe(true);
     expect(iab.lineAppToAppBlocked).toBe(true);
@@ -144,6 +144,31 @@ describe('Android browsers other than Chrome', () => {
     expect(url).toContain('package=com.android.chrome');
     // The /start answers travel into Chrome, which has none of this browser's cookies.
     expect(url).toContain(`${PREVIEW_PARAM}=ENC`);
+  });
+
+  // HUAWEI Browser ignores intent:// even from a real link tap; Chrome's own
+  // googlechrome:// scheme does open Chrome from it (confirmed on the device,
+  // 2026-10-05).
+  it('HUAWEI Browser is handed to Chrome through googlechrome://, answers included', () => {
+    const iab = inspectUserAgent(ANDROID_OTHER.huawei);
+    expect(iab.androidOtherBrowser).toBe(true);
+    expect(iab.huaweiBrowser).toBe(true);
+    expect(iab.googleBlocked).toBe(false);
+    const launch = lineLaunch(start, iab);
+    expect(launch.kind).toBe('navigate');
+    const url = (launch as { url: string }).url;
+    expect(url.startsWith('googlechrome://navigate?url=')).toBe(true);
+    const target = decodeURIComponent(url.slice('googlechrome://navigate?url='.length));
+    expect(target).toBe(start);
+    expect(target).toContain(`${PREVIEW_PARAM}=ENC`);
+  });
+
+  it('only HUAWEI and HONOR get it — the other browsers keep the intent', () => {
+    for (const [name, ua] of Object.entries(ANDROID_OTHER)) {
+      expect(inspectUserAgent(ua).huaweiBrowser, name).toBe(name === 'huawei');
+    }
+    const honor = ANDROID_OTHER.huawei.replace('HuaweiBrowser/', 'HONORBrowser/');
+    expect(inspectUserAgent(honor).huaweiBrowser).toBe(true);
   });
 
   it('Chrome itself still goes straight to LINE', () => {
@@ -188,6 +213,15 @@ describe('followLineLaunch', () => {
     expect(clicked).toEqual([]);
     vi.advanceTimersByTime(CHROME_HANDOFF_WAIT_MS * 2);
     expect(settled).not.toHaveBeenCalled();
+  });
+
+  it('googlechrome:// is an app hand-off too: a link click, with the stuck check', () => {
+    const settled = vi.fn();
+    followLineLaunch('googlechrome://navigate?url=https%3A%2F%2Fwww.tundee.org%2Fx', settled);
+    expect(clicked).toEqual(['googlechrome://navigate?url=https%3A%2F%2Fwww.tundee.org%2Fx']);
+    expect(location.href).toBe('https://www.tundee.org/auth');
+    vi.advanceTimersByTime(CHROME_HANDOFF_WAIT_MS);
+    expect(settled).toHaveBeenCalledWith(true);
   });
 
   it('the Chrome intent is a real link click, not a location assignment', () => {

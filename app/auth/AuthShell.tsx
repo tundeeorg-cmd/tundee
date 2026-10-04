@@ -31,7 +31,7 @@ import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 const THAI = { fontFamily: 'Sarabun, sans-serif' } as const;
 
 const NOT_IN_APP: InAppBrowserInfo = {
-  isInApp: false, app: null, googleBlocked: false, lineAppToAppBlocked: false, iosOtherBrowser: false, androidOtherBrowser: false, platform: 'other',
+  isInApp: false, app: null, googleBlocked: false, lineAppToAppBlocked: false, iosOtherBrowser: false, androidOtherBrowser: false, huaweiBrowser: false, platform: 'other',
 };
 
 export default function AuthShell({
