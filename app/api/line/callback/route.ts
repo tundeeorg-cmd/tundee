@@ -1,22 +1,17 @@
 /**
  * GET /api/line/callback — LINKS a LINE account to an existing signed-in user.
  *
- * NOT /api/auth/line/callback. There are two LINE callbacks in this app and they
- * are different features; someone tried to delete one as dead code on 31 Aug 2026.
+ * Not LINE sign-in. Sign-in is the Supabase provider `custom:line`
+ * (/api/auth/line/start → Supabase → /auth/callback), which creates the account
+ * and writes line_user_id itself. This route decorates an account that already
+ * exists — usually a Google or email one — so the reminder bot can reach it.
+ * Someone tried to delete it as dead code on 31 Aug 2026; it is not.
  *
- *   this route                    /api/auth/line/callback
- *   ──────────────────────────    ──────────────────────────────────────────
- *   entry  /api/line/connect      entry  /api/auth/line/start
- *   from   the /tracker button    from   the sign-in page (AuthForm/AuthShell)
- *   needs  an existing session    needs  no session — it CREATES the account
- *   does   writes line_user_id    does   mints a Supabase user from a LINE sub,
- *          onto profiles                 with a synthetic @line.tundee.invalid
- *                                        address, then writes line_user_id too
- *   env    LINE_REDIRECT_URI      env    LINE_AUTH_REDIRECT_URI
- *
- * Both callback URLs must be registered separately in the LINE Developers
- * Console; LINE requires the redirect_uri to be byte-identical between the
- * authorize call and the token exchange.
+ *   entry  /api/line/connect, from the /tracker button
+ *   needs  an existing session
+ *   does   writes line_user_id onto profiles (service role, v22)
+ *   env    LINE_REDIRECT_URI, registered as a Callback URL in the LINE console;
+ *          LINE requires it byte-identical between authorize and token calls
  *
  * WHY THIS EXISTS WHEN LINE LOGIN ALREADY SETS line_user_id
  * ─────────────────────────────────────────────────────────
@@ -76,10 +71,9 @@ export async function GET(request: NextRequest) {
   let channelSecret: string;
   let redirectUri: string;
   try {
-    // The LINE LOGIN channel's credentials, shared with the sign-in flow. The
-    // redirect_uri is NOT shared: this flow comes back to /api/line/callback,
-    // the sign-in flow to /api/auth/line/callback, and lib/line/env refuses a
-    // value whose path belongs to the other one.
+    // The LINE LOGIN channel's credentials — the same channel the Supabase
+    // custom:line provider signs students in with. This flow comes back to
+    // /api/line/callback, and lib/line/env refuses any other path.
     channelId     = getLineLoginChannelId();
     channelSecret = getLineLoginChannelSecret();
     redirectUri   = getLineRedirectUri();

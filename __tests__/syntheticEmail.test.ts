@@ -1,6 +1,8 @@
 /**
  * Placeholder LINE addresses must be recognisable by anything that sends email.
  *
+ * The bridge that minted them is retired; the accounts that carry one are not.
+ *
  * 11 of ~70 accounts carry one today. `send-reminders` was handing them to Resend, which
  * accepts the request and bounces later against a domain that cannot resolve — the exact
  * traffic that damages a sender's reputation, and invisible because the failure happens
@@ -8,23 +10,18 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { syntheticEmail, isSyntheticEmail, SYNTHETIC_EMAIL_DOMAIN } from '@/lib/line/syntheticEmail';
+import { isSyntheticEmail, SYNTHETIC_EMAIL_DOMAIN } from '@/lib/line/syntheticEmail';
 
-describe('syntheticEmail', () => {
-  it('builds an address on a domain that can never resolve', () => {
+describe('the placeholders the retired LINE bridge left behind', () => {
+  it('sit on a domain that can never resolve', () => {
     // RFC 2606 reserves .invalid precisely so this can never reach a real inbox.
-    expect(syntheticEmail('U1234abcd')).toBe(`line_U1234abcd@${SYNTHETIC_EMAIL_DOMAIN}`);
     expect(SYNTHETIC_EMAIL_DOMAIN.endsWith('.invalid')).toBe(true);
   });
 
-  it('strips characters that would make the address malformed', () => {
-    expect(syntheticEmail('U 12@ab/cd')).toBe(`line_U12abcd@${SYNTHETIC_EMAIL_DOMAIN}`);
-  });
-
-  it('round-trips: what it builds, it recognises', () => {
-    // The property that matters — the two functions live in one module so a change to
-    // the domain cannot desynchronise the sender from the auth bridge.
-    expect(isSyntheticEmail(syntheticEmail('Uabc123'))).toBe(true);
+  it('are recognised in the exact form Supabase stores them', () => {
+    // Nothing mints these any more, but 27 accounts still carry one until the
+    // student adds a real address. Supabase lowercases the LINE id on storage.
+    expect(isSyntheticEmail('line_u84ee801c1a92d72b8119abf831bb2db3@line.tundee.invalid')).toBe(true);
   });
 });
 

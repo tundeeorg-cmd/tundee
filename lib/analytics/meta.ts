@@ -246,9 +246,9 @@ export function signupMethodFrom(
   // LINE as a Supabase provider (lib/line/authMode.ts) is reported by Supabase
   // itself. Without this it fell through to 'email' below.
   if (appMetadataProvider === LINE_PROVIDER) return 'line';
-  // The LINE bridge (app/api/auth/line/callback) marks its users in
-  // user_metadata; Supabase itself reports them as email-provider accounts.
-  // The password route marks its own the same way, for the same reason.
+  // Accounts from the retired LINE bridge are marked in user_metadata;
+  // Supabase reports them as email-provider accounts. The password route
+  // marks its own the same way, for the same reason.
   if (userMetadataProvider === 'line') return 'line';
   if (appMetadataProvider === 'google') return 'google';
   if (userMetadataProvider === 'password') return 'password';

@@ -8,10 +8,28 @@ password. Every item here is about keeping students on the first path.
 
 ---
 
-## What the code now sends
+## How it works
 
-`app/api/auth/line/start/route.ts` builds the authorization URL. The parameters
-that decide one-tap versus the password form:
+LINE is a **Supabase Auth provider**, `custom:line`. `app/api/auth/line/start`
+checks PDPA consent, asks Supabase for the authorize URL, and redirects; LINE
+returns to Supabase, which returns to `/auth/callback` with a code — the same
+path Google takes. Supabase does the code exchange, PKCE and `state`. Accounts
+are labelled `custom:line` in Supabase and have **no email**.
+
+`/auth/callback` then writes `profiles.line_user_id` (service role), which the
+reminder bot and the LINE crons address students by.
+
+Live since 2026-10-04. The 29 accounts created before that by the original
+bridge (our own token exchange plus a `line_…@line.tundee.invalid` placeholder
+email) were given a `custom:line` identity by
+`scripts/20261005_v23_line_identities.sql`, so they sign into the account they
+already had. The bridge has been removed; **do not bring it back** — those
+accounts would get duplicates, and accounts created since have no email for it
+to sign in with.
+
+### The parameters that decide one-tap versus the password form
+
+Passed through Supabase as `queryParams`:
 
 | Parameter | Value | Why |
 |---|---|---|
@@ -19,45 +37,44 @@ that decide one-tap versus the password form:
 | `initial_amr_display` | **absent** | `lineqr` would replace the app handoff with a QR code — useless on the phone displaying it. |
 | `switch_amr` | **absent** | Default lets the student change method if they want to. |
 | `ui_locales` | `th` | Otherwise the consent screen follows the device locale, so a Thai student on an English-locale handset reads English. |
-| `nonce` | random, per request | Binds the `id_token` to this request; checked at `/verify`. Previously missing entirely. |
-| `code_challenge` / `_method` | S256 | PKCE. The authorization code crosses a redirect chain we do not control. |
-| `bot_prompt` | `LINE_BOT_PROMPT`, default `normal` | Adds an "add TunDee as a friend" step. It costs one tap and feeds the LINE reminder crons. See the note below. |
+| `bot_prompt` | `LINE_BOT_PROMPT`, default `aggressive` | Adds an "add TunDee as a friend" step. It costs one tap and feeds the LINE reminder crons. See the note below. |
 
 ### The auto-login retry
 
-LINE documents a state mismatch on return as the symptom of auto login having
-failed part-way, and says it is indistinguishable from a CSRF attempt. Both get
-the same safe response — discard and start over — but the callback now retries
-**once** with `disable_auto_login=true`, which is LINE's own prescribed remedy.
+LINE documents a failed state check on return as the symptom of auto login
+having failed part-way, and prescribes retrying with `disable_auto_login=true`.
+A failed LINE attempt comes back to `/auth/callback` with `via_line=1` and an
+`error`; the callback restarts it **once** with auto login disabled (marked
+`line_retry=1`), then shows a message pointing at email. A cancel is final.
 
-Before this, a student who hit it was sent to `/auth` with "LINE sign-in failed,
-please try again", tapped LINE, and reissued exactly the request that had just
-failed. A closed loop, on the method that is supposed to be one tap.
-
-The retry flag rides in a cookie (`line_auth_retry`), not the query string,
-because LINE returns to the registered Callback URL byte for byte — nothing we
-append on the way out comes back. Without the cookie the retry would loop
-forever.
+One case this cannot catch: if Supabase cannot read its own `state`, it does not
+know the redirect URL and sends the student to the Site URL instead.
 
 ### `bot_prompt` — a judgement call, not a bug
 
-`bot_prompt=normal` inserts a screen between approval and the callback, so
-one-tap becomes two-tap. It is kept because that screen is how students opt into
-the LINE deadline reminders the product actually runs (`/api/cron/line-*`). To
-drop it from login, set `LINE_BOT_PROMPT` to anything and remove the parameter in
-`lib/line/redirectUri.ts`. Decide deliberately; do not remove it as cleanup.
+`bot_prompt` inserts a screen between approval and the return, so one-tap
+becomes two-tap. It is kept because that screen is how students opt into the
+LINE deadline reminders the product actually runs (`/api/cron/line-*`). It is
+set in `app/api/auth/line/start/route.ts`; `LINE_BOT_PROMPT=normal` softens it.
+Decide deliberately; do not remove it as cleanup.
+
+### Email
+
+LINE's userinfo endpoint never returns an email, so the channel's *Email address
+permission* is deliberately **not** applied for. A LINE student who wants email
+reminders adds an address at `/tracker`; the link mailed to it makes it their
+account email (`app/api/auth/verify-email`, claim), which also gives them email
+sign-in as a fallback.
 
 ---
 
-## LINE as a Supabase provider (`LINE_AUTH_MODE=supabase`)
+## Supabase — the provider config
 
-LINE is configured in Supabase as the custom provider `custom:line`:
-Authentication → Sign In / Providers → Custom Providers. **It must use Manual
-configuration.** Auto-discovery verifies LINE's ID token against LINE's JWKS,
-which only lists ES256, while LINE signs web-login tokens HS256 with the channel
-secret — every sign-in fails with `unexpected signature algorithm "HS256"`
-(confirmed on production, 2026-10-04). Manual mode with no JWKS reads the
-profile from userinfo instead.
+Authentication → Sign In / Providers → Custom Providers → `LINE` (`custom:line`).
+**It must use Manual configuration.** Auto-discovery verifies LINE's ID token
+against LINE's JWKS, which only lists ES256, while LINE signs web-login tokens
+HS256 with the channel secret — every sign-in fails with
+`unexpected signature algorithm "HS256"` (confirmed on production, 2026-10-04).
 
 | Field | Value |
 |---|---|
@@ -70,17 +87,11 @@ profile from userinfo instead.
 | Allow users without email | on |
 
 The configuration method cannot be changed after a provider is created —
-delete and recreate it instead. LINE's Callback URL list must include
-`https://<project>.supabase.co/auth/v1/callback`.
+delete and recreate it instead (safe only while no user depends on it; once
+students sign in through it, deleting it would orphan their identities).
 
-`ui_locales`, `bot_prompt` and the retry's `disable_auto_login` are passed
-through Supabase as `queryParams` by `app/api/auth/line/start`. A failed LINE
-attempt comes back to `/auth/callback` with `via_line=1` and is retried there
-once. One case it cannot catch: if Supabase cannot read its own `state`, it
-does not know the redirect URL and sends the student to the Site URL instead.
-
-Rollout: run `scripts/20261005_v23_line_identities.sql` (trial on one account,
-then all), then set `LINE_AUTH_MODE=supabase` in Vercel and redeploy.
+For this provider Supabase does not update `auth.identities.last_sign_in_at`;
+`updated_at` moves on each LINE sign-in instead.
 
 ---
 
@@ -91,20 +102,17 @@ password form regardless of what the code sends.
 
 - [ ] **Channel status is Published, not Developing.** A Developing channel
       admits only registered testers.
-- [ ] **Both callback URLs are registered**, exactly:
-      - `https://www.tundee.org/api/auth/line/callback` — one-tap login
+- [ ] **These callback URLs are registered**, exactly:
+      - `https://<project>.supabase.co/auth/v1/callback` — sign-in (Supabase)
       - `https://www.tundee.org/api/line/callback` — bot account linking
 
-      These are different routes for different flows. Registering only the
-      second is an easy mistake and breaks login entirely.
+      `https://www.tundee.org/api/auth/line/callback` was the retired bridge's
+      and can be removed, as can any `http://localhost:…` entries.
 - [ ] **The LINE Login channel is linked to the Messaging API channel.**
       Without the link `bot_prompt` silently does nothing.
-- [ ] **Email address permission — deliberately not applied for.** Under
-      `LINE_AUTH_MODE=supabase` the profile comes from LINE's userinfo endpoint,
-      which never returns an email, so the permission would buy nothing. Neither
-      flow requests the `email` scope any more.
-- [ ] `LINE_AUTH_REDIRECT_URI` in Vercel matches the registered URL **byte for
-      byte**. LINE compares it exactly, on both the authorize and token calls.
+- [ ] **Never reissue the channel secret** without updating it in the Supabase
+      provider config at the same moment — sign-in breaks for everyone until
+      the two match.
 
 ---
 

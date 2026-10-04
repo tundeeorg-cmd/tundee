@@ -22,6 +22,7 @@ import { WhyFreeCondensed } from '@/components/trust/WhyTunDeeIsFree';
 import TrustStrip from '@/components/trust/TrustStrip';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
+import LineQuickStart from '@/components/start/LineQuickStart';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -286,6 +287,14 @@ export default function PreviewResults({
             </li>
           ))}
         </ul>
+
+        {/* LINE first, right here: no /auth page load in between, which inside
+            a webview is a step people drop at. Email stays one tap below. */}
+        <LineQuickStart signupHref={signupHref} />
+
+        <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
+          หรือสมัครด้วยอีเมล
+        </p>
 
         <Link
           href={signupHref}

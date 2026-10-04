@@ -120,8 +120,8 @@ describe('signupMethodFrom', () => {
   });
 
   it('identifies LINE accounts by the bridge marker', () => {
-    // Supabase reports LINE users as email-provider — only user_metadata,
-    // written by app/api/auth/line/callback, distinguishes them.
+    // Accounts from the retired LINE bridge are email-provider in Supabase —
+    // only the user_metadata marker it wrote distinguishes them.
     expect(signupMethodFrom('email', 'line')).toBe('line');
     // LINE as a Supabase custom provider: reported in app_metadata, not user_metadata.
     expect(signupMethodFrom('custom:line', undefined)).toBe('line');

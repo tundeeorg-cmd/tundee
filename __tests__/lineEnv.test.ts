@@ -8,7 +8,9 @@
  * one. These tests are the thing that would have said so immediately.
  *
  * Every case below is a real way to get it wrong — a value pasted into both
- * boxes, or the two redirect URIs swapped — not a hypothetical.
+ * boxes, or the retired sign-in callback pasted into the linking slot — not a
+ * hypothetical. LINE sign-in itself reads none of these any more: it is the
+ * Supabase provider `custom:line`, configured in the Supabase dashboard.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -18,7 +20,8 @@ import { join } from 'node:path';
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
 const LINK_URI = 'https://www.tundee.org/api/line/callback';
-const AUTH_URI = 'https://www.tundee.org/api/auth/line/callback';
+/** The retired bridge's sign-in callback: four characters from LINK_URI. */
+const RETIRED_SIGN_IN_URI = 'https://www.tundee.org/api/auth/line/callback';
 
 /** Imported fresh each time: the module reads process.env when called, but
  *  vi.stubEnv plus a reset keeps cases from leaking into one another. */
@@ -33,7 +36,6 @@ function setAll(overrides: Record<string, string | undefined> = {}) {
     LINE_LOGIN_CHANNEL_ID:     '2010767759',
     LINE_LOGIN_CHANNEL_SECRET: 'login-secret',
     LINE_REDIRECT_URI:         LINK_URI,
-    LINE_AUTH_REDIRECT_URI:    AUTH_URI,
   };
   for (const [k, v] of Object.entries({ ...base, ...overrides })) {
     if (v === undefined) vi.stubEnv(k, '');
@@ -74,31 +76,22 @@ describe('two secrets holding one value', () => {
 
 // ─── The redirect URIs ───────────────────────────────────────────────────────
 
-describe('the two redirect URIs', () => {
-  it('are refused when identical', async () => {
-    setAll({ LINE_REDIRECT_URI: AUTH_URI });
+describe('the linking redirect URI', () => {
+  it('refuses the retired sign-in callback pasted into it', async () => {
+    setAll({ LINE_REDIRECT_URI: RETIRED_SIGN_IN_URI });
     const { assertLineEnvCoherent } = await env();
-    expect(() => assertLineEnvCoherent()).toThrow(/SAME value/);
-  });
-
-  it('are refused when swapped', async () => {
-    setAll({ LINE_REDIRECT_URI: AUTH_URI, LINE_AUTH_REDIRECT_URI: LINK_URI });
-    const { assertLineEnvCoherent } = await env();
-    // Both are wrong, and the message must point at the other variable rather
-    // than just declaring the path unexpected.
-    expect(() => assertLineEnvCoherent()).toThrow(/LINE_AUTH_REDIRECT_URI/);
+    expect(() => assertLineEnvCoherent()).toThrow(/does not end with \/api\/line\/callback/);
   });
 
   it('does not mistake the sign-in path for the linking path', async () => {
     // '/api/auth/line/callback' must not satisfy a check for
     // '/api/line/callback' — a naive endsWith on the shorter string would let
-    // a swapped pair through.
-    expect(AUTH_URI.endsWith('/api/line/callback')).toBe(false);
+    // the wrong value through.
+    expect(RETIRED_SIGN_IN_URI.endsWith('/api/line/callback')).toBe(false);
     setAll();
-    const { assertLineEnvCoherent, getLineRedirectUri, getLineAuthRedirectUri } = await env();
+    const { assertLineEnvCoherent, getLineRedirectUri } = await env();
     expect(() => assertLineEnvCoherent()).not.toThrow();
     expect(getLineRedirectUri()).toBe(LINK_URI);
-    expect(getLineAuthRedirectUri()).toBe(AUTH_URI);
   });
 });
 
@@ -116,7 +109,6 @@ describe('values are trimmed', () => {
       LINE_LOGIN_CHANNEL_ID:     ' 2010767759 ',
       LINE_LOGIN_CHANNEL_SECRET: 'login-secret\n',
       LINE_REDIRECT_URI:         `  ${LINK_URI}  `,
-      LINE_AUTH_REDIRECT_URI:    `\n${AUTH_URI}\t`,
     });
     const e = await env();
 
@@ -125,7 +117,6 @@ describe('values are trimmed', () => {
     expect(e.getLineLoginChannelId()).toBe('2010767759');
     expect(e.getLineLoginChannelSecret()).toBe('login-secret');
     expect(e.getLineRedirectUri()).toBe(LINK_URI);
-    expect(e.getLineAuthRedirectUri()).toBe(AUTH_URI);
   });
 
   it('catches a duplicate that differs only by whitespace', async () => {
@@ -173,12 +164,17 @@ describe('the startup check', () => {
     expect(() => validateLineEnvAtStartup()).not.toThrow();
   });
 
-  it('refuses to boot production when LINE sign-in cannot work', async () => {
+  it('no longer refuses production over missing LINE Login keys — sign-in does not use them', async () => {
+    // Sign-in is the Supabase provider; these keys now serve only the bot's
+    // account linking, which degrades rather than breaks. Still reported.
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('VERCEL_ENV', 'production');
     setAll({ LINE_LOGIN_CHANNEL_SECRET: undefined });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { validateLineEnvAtStartup } = await env();
-    expect(() => validateLineEnvAtStartup()).toThrow(/LINE_LOGIN_CHANNEL_SECRET/);
+    expect(() => validateLineEnvAtStartup()).not.toThrow();
+    expect(spy.mock.calls.flat().join(' ')).toContain('LINE_LOGIN_CHANNEL_SECRET');
+    spy.mockRestore();
   });
 
   it('does NOT refuse a Preview deployment that lacks the LINE secrets', async () => {
@@ -194,7 +190,6 @@ describe('the startup check', () => {
     setAll({
       LINE_LOGIN_CHANNEL_ID:     undefined,
       LINE_LOGIN_CHANNEL_SECRET: undefined,
-      LINE_AUTH_REDIRECT_URI:    undefined,
     });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { validateLineEnvAtStartup } = await env();
@@ -239,7 +234,7 @@ describe('the startup check', () => {
     vi.stubEnv('NODE_ENV', 'development');
     for (const k of [
       'LINE_CHANNEL_ACCESS_TOKEN', 'LINE_CHANNEL_SECRET', 'LINE_LOGIN_CHANNEL_ID',
-      'LINE_LOGIN_CHANNEL_SECRET', 'LINE_REDIRECT_URI', 'LINE_AUTH_REDIRECT_URI',
+      'LINE_LOGIN_CHANNEL_SECRET', 'LINE_REDIRECT_URI',
     ]) vi.stubEnv(k, '');
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { validateLineEnvAtStartup } = await env();
@@ -262,7 +257,6 @@ describe('the startup check', () => {
 describe('nothing reads a LINE variable behind this module\'s back', () => {
   const SITES = [
     'app/api/auth/line/start/route.ts',
-    'app/api/auth/line/callback/route.ts',
     'app/api/line/callback/route.ts',
     'app/api/line/connect/route.ts',
     'app/api/line/webhook/route.ts',

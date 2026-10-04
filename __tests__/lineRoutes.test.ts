@@ -1,19 +1,19 @@
 /**
- * The two LINE callbacks are two features, and both are wired.
+ * LINE sign-in and LINE linking are two features, and both are wired.
  *
- * On 31 Aug 2026 they were mistaken for a duplicate and one was proposed for
- * deletion. They are not duplicates:
+ * On 31 Aug 2026 the two LINE callbacks were mistaken for a duplicate and one
+ * was proposed for deletion. They were not duplicates, and the distinction
+ * survives the move of sign-in to Supabase:
  *
- *   /api/auth/line/callback   sign-in     creates an account from a LINE sub
- *   /api/line/callback        linking     attaches LINE to an existing account
+ *   sign-in   /api/auth/line/start → Supabase custom:line → /auth/callback
+ *             creates the account; needs no session
+ *   linking   /api/line/connect → /api/line/callback
+ *             attaches LINE to an existing account so the reminder bot can
+ *             reach it; needs a session
  *
- * They look alike because both write profiles.line_user_id, both are LINE OAuth
- * callbacks, and both live under app/api. What tells them apart is the entry
- * point, the session requirement and the env var — and none of that was asserted
- * anywhere, so nothing would have failed if one had been removed.
- *
- * These tests fail if either flow loses a half. They do not test LINE itself;
- * they test that both routes remain reachable from the UI that offers them.
+ * Both write profiles.line_user_id, which is what makes them look alike.
+ * These tests fail if either flow loses a half, or if the retired bridge
+ * callback comes back. They do not test LINE itself.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -24,15 +24,18 @@ const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const has  = (p: string) => existsSync(join(ROOT, p));
 
-const AUTH_CALLBACK  = 'app/api/auth/line/callback/route.ts';
 const AUTH_START     = 'app/api/auth/line/start/route.ts';
+const AUTH_CALLBACK  = 'app/auth/callback/route.ts';
 const LINK_CALLBACK  = 'app/api/line/callback/route.ts';
 const LINK_CONNECT   = 'app/api/line/connect/route.ts';
 
-describe('LINE sign-in: /api/auth/line/start → /api/auth/line/callback', () => {
-  it('both halves exist', () => {
-    expect(has(AUTH_START), 'the authorize half is missing').toBe(true);
-    expect(has(AUTH_CALLBACK), 'the token-exchange half is missing').toBe(true);
+describe('LINE sign-in: /api/auth/line/start → Supabase custom:line → /auth/callback', () => {
+  it('starts on our route and finishes on the shared auth callback', () => {
+    expect(has(AUTH_START), 'the start route is missing').toBe(true);
+    const start = read(AUTH_START);
+    expect(start).toContain('signInWithOAuth');
+    expect(start).toContain('LINE_PROVIDER');
+    expect(start).toContain('/auth/callback');
   });
 
   it('is offered on the sign-in page', () => {
@@ -41,16 +44,19 @@ describe('LINE sign-in: /api/auth/line/start → /api/auth/line/callback', () =>
     expect(form + shell).toContain('/api/auth/line/start');
   });
 
-  it('uses the login redirect_uri, not the linking one', () => {
-    const src = read(AUTH_CALLBACK);
-    expect(src).toContain('getLineAuthRedirectUri');
-    expect(src).not.toContain('getLineRedirectUri(');
+  it('creates the account, and gives the bot its LINE id', () => {
+    // Supabase creates the user; the callback writes line_user_id, which the
+    // reminder bot and LINE crons address students by.
+    const callback = read(AUTH_CALLBACK);
+    expect(callback).toContain('lineSubOf');
+    expect(callback).toContain('linkLineProfile');
   });
 
-  it('creates the account rather than requiring one', () => {
-    // The synthetic address is the signature of account creation: LINE often
-    // withholds the real email, so this route mints one that is never mailed.
-    expect(read(AUTH_CALLBACK)).toContain('syntheticEmail');
+  it('the retired bridge callback stays retired', () => {
+    // It minted sessions through placeholder emails. Returning LINE accounts
+    // now sign in through their custom:line identity (v23), so a revived
+    // bridge would create duplicates.
+    expect(has('app/api/auth/line/callback/route.ts')).toBe(false);
   });
 });
 
@@ -70,7 +76,6 @@ describe('LINE linking: /api/line/connect → /api/line/callback', () => {
     for (const f of [LINK_CONNECT, LINK_CALLBACK]) {
       const src = read(f);
       expect(src, `${f} uses the wrong redirect_uri helper`).toContain('getLineRedirectUri');
-      expect(src, `${f} uses the login redirect_uri`).not.toContain('getLineAuthRedirectUri');
     }
   });
 
@@ -87,28 +92,25 @@ describe('LINE linking: /api/line/connect → /api/line/callback', () => {
 });
 
 describe('the two flows stay distinct', () => {
-  it('use different redirect_uri env vars', () => {
+  it('only linking has a redirect_uri variable of its own', () => {
+    // Sign-in's redirect belongs to Supabase now; the variable it used is gone.
     const helper = read('lib/line/env.ts');
-    expect(helper).toContain('LINE_REDIRECT_URI');
-    expect(helper).toContain('LINE_AUTH_REDIRECT_URI');
-    // Two callback URLs, registered separately in the LINE console. Collapsing
-    // them to one variable breaks whichever flow loses its registration.
     expect(helper).toMatch(/export function getLineRedirectUri/);
-    expect(helper).toMatch(/export function getLineAuthRedirectUri/);
+    expect(helper).not.toContain('LINE_AUTH_REDIRECT_URI');
   });
 
   it('each route says which one it is not', () => {
-    // The confusion is the bug. Every one of these files carries a pointer to
-    // its counterpart so the next reader does not have to derive it.
-    expect(read(AUTH_CALLBACK)).toContain('/api/line/callback');
-    expect(read(LINK_CALLBACK)).toContain('/api/auth/line/callback');
+    // The confusion is the bug. Each of these files points at its counterpart
+    // so the next reader does not have to derive it.
+    expect(read(LINK_CALLBACK)).toContain('/api/auth/line/start');
     expect(read(LINK_CONNECT)).toContain('/api/auth/line/start');
     expect(read(AUTH_START)).toContain('/api/line/connect');
   });
 
-  it('both callback URLs are documented in .env.example', () => {
+  it('the linking callback is documented in .env.example, and the retired variable is not', () => {
     const env = read('.env.example');
     expect(env).toContain('/api/line/callback');
-    expect(env).toContain('/api/auth/line/callback');
+    expect(env).not.toMatch(/^LINE_AUTH_REDIRECT_URI=/m);
+    expect(env).not.toMatch(/^LINE_AUTH_MODE=/m);
   });
 });

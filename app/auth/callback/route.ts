@@ -12,9 +12,9 @@ import { resolveRedirect, safeNext, redirectWithConversion } from '@/lib/auth/re
 /**
  * Auth callback handles:
  *  • Google OAuth:      URL contains code
- *  • LINE (Supabase):   URL contains code too, plus via_line=1 — see below
- *  • LINE login:        app/api/auth/line/callback hands off a token_hash here
- *  • Password recovery: the "set your password" link carries a token_hash too
+ *  • LINE login:        URL contains code too (Supabase's custom:line provider),
+ *                       plus via_line=1 — see below
+ *  • Password recovery: the "set your password" link carries a token_hash
  *  • Email code:        no token at all — the session already exists
  *
  * Email sign-in is a six-digit code, verified in the page by

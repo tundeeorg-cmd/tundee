@@ -46,7 +46,6 @@ describe('LINE columns: app code writes them through the service role only', () 
   it('finds the known writers (guards the scan itself)', () => {
     const files = writers.map(w => w.file);
     for (const expected of [
-      'app/api/auth/line/callback/route.ts',
       'app/api/line/callback/route.ts',
       'app/api/line/unlink/route.ts',
       'app/api/line/webhook/route.ts',

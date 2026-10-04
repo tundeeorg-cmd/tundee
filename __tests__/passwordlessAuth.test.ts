@@ -30,7 +30,6 @@ const PAGE      = read('app/auth/page.tsx');
 const CALLBACK  = read('app/auth/callback/route.ts');
 const RESOLVE   = read('lib/auth/resolveRedirect.ts');
 const LINE_START= read('app/api/auth/line/start/route.ts');
-const LINE_CB   = read('app/api/auth/line/callback/route.ts');
 const INTAKE_API= read('app/api/intake/route.ts');
 const PREVIEW   = read('app/start/PreviewMatcher.tsx');
 const MIGRATION = read('scripts/20260901_v20_pending_intake.sql');
@@ -112,14 +111,23 @@ describe('the screen is in the order the brief specifies', () => {
 
   for (const src of [['AuthForm', FORM], ['AuthShell', SHELL]] as const) {
     it(`${src[0]} renders them top to bottom`, () => {
+      // AuthForm renders the consent through the shared component (also used by
+      // /start's LINE button), so in its source the 5th item is the component.
+      const needles = src[0] === 'AuthForm'
+        ? [...order.slice(0, -1), '<ConsentCheckbox']
+        : order;
       let cursor = -1;
-      for (const needle of order) {
+      for (const needle of needles) {
         const at = src[1].indexOf(needle, cursor + 1);
         expect(at, `${needle} missing or out of order in ${src[0]}`).toBeGreaterThan(cursor);
         cursor = at;
       }
     });
   }
+
+  it('the shared consent component carries the consent wording', () => {
+    expect(read('components/auth/ConsentCheckbox.tsx')).toContain('ฉันยอมรับ');
+  });
 
   it('uses LINE green, filled, on the primary button', () => {
     expect(FORM).toContain('bg-[#06C755]');
@@ -147,7 +155,9 @@ describe('the screen is in the order the brief specifies', () => {
 
 describe('inside the Facebook webview', () => {
   it('escapes to Chrome on Android and never opens a popup', () => {
-    expect(FORM).toContain(`buildEscapeUrl(start, 'android')`);
+    // The decision lives in lib/line/launch, shared with /start's button.
+    expect(FORM).toContain('lineLaunch(startUrl(), iab)');
+    expect(read('lib/line/launch.ts')).toContain(`buildEscapeUrl(startUrl, 'android')`);
     expect(FORM).toContain('window.location.href');
     // The call, not the word — the file explains in prose why it never opens one.
     expect(FORM, 'popups are blocked in webviews').not.toMatch(/window\.open\s*\(/);
@@ -170,29 +180,30 @@ describe('inside the Facebook webview', () => {
 // ─── LINE ────────────────────────────────────────────────────────────────────
 
 describe('the LINE authorize URL', () => {
-  it('asks for the scopes we actually use', () => {
-    // No email (decided 2026-10-04). It was kept so LINE could one day return a
-    // real address, but under LINE_AUTH_MODE=supabase the profile comes from
-    // userinfo, which never carries one, and the Email address permission is
-    // not being applied for. Asking would show students a consent line for data
-    // we do not receive.
-    expect(LINE_START).toContain("'scope', 'openid profile'");
-    expect(LINE_START).not.toContain("'openid profile email'");
+  it('asks for no email', () => {
+    // Decided 2026-10-04. The profile comes from LINE's userinfo, which never
+    // carries an email, and the Email address permission is not being applied
+    // for — asking would show students a consent line for data we never get.
+    // Scopes live in the Supabase provider config (openid, profile); this route
+    // must not add any.
+    expect(LINE_START).not.toMatch(/scopes?\s*:/);
+    expect(LINE_START).not.toContain('openid profile email');
   });
 
   it('invites the OA friendship by default, which is what reminders need', () => {
     expect(read('lib/line/env.ts')).toContain("'normal' : 'aggressive'");
-    expect(LINE_START).toContain("'bot_prompt', getLineBotPrompt()");
+    expect(LINE_START).toContain('bot_prompt: getLineBotPrompt()');
   });
 
   it('never forces re-consent or disables auto login on a first attempt', () => {
-    expect(LINE_START).not.toContain("'prompt', 'consent'");
-    expect(LINE_START).toMatch(/if \(isRetry\) .*disable_auto_login/);
+    expect(LINE_START).not.toMatch(/prompt:\s*'consent'/);
+    expect(LINE_START).toContain("if (isRetry) queryParams.disable_auto_login = 'true'");
   });
 
-  it('randomises state per attempt and checks it on return', () => {
-    expect(LINE_START).toContain('randomBytes(24)');
-    expect(LINE_CB).toContain('line_state_mismatch');
+  it('a failed attempt is retried once, then explained', () => {
+    // State is Supabase's now; what this app owns is the response to a failure.
+    expect(CALLBACK).toContain('LINE_CALLBACK_RETRY_FLAG');
+    expect(CALLBACK).toContain('line_state_mismatch');
   });
 });
 
@@ -220,9 +231,10 @@ describe('the /start answers survive a browser switch', () => {
 
   it('threads the id through every hop that crosses a boundary', () => {
     expect(FORM).toContain(`qs.set(INTAKE_PARAM, intake)`);       // email redirect
-    expect(FORM).toContain('url.searchParams.set(INTAKE_PARAM, intake)'); // LINE start
-    expect(LINE_START).toContain('LINE_AUTH_INTAKE_COOKIE');      // across LINE
-    expect(LINE_CB).toContain('INTAKE_PARAM, savedIntake');       // back from LINE
+    expect(FORM).toContain('intake: intakeId()');                  // LINE start…
+    expect(read('lib/line/launch.ts')).toContain('url.searchParams.set(INTAKE_PARAM, ctx.intake)'); // …built here
+    expect(LINE_START).toContain('callback.searchParams.set(INTAKE_PARAM, intakeParam)'); // across LINE
+    expect(CALLBACK).toContain('INTAKE_PARAM');                    // retry keeps it
     expect(CALLBACK).toContain('intakeParam:  searchParams.get(INTAKE_PARAM)');
     expect(RESOLVE).toContain('claimIntake');
   });
