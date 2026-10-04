@@ -147,6 +147,7 @@ describe('/api/auth/line/start refuses to start LINE where it cannot open the ap
     fbIos:     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/450.0]',
     safari:    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
     chromeAndroid: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+    huawei: 'Mozilla/5.0 (Linux; Android 12; NOH-NX9; HMSCore 6.13.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 HuaweiBrowser/17.0.7.302 Mobile Safari/537.36',
   };
   const startAs = (ua: string, qs = '') =>
     LINE_START(new NextRequest(`http://localhost/api/auth/line/start?${CONSENT_PARAM}=${CONSENT_VERSION}${qs}`, {
@@ -165,6 +166,15 @@ describe('/api/auth/line/start refuses to start LINE where it cannot open the ap
       expect(to.searchParams.get('utm_campaign')).toBe('fb_sept');
     },
   );
+
+  it('HUAWEI Browser goes back to /auth, where the next tap hands off to Chrome', async () => {
+    const res = await startAs(UA.huawei, `&next=/tracker&${PREVIEW_PARAM}=${encodeURIComponent(PREVIEW)}`);
+    const to = new URL(res.headers.get('location')!);
+    expect(to.origin + to.pathname).toBe('https://www.tundee.org/auth');
+    expect(to.searchParams.get('error')).toBe('line_open_in_chrome');
+    expect(to.searchParams.get('next')).toBe('/tracker');
+    expect(to.searchParams.get(PREVIEW_PARAM)).toBe(PREVIEW);
+  });
 
   it.each([['Safari on iPhone', UA.safari], ['Chrome on Android', UA.chromeAndroid]])(
     '%s goes to LINE as before',

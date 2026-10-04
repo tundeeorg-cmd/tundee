@@ -199,9 +199,12 @@ export async function GET(request: NextRequest) {
    * their answers and campaign in the URL for the copied link to carry.
    */
   const iab = inspectUserAgent(request.headers.get('user-agent'));
-  if (iab.platform === 'ios' && iab.lineAppToAppBlocked) {
+  if ((iab.platform === 'ios' || iab.platform === 'android') && iab.lineAppToAppBlocked) {
+    // Android: a tap on the hydrated page hands off to Chrome with an intent,
+    // which needs a user gesture — so a request that got here anyway goes back
+    // to /auth, where the next tap does exactly that.
     const back = new URL(`${siteUrl}/auth`);
-    back.searchParams.set('error', 'line_open_in_safari');
+    back.searchParams.set('error', iab.platform === 'ios' ? 'line_open_in_safari' : 'line_open_in_chrome');
     back.searchParams.set('next', next);
     const previewParam = searchParams.get(PREVIEW_PARAM);
     if (previewParam && decodePreviewInput(previewParam)) back.searchParams.set(PREVIEW_PARAM, previewParam);
@@ -209,7 +212,10 @@ export async function GET(request: NextRequest) {
     if (isIntakeId(intakeParam)) back.searchParams.set(INTAKE_PARAM, intakeParam);
     const utmCampaign = searchParams.get('utm_campaign');
     if (utmCampaign) back.searchParams.set('utm_campaign', utmCampaign);
-    console.info('[auth/line/start] iOS browser cannot open the LINE app — sent to the Safari help:', iab.app ?? 'non-Safari browser');
+    console.info(
+      `[auth/line/start] ${iab.platform} browser cannot open the LINE app — sent back to /auth:`,
+      iab.app ?? (iab.platform === 'ios' ? 'non-Safari browser' : 'non-Chrome browser'),
+    );
     const response = NextResponse.redirect(back);
     persistGuestCookies(response, searchParams, consentParam, consentCookie);
     return response;

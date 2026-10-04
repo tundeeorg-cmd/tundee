@@ -113,3 +113,40 @@ describe('iPhone browsers other than Safari', () => {
     expect(iosLineHelp(inspectUserAgent(UA.fbIos), true)).toContain('จุด 3 จุด');
   });
 });
+
+// ─── Android browsers other than Chrome ──────────────────────────────────────
+// Confirmed on 2026-10-05: HUAWEI Browser 17 on an Android phone with LINE and
+// Chrome installed got LINE's Google Play banner and email + password form;
+// Chrome on the same phone opened the LINE app.
+
+const ANDROID_OTHER = {
+  huawei:  'Mozilla/5.0 (Linux; Android 12; NOH-NX9; HMSCore 6.13.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 HuaweiBrowser/17.0.7.302 Mobile Safari/537.36',
+  samsung: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36',
+  xiaomi:  'Mozilla/5.0 (Linux; U; Android 13; 2201117TY Build/TKQ1.221114.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/112.0.5615.136 Mobile Safari/537.36 XiaoMi/MiuiBrowser/14.10.1-gn',
+  firefox: 'Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0',
+};
+
+describe('Android browsers other than Chrome', () => {
+  const start = lineStartUrl(ORIGIN, { next: '/scholarships', preview: 'ENC' });
+
+  it.each(Object.entries(ANDROID_OTHER))('%s: LINE is handed to Chrome, Google still works', (_name, ua) => {
+    const iab = inspectUserAgent(ua);
+    expect(iab.androidOtherBrowser).toBe(true);
+    expect(iab.lineAppToAppBlocked).toBe(true);
+    expect(iab.isInApp).toBe(false);
+    expect(iab.googleBlocked).toBe(false);
+    const launch = lineLaunch(start, iab);
+    expect(launch.kind).toBe('navigate');
+    const url = (launch as { url: string }).url;
+    expect(url.startsWith('intent://www.tundee.org/api/auth/line/start')).toBe(true);
+    expect(url).toContain('package=com.android.chrome');
+    // The /start answers travel into Chrome, which has none of this browser's cookies.
+    expect(url).toContain(`${PREVIEW_PARAM}=ENC`);
+  });
+
+  it('Chrome itself still goes straight to LINE', () => {
+    const chrome = inspectUserAgent(CHROME_ANDROID);
+    expect(chrome.androidOtherBrowser).toBe(false);
+    expect(lineLaunch(start, chrome)).toEqual({ kind: 'navigate', url: start });
+  });
+});
