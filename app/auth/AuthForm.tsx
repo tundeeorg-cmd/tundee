@@ -47,7 +47,7 @@ import {
 } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
-import { LINE_EMAIL_NOTICE } from '@/lib/line/emailNotice';
+import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
   isPlausibleEmail,
@@ -769,12 +769,11 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={THAI}>
         {th ? 'เร็วที่สุด ไม่ต้องจำรหัสผ่าน' : 'Fastest — no password to remember'}
       </p>
-      {/* What LINE will ask and why we want the email. LINE's Email address
-          permission review needs exactly this screen — see lib/line/emailNotice. */}
+      {/* What TunDee receives from LINE, and what not — see lib/line/dataNotice. */}
       <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
-        {th ? LINE_EMAIL_NOTICE.th : LINE_EMAIL_NOTICE.en}{' '}
+        {th ? LINE_DATA_NOTICE.th : LINE_DATA_NOTICE.en}{' '}
         <a href="/privacy" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">
-          {th ? LINE_EMAIL_NOTICE.privacyLabel.th : LINE_EMAIL_NOTICE.privacyLabel.en}
+          {th ? LINE_DATA_NOTICE.privacyLabel.th : LINE_DATA_NOTICE.privacyLabel.en}
         </a>
       </p>
 

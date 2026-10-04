@@ -1,7 +1,7 @@
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { OTP_LENGTH } from '@/lib/auth/otp';
-import { LINE_EMAIL_NOTICE } from '@/lib/line/emailNotice';
+import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 
 /**
  * Server-rendered shell for /auth — a working page, not a spinner.
@@ -148,8 +148,8 @@ export default function AuthShell({
               เร็วที่สุด ไม่ต้องจำรหัสผ่าน
             </p>
             <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
-              {LINE_EMAIL_NOTICE.th}{' '}
-              <a href="/privacy" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{LINE_EMAIL_NOTICE.privacyLabel.th}</a>
+              {LINE_DATA_NOTICE.th}{' '}
+              <a href="/privacy" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{LINE_DATA_NOTICE.privacyLabel.th}</a>
             </p>
 
             {webview && (

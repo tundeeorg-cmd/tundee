@@ -7,14 +7,15 @@
  * PDPA-aware draft for TunDee (tundee.org), a student-led project.
  * Remove the "Draft" banner once reviewed.
  *
- * Policy version: 1.1  |  Last updated: 2026-10-04
+ * Policy version: 1.2  |  Last updated: 2026-10-04
  *   1.1 — discloses what LINE sign-in collects (§2) and what it is used for (§3).
+ *   1.2 — LINE sign-in no longer receives an email (Supabase custom provider).
  */
 
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 
-const POLICY_VERSION = '1.1';
+const POLICY_VERSION = '1.2';
 const LAST_UPDATED   = '4 ตุลาคม 2569 / 4 October 2026';
 const CONTACT_EMAIL  = 'hello@tundee.org';
 
@@ -38,11 +39,11 @@ const SECTIONS = {
       },
       {
         heading: '2. ข้อมูลที่เราเก็บรวบรวม',
-        body: `เราเก็บเฉพาะข้อมูลที่จำเป็นสำหรับการจับคู่ทุนการศึกษา:\n\n• อีเมลหรือบัญชี Google ที่ใช้เข้าสู่ระบบ (จัดการโดย Supabase Auth — ไม่ได้เก็บไว้ในฐานข้อมูลของทุนดีโดยตรง)\n• หากเข้าสู่ระบบด้วย LINE: รหัสผู้ใช้ LINE (LINE user ID), ชื่อที่แสดงและรูปโปรไฟล์ LINE และอีเมลที่ผูกกับบัญชี LINE — อีเมลจะได้รับเฉพาะเมื่อคุณกดอนุญาตในหน้ายินยอมของ LINE เท่านั้น\n• ชื่อที่แสดง (ไม่บังคับ)\n• ระดับการศึกษา\n• เกรดเฉลี่ย (GPA)\n• จังหวัดที่อยู่\n• ช่วงรายได้ครัวเรือน (เก็บเป็นช่วง เช่น "5,000–10,000 บาท/เดือน" ไม่ใช่ตัวเลขที่แน่นอน)\n• สถานะบัตรสวัสดิการแห่งรัฐ (ไม่บังคับ)\n• สาขาที่สนใจ (ไม่บังคับ)\n• ข้อมูลวิจัย: จำนวนทุนที่รู้จักก่อนใช้ทุนดี, ช่องทางที่รู้จักทุนดี (เก็บเฉพาะผู้ที่ยินยอมสำหรับงานวิจัย)\n\nเราไม่เก็บ: เลขบัตรประชาชน, ที่อยู่เต็ม, เบอร์โทรศัพท์, สถานะความพิการ, เชื้อชาติ, หรือข้อมูลอ่อนไหวตาม PDPA มาตรา 26`,
+        body: `เราเก็บเฉพาะข้อมูลที่จำเป็นสำหรับการจับคู่ทุนการศึกษา:\n\n• อีเมลหรือบัญชี Google ที่ใช้เข้าสู่ระบบ (จัดการโดย Supabase Auth — ไม่ได้เก็บไว้ในฐานข้อมูลของทุนดีโดยตรง)\n• หากเข้าสู่ระบบด้วย LINE: รหัสผู้ใช้ LINE (LINE user ID), ชื่อที่แสดงและรูปโปรไฟล์ LINE — เราไม่ได้รับอีเมลหรือเบอร์โทรศัพท์จาก LINE\n• ชื่อที่แสดง (ไม่บังคับ)\n• ระดับการศึกษา\n• เกรดเฉลี่ย (GPA)\n• จังหวัดที่อยู่\n• ช่วงรายได้ครัวเรือน (เก็บเป็นช่วง เช่น "5,000–10,000 บาท/เดือน" ไม่ใช่ตัวเลขที่แน่นอน)\n• สถานะบัตรสวัสดิการแห่งรัฐ (ไม่บังคับ)\n• สาขาที่สนใจ (ไม่บังคับ)\n• ข้อมูลวิจัย: จำนวนทุนที่รู้จักก่อนใช้ทุนดี, ช่องทางที่รู้จักทุนดี (เก็บเฉพาะผู้ที่ยินยอมสำหรับงานวิจัย)\n\nเราไม่เก็บ: เลขบัตรประชาชน, ที่อยู่เต็ม, เบอร์โทรศัพท์, สถานะความพิการ, เชื้อชาติ, หรือข้อมูลอ่อนไหวตาม PDPA มาตรา 26`,
       },
       {
         heading: '3. วัตถุประสงค์ในการใช้ข้อมูล',
-        body: `• วัตถุประสงค์หลัก: จับคู่ทุนการศึกษากับโปรไฟล์ของคุณ เพื่อให้คุณเห็นทุนที่ตรงกับเงื่อนไขจริง\n• วัตถุประสงค์รอง (เฉพาะผู้ที่เลือกยินยอม): ใช้ข้อมูลที่ผ่านการลบข้อมูลระบุตัวตนแล้วสำหรับงานวิจัยเรื่องการเข้าถึงทุนการศึกษาของนักเรียนไทย งานวิจัยนี้มีเป้าหมายเพื่อปรับปรุงระบบทุนการศึกษาให้เป็นธรรมยิ่งขึ้น\n• การส่งอีเมลแจ้งเตือน: หากคุณบันทึกทุน ระบบอาจส่งอีเมลแจ้งใกล้ถึงกำหนดสมัคร\n• LINE: รหัสผู้ใช้ LINE ใช้เพื่อระบุบัญชีของคุณเมื่อเข้าสู่ระบบด้วย LINE และเพื่อส่งแจ้งเตือนทาง LINE หากคุณเพิ่มทุนดีเป็นเพื่อน อีเมลที่ได้จาก LINE ใช้เป็นอีเมลของบัญชี (เพื่อให้เข้าสู่ระบบด้วยอีเมลได้ และเชื่อมกับบัญชีเดิมที่ใช้อีเมลเดียวกัน) และใช้ส่งอีเมลแจ้งเตือนตามข้อก่อนหน้า หากคุณไม่อนุญาตให้ LINE ส่งอีเมลมา เราจะไม่ส่งอีเมลใด ๆ ถึงคุณ`,
+        body: `• วัตถุประสงค์หลัก: จับคู่ทุนการศึกษากับโปรไฟล์ของคุณ เพื่อให้คุณเห็นทุนที่ตรงกับเงื่อนไขจริง\n• วัตถุประสงค์รอง (เฉพาะผู้ที่เลือกยินยอม): ใช้ข้อมูลที่ผ่านการลบข้อมูลระบุตัวตนแล้วสำหรับงานวิจัยเรื่องการเข้าถึงทุนการศึกษาของนักเรียนไทย งานวิจัยนี้มีเป้าหมายเพื่อปรับปรุงระบบทุนการศึกษาให้เป็นธรรมยิ่งขึ้น\n• การส่งอีเมลแจ้งเตือน: หากคุณบันทึกทุน ระบบอาจส่งอีเมลแจ้งใกล้ถึงกำหนดสมัคร\n• LINE: รหัสผู้ใช้ LINE ใช้เพื่อระบุบัญชีของคุณเมื่อเข้าสู่ระบบด้วย LINE และเพื่อส่งแจ้งเตือนทาง LINE หากคุณเพิ่มทุนดีเป็นเพื่อน เราไม่ได้รับอีเมลจาก LINE จึงไม่ส่งอีเมลถึงบัญชีที่สมัครด้วย LINE เว้นแต่คุณจะให้อีเมลกับเราเอง`,
       },
       {
         heading: '4. ฐานทางกฎหมาย',
@@ -87,11 +88,11 @@ const SECTIONS = {
       },
       {
         heading: '2. Information We Collect',
-        body: `We collect only the information needed to match you with scholarships: your email or Google account (managed by Supabase Auth); if you sign in with LINE, your LINE user ID, LINE display name and profile picture, and the email address on your LINE account — the email only if you allow it on LINE's consent screen; display name (optional); education level; GPA; province of residence; household income range (stored as a bracket, never an exact figure); government welfare card status (optional); fields of interest (optional); and, from research volunteers only, research data such as how many scholarships you knew about before using TunDee and how you found us. We do not collect national ID numbers, full addresses, phone numbers, disability status, ethnicity, or other sensitive data as defined in PDPA Section 26.`,
+        body: `We collect only the information needed to match you with scholarships: your email or Google account (managed by Supabase Auth); if you sign in with LINE, your LINE user ID, LINE display name and profile picture (we do not receive your email or phone number from LINE); display name (optional); education level; GPA; province of residence; household income range (stored as a bracket, never an exact figure); government welfare card status (optional); fields of interest (optional); and, from research volunteers only, research data such as how many scholarships you knew about before using TunDee and how you found us. We do not collect national ID numbers, full addresses, phone numbers, disability status, ethnicity, or other sensitive data as defined in PDPA Section 26.`,
       },
       {
         heading: '3. How We Use Your Data',
-        body: `Primary: matching scholarships to your profile so you see genuinely relevant opportunities. Secondary (only with your consent): using anonymized data to research Thai students' access to scholarships and improve funding equity. Communications: sending deadline reminders for scholarships you've saved. LINE: your LINE user ID identifies your account when you sign in with LINE, and lets us send reminders on LINE if you add TunDee as a friend. An email received from LINE becomes your account email (so you can also sign in by email, and so it connects to an existing account with the same address) and is used for the email reminders above. If you don't let LINE share your email, we send you no email at all.`,
+        body: `Primary: matching scholarships to your profile so you see genuinely relevant opportunities. Secondary (only with your consent): using anonymized data to research Thai students' access to scholarships and improve funding equity. Communications: sending deadline reminders for scholarships you've saved. LINE: your LINE user ID identifies your account when you sign in with LINE, and lets us send reminders on LINE if you add TunDee as a friend. We receive no email from LINE, so we send no email to an account created with LINE unless you give us an address yourself.`,
       },
       {
         heading: '4. Legal Basis',
