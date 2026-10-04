@@ -47,7 +47,7 @@ import {
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
-import { lineStartUrl, lineLaunch } from '@/lib/line/launch';
+import { lineStartUrl, lineLaunch, iosLineHelp } from '@/lib/line/launch';
 import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
@@ -92,6 +92,7 @@ function inAppContext(info: InAppBrowserInfo) {
     in_app_name:    info.app,
     google_blocked: info.googleBlocked,
     line_blocked:   info.lineAppToAppBlocked,
+    ios_other_browser: info.iosOtherBrowser,
     platform:       info.platform,
   };
 }
@@ -719,14 +720,13 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
 
       {banner}
 
-      {/* iOS inside a webview: LINE cannot be reached from here at all, so the
-          way out is shown ABOVE the button rather than after a dead tap. */}
+      {/* iOS inside a webview, or in Chrome and the other non-Safari iPhone
+          browsers: LINE cannot open its app from here, so the way out is shown
+          ABOVE the button rather than after a dead tap. */}
       {iosHelp && iab.platform !== 'android' && (
         <div className="mb-3 rounded-xl border border-[#C7DBFF] dark:border-[#1A2E4A] bg-[#EBF2FF] dark:bg-[#0D1F35] px-4 py-3">
           <p className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...THAI, lineHeight: 1.8 }}>
-            {th
-              ? 'เพื่อใช้ LINE ให้กดจุด 3 จุดมุมขวาบน แล้วเลือก "เปิดใน Safari"'
-              : 'To use LINE, tap the ••• at the top right and choose "Open in Safari".'}
+            {iosLineHelp(iab, th)}
           </p>
           <button
             type="button"

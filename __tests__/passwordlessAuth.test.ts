@@ -165,7 +165,9 @@ describe('inside the Facebook webview', () => {
 
   it('offers copy-link on iOS, where nothing can be launched', () => {
     expect(FORM).toContain('คัดลอกลิงก์');
-    expect(FORM).toContain('เปิดใน Safari');
+    // The wording lives in lib/line/launch, shared with /start's button.
+    expect(FORM).toContain('iosLineHelp(iab, th)');
+    expect(read('lib/line/launch.ts')).toContain('เปิดใน Safari');
     expect(FORM).toContain('navigator.clipboard.writeText');
   });
 

@@ -61,3 +61,23 @@ export function lineLaunch(startUrl: string, iab: InAppBrowserInfo): LineLaunch 
   }
   return { kind: 'ios_webview_help' };
 }
+
+/**
+ * The instruction shown instead of starting LINE on iOS, where the hand-off
+ * cannot fire from the current browser.
+ *
+ * Facebook, Instagram and TikTok's in-app browsers have an "Open in Safari"
+ * (or "Open in browser") item behind their ••• menu. Chrome, Firefox and the
+ * other iPhone browsers do not, so for those the way out is the copy-link
+ * button the help box always carries.
+ */
+export function iosLineHelp(iab: InAppBrowserInfo, th: boolean): string {
+  if (iab.iosOtherBrowser) {
+    return th
+      ? 'LINE เปิดแอปจากเบราว์เซอร์นี้ไม่ได้ ให้กด "คัดลอกลิงก์" แล้ววางในแอป Safari เพื่อเข้าสู่ระบบด้วย LINE'
+      : 'LINE cannot open its app from this browser. Tap "Copy link", then paste it into Safari to sign in with LINE.';
+  }
+  return th
+    ? 'เพื่อใช้ LINE ให้กดจุด 3 จุดมุมขวาบน แล้วเลือก "เปิดใน Safari"'
+    : 'To use LINE, tap the ••• at the top right and choose "Open in Safari".';
+}

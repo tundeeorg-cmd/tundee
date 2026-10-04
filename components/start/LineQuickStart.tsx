@@ -22,10 +22,10 @@
 import { useState } from 'react';
 import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
 import { CONSENT_COOKIE, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION } from '@/lib/consent';
-import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
-import { readStoredIntakeId } from '@/lib/intake/pendingIntake';
-import { detectInAppBrowser } from '@/lib/browser/inAppBrowser';
-import { lineStartUrl, lineLaunch } from '@/lib/line/launch';
+import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
+import { INTAKE_PARAM, readStoredIntakeId } from '@/lib/intake/pendingIntake';
+import { detectInAppBrowser, type InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
+import { lineStartUrl, lineLaunch, iosLineHelp } from '@/lib/line/launch';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 
 const TH = { fontFamily: 'Sarabun, sans-serif' } as const;
@@ -39,8 +39,32 @@ function readCookie(name: string): string | null {
 export default function LineQuickStart({ signupHref }: { signupHref: string }) {
   const [consent, setConsent] = useState(false);
   const [nudge,   setNudge]   = useState(false);
-  const [iosHelp, setIosHelp] = useState(false);
+  const [iosHelp, setIosHelp] = useState<InAppBrowserInfo | null>(null);
+  const [copied,  setCopied]  = useState<'yes' | 'failed' | null>(null);
   const [leaving, setLeaving] = useState(false);
+
+  function guestSession(): string | null {
+    const preview = readCookie(PREVIEW_COOKIE);
+    return preview && decodePreviewInput(preview) ? preview : null;
+  }
+
+  /**
+   * The /auth link, carrying the /start answers in the URL — Safari has none
+   * of this browser's cookies, and the answers must survive the switch.
+   */
+  async function copyLink() {
+    const url = new URL(signupHref, window.location.origin);
+    const preview = guestSession();
+    if (preview) url.searchParams.set(PREVIEW_PARAM, preview);
+    const intake = readStoredIntakeId();
+    if (intake) url.searchParams.set(INTAKE_PARAM, intake);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopied('yes');
+    } catch {
+      setCopied('failed');
+    }
+  }
 
   function start() {
     if (!consent) { setNudge(true); return; }
@@ -51,18 +75,18 @@ export default function LineQuickStart({ signupHref }: { signupHref: string }) {
       `${CONSENT_COOKIE}=${CONSENT_VERSION}; Max-Age=${CONSENT_COOKIE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
 
     const from = new URL(signupHref, window.location.origin).searchParams;
-    const preview = readCookie(PREVIEW_COOKIE);
+    const iab = detectInAppBrowser();
     const launch = lineLaunch(
       lineStartUrl(window.location.origin, {
         next:        from.get('next') ?? '/scholarships',
-        preview:     preview && decodePreviewInput(preview) ? preview : null,
+        preview:     guestSession(),
         intake:      readStoredIntakeId(),
         utmCampaign: from.get('utm_campaign'),
       }),
-      detectInAppBrowser(),
+      iab,
     );
 
-    if (launch.kind === 'ios_webview_help') { setIosHelp(true); return; }
+    if (launch.kind === 'ios_webview_help') { setIosHelp(iab); return; }
     setLeaving(true);
     window.location.href = launch.url;
   }
@@ -99,10 +123,30 @@ export default function LineQuickStart({ signupHref }: { signupHref: string }) {
         </p>
       )}
 
+      {/* iPhone, where LINE cannot open its app from this browser: an in-app
+          webview, or Chrome and the other non-Safari browsers. */}
       {iosHelp && (
-        <p className="mt-3 text-xs text-[#1B3A6B] dark:text-[#8FB4FF] text-center" style={{ ...TH, lineHeight: 1.8 }}>
-          เพื่อใช้ LINE ให้กดจุด 3 จุดมุมขวาบน แล้วเลือก &quot;เปิดใน Safari&quot; หรือกดปุ่มด้านล่างเพื่อสมัครด้วยอีเมล ใช้ได้เลยในหน้านี้
-        </p>
+        <div className="mt-3 rounded-xl bg-[#EBF2FF] dark:bg-[#0D1F35] px-3 py-3 text-center">
+          <p className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...TH, lineHeight: 1.8 }}>
+            {iosLineHelp(iosHelp, true)}
+          </p>
+          <button
+            type="button"
+            onClick={() => void copyLink()}
+            className="mt-2 text-xs font-semibold text-white bg-[#1B3A6B] rounded-lg px-3 py-2"
+            style={TH}
+          >
+            {copied === 'yes' ? 'คัดลอกแล้ว ✓' : 'คัดลอกลิงก์'}
+          </button>
+          {copied === 'failed' && (
+            <p className="mt-2 text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={TH}>
+              คัดลอกไม่ได้ กรุณากดค้างที่แถบที่อยู่เพื่อคัดลอก
+            </p>
+          )}
+          <p className="mt-2 text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ ...TH, lineHeight: 1.8 }}>
+            หรือสมัครด้วยอีเมลด้านล่าง ใช้ได้เลยในหน้านี้
+          </p>
+        </div>
       )}
 
       <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={{ ...TH, lineHeight: 1.8 }}>
