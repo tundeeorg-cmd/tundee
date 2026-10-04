@@ -15,9 +15,8 @@ Environment variables (see `.env.example` for the full comments):
 | Variable | Where it's set | Needed for |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `.env.local` / Vercel | preview matching |
-| `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` / Vercel | LINE login only |
-| `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET` | `.env.local` / Vercel | LINE login |
-| `LINE_AUTH_REDIRECT_URI` | `.env.local` / Vercel | LINE login |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` / Vercel | writing `line_user_id` after LINE sign-in |
+| LINE channel id + secret | Supabase → Auth → Custom Providers → `custom:line` | LINE login (see `docs/setup/line-login-checklist.md`) |
 | `NEXT_PUBLIC_META_PIXEL_ID` | Vercel | pixel events |
 
 **OAuth URLs to whitelist**
@@ -27,9 +26,8 @@ Environment variables (see `.env.example` for the full comments):
 - Supabase → Authentication → URL Configuration:
   - Site URL `https://www.tundee.org`
   - Redirect URLs `https://www.tundee.org/auth/callback`, `http://localhost:3000/auth/callback`
-- LINE Developers Console → LINE Login channel → Callback URL (**both**):
-  - `https://www.tundee.org/api/auth/line/callback`
-  - `http://localhost:3000/api/auth/line/callback`
+- LINE Developers Console → LINE Login channel → Callback URL:
+  - `https://<project-ref>.supabase.co/auth/v1/callback` (sign-in, via Supabase)
 
 ---
 

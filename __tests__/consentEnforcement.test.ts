@@ -30,8 +30,10 @@ const jsonRequest = (body: Record<string, unknown>, cookie?: string) =>
 
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.tundee.org');
-  vi.stubEnv('LINE_LOGIN_CHANNEL_ID', 'test-channel');
-  vi.stubEnv('LINE_AUTH_REDIRECT_URI', 'https://www.tundee.org/api/auth/line/callback');
+  // LINE sign-in goes through the Supabase provider; building its authorize
+  // URL is local to supabase-js, so a fake project URL is all it needs.
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://proj.supabase.co');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -165,14 +167,14 @@ describe('GET /api/auth/line/start', () => {
 
   it('proceeds to LINE when the cookie carries consent', async () => {
     const res = await get('?next=%2F', `${CONSENT_COOKIE}=${CONSENT_VERSION}`);
-    expect(res.headers.get('location')).toContain('access.line.me');
+    expect(res.headers.get('location')).toContain('proj.supabase.co/auth/v1/authorize?provider=custom%3Aline');
   });
 
   it('proceeds on the query param the no-JS form submits, and persists it', async () => {
     // The no-JS shell has no way to set a cookie, so the checkbox travels in the query
     // string. Without persisting it, /auth/callback would see an unconsented signup.
     const res = await get(`?next=%2F&${CONSENT_PARAM}=${CONSENT_VERSION}`);
-    expect(res.headers.get('location')).toContain('access.line.me');
+    expect(res.headers.get('location')).toContain('proj.supabase.co/auth/v1/authorize?provider=custom%3Aline');
     expect(res.cookies.get(CONSENT_COOKIE)?.value).toBe(CONSENT_VERSION);
   });
 

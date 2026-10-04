@@ -1,5 +1,5 @@
 /**
- * LINE as a Supabase custom provider (LINE_AUTH_MODE=supabase).
+ * LINE sign-in, through the Supabase custom provider `custom:line`.
  *
  * /api/auth/line/start asks Supabase for the `custom:line` authorize URL and
  * points it back at /auth/callback, which exchanges the code like Google's,
@@ -15,7 +15,8 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { NextRequest } from 'next/server';
 import { CONSENT_PARAM, CONSENT_COOKIE, CONSENT_VERSION } from '@/lib/consent';
 import { PREVIEW_PARAM, encodePreviewInput } from '@/lib/preview/types';
-import { getLineAuthMode, lineSubOf, LINE_PROVIDER } from '@/lib/line/authMode';
+import { PREVIEW_COOKIE } from '@/lib/preview/types';
+import { lineSubOf, LINE_PROVIDER } from '@/lib/line/authMode';
 
 // ── /auth/callback collaborators, mocked ─────────────────────────────────────
 const exchangeCodeForSession = vi.fn();
@@ -43,7 +44,6 @@ const PROJECT = 'https://proj.supabase.co';
 const PREVIEW = encodePreviewInput({ level: 'M4-M6', province: 'ขอนแก่น', income: 2, gpa: 3.2 });
 
 beforeEach(() => {
-  vi.stubEnv('LINE_AUTH_MODE', 'supabase');
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.tundee.org');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', PROJECT);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
@@ -59,14 +59,7 @@ const start = (qs = '') =>
 
 const callback = (qs: string) => CALLBACK(new NextRequest(`https://www.tundee.org/auth/callback?${qs}`));
 
-describe('mode switch', () => {
-  it('defaults to the bridge, so deploying changes nothing', () => {
-    vi.stubEnv('LINE_AUTH_MODE', '');
-    expect(getLineAuthMode()).toBe('bridge');
-    vi.stubEnv('LINE_AUTH_MODE', ' Supabase ');
-    expect(getLineAuthMode()).toBe('supabase');
-  });
-
+describe('the LINE identity', () => {
   it('reads the LINE id off the custom:line identity', () => {
     expect(lineSubOf({ identities: [{ provider: 'email' }, { provider: LINE_PROVIDER, identity_data: { sub: 'U1' } }] })).toBe('U1');
     expect(lineSubOf({ identities: [{ provider: LINE_PROVIDER, provider_id: 'U2', identity_data: {} }] })).toBe('U2');
@@ -74,7 +67,7 @@ describe('mode switch', () => {
   });
 });
 
-describe('/api/auth/line/start in supabase mode', () => {
+describe('/api/auth/line/start', () => {
   it("sends the student to Supabase's authorize endpoint for custom:line", async () => {
     const res = await start();
     const url = new URL(res.headers.get('location')!);
@@ -108,6 +101,26 @@ describe('/api/auth/line/start in supabase mode', () => {
     expect(back.searchParams.has('line_retry')).toBe(false);
   });
 
+  // Ported from the bridge's tests: these decide app-to-app versus the QR code
+  // or the password form, and they matter just as much through Supabase.
+  it('never forces the QR screen and leaves the login-method switcher alone', async () => {
+    const url = new URL((await start()).headers.get('location')!);
+    expect(url.searchParams.has('initial_amr_display')).toBe(false);
+    expect(url.searchParams.has('switch_amr')).toBe(false);
+  });
+
+  it('writes the ordinary preview cookie, for a browser that escaped a webview with none', async () => {
+    const res = await start(`&${PREVIEW_PARAM}=${encodeURIComponent(PREVIEW)}`);
+    expect(res.headers.getSetCookie().some(c => c.startsWith(`${PREVIEW_COOKIE}=`))).toBe(true);
+  });
+
+  it('ignores a preview value that does not decode, rather than carrying junk', async () => {
+    const res = await start(`&${PREVIEW_PARAM}=not-a-preview`);
+    const back = new URL(new URL(res.headers.get('location')!).searchParams.get('redirect_to')!);
+    expect(back.searchParams.has(PREVIEW_PARAM)).toBe(false);
+    expect(res.headers.getSetCookie().some(c => c.startsWith(`${PREVIEW_COOKIE}=`))).toBe(false);
+  });
+
   it('on the retry, disables auto login and marks the return trip as the retry', async () => {
     const url = new URL((await start('&retry=1')).headers.get('location')!);
     expect(url.searchParams.get('disable_auto_login')).toBe('true');
@@ -125,7 +138,7 @@ describe('/api/auth/line/start in supabase mode', () => {
   });
 });
 
-describe('/auth/callback for a Supabase-mode LINE sign-in', () => {
+describe('/auth/callback for a LINE sign-in', () => {
   it('writes the LINE id onto the profile after a successful exchange', async () => {
     exchangeCodeForSession.mockResolvedValue({
       data: { user: { id: 'user-1', identities: [{ provider: 'custom:line', identity_data: { sub: 'Uabc' } }] } },

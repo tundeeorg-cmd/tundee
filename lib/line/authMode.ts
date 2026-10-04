@@ -1,34 +1,26 @@
 /**
- * Which LINE sign-in runs: Supabase's custom provider, or our own bridge.
+ * LINE sign-in is a Supabase Auth provider: `custom:line`.
  *
- *   supabase  LINE is a real Supabase Auth provider (`custom:line`, configured in
- *             the dashboard in *Manual* mode). Supabase exchanges the code and
- *             reads the profile from LINE's userinfo endpoint; the session lands
- *             through /auth/callback like Google's. Accounts are labelled LINE
- *             and have no email — LINE's userinfo never returns one.
- *   bridge    The original flow: app/api/auth/line/callback verifies the ID
- *             token itself and mints a session through a placeholder email.
+ * Configured in the Supabase dashboard (Authentication → Custom Providers) in
+ * *Manual* mode. Supabase exchanges the code and reads the profile from LINE's
+ * userinfo endpoint; the session lands through /auth/callback like Google's.
+ * Accounts are labelled LINE and have no email — LINE's userinfo never returns
+ * one — until the student adds one for reminders (app/api/auth/verify-email).
  *
- * Why Manual mode: LINE signs web-login ID tokens HS256 with the channel secret,
- * while its discovery document only advertises ES256, so Supabase's
- * auto-discovery mode rejects every token ("unexpected signature algorithm
- * HS256"). Manual mode with no JWKS skips the ID token and uses userinfo.
- * Verified against production on 2026-10-04.
+ * Why Manual mode: LINE signs web-login ID tokens HS256 with the channel
+ * secret, while its discovery document only advertises ES256, so auto-discovery
+ * rejects every token ("unexpected signature algorithm HS256"). Manual mode with
+ * no JWKS skips the ID token and uses userinfo. Verified on production
+ * 2026-10-04; live since the same day.
  *
- * Defaults to `bridge`, so deploying this code changes nothing. Flip to
- * `supabase` only after scripts/20261005_v23_line_identities.sql has given the
- * existing LINE accounts their `custom:line` identity — otherwise each returning
- * LINE user gets a second, empty account.
+ * Accounts from before the switch were given their `custom:line` identity by
+ * scripts/20261005_v23_line_identities.sql, so they sign into the account they
+ * already had. The original bridge (our own token exchange plus a placeholder
+ * email) was removed once that was confirmed in production.
  */
 
 /** The provider id as configured in Supabase: Custom Providers → identifier `line`. */
 export const LINE_PROVIDER = 'custom:line' as const;
-
-export type LineAuthMode = 'bridge' | 'supabase';
-
-export function getLineAuthMode(): LineAuthMode {
-  return process.env.LINE_AUTH_MODE?.trim().toLowerCase() === 'supabase' ? 'supabase' : 'bridge';
-}
 
 interface IdentityLike {
   provider?: string;

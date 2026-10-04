@@ -16,15 +16,13 @@
  *                              x-line-signature HMAC on webhooks.
  *   LINE_LOGIN_CHANNEL_SECRET  LINE Login channel. The OAuth client_secret.
  *
- *   LINE_REDIRECT_URI          → /api/line/callback      (links LINE to an
- *                                existing account; entry /api/line/connect)
- *   LINE_AUTH_REDIRECT_URI     → /api/auth/line/callback (signs in / creates
- *                                the account; entry /api/auth/line/start)
+ *   LINE_REDIRECT_URI          → /api/line/callback (links LINE to an existing
+ *                                account for the bot; entry /api/line/connect)
  *
- * Two LINE channels issue two different secrets, and LINE requires redirect_uri
- * to be byte-identical between the authorize call and the token exchange — so
- * two flows landing on two routes need two values. Collapsing either pair
- * breaks whichever flow loses. See the table in app/api/line/callback/route.ts.
+ * Two LINE channels issue two different secrets. LINE *sign-in* reads none of
+ * these: it is a Supabase provider (`custom:line`), and its client id and secret
+ * live in the Supabase dashboard. Everything here serves the bot — the
+ * webhook, pushes, and linking LINE to an account that signed in another way.
  *
  * What was missing was never a second variable. It was anything that noticed a
  * value sitting in the wrong slot. That is what assertLineEnvCoherent does, and
@@ -43,7 +41,7 @@ const VARS = {
     where: 'LINE Developers Console → your MESSAGING API channel → Basic settings → Channel secret',
   },
   LINE_LOGIN_CHANNEL_ID: {
-    what:  'LINE Login channel id — the OAuth client_id.',
+    what:  'LINE Login channel id — the OAuth client_id for bot account linking (sign-in uses the Supabase provider config).',
     where: 'LINE Developers Console → your LINE LOGIN channel → Basic settings → Channel ID',
   },
   LINE_LOGIN_CHANNEL_SECRET: {
@@ -55,11 +53,6 @@ const VARS = {
     what:  'redirect_uri for LINKING a LINE account to an already signed-in user.',
     where: 'Must equal, byte for byte, a Callback URL registered in LINE Developers Console '
          + '→ LINE Login → Callback URL. Ends with /api/line/callback',
-  },
-  LINE_AUTH_REDIRECT_URI: {
-    what:  'redirect_uri for SIGNING IN with LINE, which creates the account.',
-    where: 'Must equal, byte for byte, a second Callback URL registered on the same channel. '
-         + 'Ends with /api/auth/line/callback',
   },
 } as const;
 
@@ -141,22 +134,12 @@ export function getLineRedirectUri(): string {
 }
 
 /**
- * redirect_uri for the SIGN-IN flow: /api/auth/line/start → /api/auth/line/callback.
+ * Body of the accessor above.
  *
- * A different route from getLineRedirectUri above, registered separately in the
- * LINE console, and deliberately a separate variable.
- */
-export function getLineAuthRedirectUri(): string {
-  return checkedRedirectUri('LINE_AUTH_REDIRECT_URI', '/api/auth/line/callback');
-}
-
-/**
- * Shared body of the two accessors above.
- *
- * `expectedPath` is the anti-swap check. Setting each variable to the other's
- * value is a natural mistake — they differ by four characters — and produces a
- * failure on LINE's servers, after the redirect, where our logs cannot see it.
- * Here it is one string comparison at boot.
+ * `expectedPath` catches the value of the retired sign-in variable
+ * (…/api/auth/line/callback) pasted here — the two differed by four characters
+ * — which would fail on LINE's servers, after the redirect, where our logs
+ * cannot see it. Here it is one string comparison.
  */
 function checkedRedirectUri(name: LineVar, expectedPath: string): string {
   const inDev = process.env.NODE_ENV === 'development';
@@ -178,11 +161,9 @@ function checkedRedirectUri(name: LineVar, expectedPath: string): string {
   }
 
   if (!configured.endsWith(expectedPath)) {
-    const other = name === 'LINE_REDIRECT_URI' ? 'LINE_AUTH_REDIRECT_URI' : 'LINE_REDIRECT_URI';
     throw new LineEnvError(
       `${name} is set to "${configured}", which does not end with ${expectedPath}.\n` +
-      `  What it is: ${VARS[name].what}\n` +
-      `  These two variables are easy to swap — check whether this value belongs in ${other}.`,
+      `  What it is: ${VARS[name].what}`,
     );
   }
 
@@ -232,30 +213,13 @@ export function assertLineEnvCoherent(): void {
     );
   }
 
+  // The retired sign-in callback is the likeliest wrong value: it was the other
+  // half of a pair that differed by four characters.
   const linkUri = read('LINE_REDIRECT_URI');
-  const authUri = read('LINE_AUTH_REDIRECT_URI');
-
-  if (linkUri && authUri && linkUri === authUri) {
-    problems.push(
-      'LINE_REDIRECT_URI and LINE_AUTH_REDIRECT_URI hold the SAME value.\n' +
-      '    They are two different callback routes, registered separately in the LINE console:\n' +
-      '    LINE_REDIRECT_URI      must end with /api/line/callback      (account linking)\n' +
-      '    LINE_AUTH_REDIRECT_URI must end with /api/auth/line/callback (sign-in)',
-    );
-  }
-
-  // Suffix checks, which catch the two values swapped. Skipped when unset so an
-  // absent variable is reported once, as missing, rather than twice.
   if (linkUri && !linkUri.endsWith('/api/line/callback')) {
     problems.push(
       `LINE_REDIRECT_URI is "${linkUri}", which does not end with /api/line/callback.\n` +
-      '    Check whether this value belongs in LINE_AUTH_REDIRECT_URI.',
-    );
-  }
-  if (authUri && !authUri.endsWith('/api/auth/line/callback')) {
-    problems.push(
-      `LINE_AUTH_REDIRECT_URI is "${authUri}", which does not end with /api/auth/line/callback.\n` +
-      '    Check whether this value belongs in LINE_REDIRECT_URI.',
+      '    It is the redirect_uri for linking LINE to an existing account (the bot).',
     );
   }
 
@@ -270,28 +234,19 @@ export function assertLineEnvCoherent(): void {
 }
 
 /**
- * Variables the LINE sign-in path needs. That button is on /auth for every
- * visitor, so a deployment missing any of these is broken for everyone and
- * should not come up.
- */
-const REQUIRED_FOR_LOGIN: readonly LineVar[] = [
-  'LINE_LOGIN_CHANNEL_ID',
-  'LINE_LOGIN_CHANNEL_SECRET',
-  'LINE_AUTH_REDIRECT_URI',
-];
-
-/**
  * Variables the bot needs: deadline reminders, the webhook, account linking.
  *
  * Reported but NOT fatal, deliberately. These power features that degrade
  * rather than break — reminders stop, the /tracker link button errors — and
  * app/api/line/callback records that LINE_REDIRECT_URI may never have been
- * registered at all. Refusing to boot the whole site over an unused linking
- * flow would be a worse outage than the one it prevents.
+ * registered at all. Refusing to boot the whole site over the bot would be a
+ * worse outage than the one it prevents. LINE sign-in needs none of them.
  */
 const REQUIRED_FOR_BOT: readonly LineVar[] = [
   'LINE_CHANNEL_ACCESS_TOKEN',
   'LINE_CHANNEL_SECRET',
+  'LINE_LOGIN_CHANNEL_ID',
+  'LINE_LOGIN_CHANNEL_SECRET',
   'LINE_REDIRECT_URI',
 ];
 
@@ -302,36 +257,13 @@ function missingFrom(names: readonly LineVar[]): LineVar[] {
 /**
  * The startup check. Called once from instrumentation.ts, before any request.
  *
- * Throws on incoherence in every environment, and on a missing sign-in variable
- * in production. Development is allowed to run without LINE configured at all —
- * the flow cannot complete against localhost regardless, and making every
- * contributor hold production secrets to run `next dev` is its own problem.
+ * Throws on incoherence — a value in the wrong slot — in every environment: it
+ * is wrong in Preview too, and catching it there is the point of a Preview.
+ * Missing variables are only reported. Since LINE sign-in moved to the Supabase
+ * provider, nothing here is needed for anyone to sign in, so nothing here is
+ * worth refusing to boot the site over.
  */
-/**
- * Is this the real production deployment?
- *
- * NOT `NODE_ENV === 'production'`, which was the first version of this and was
- * wrong in a way that only showed up on Vercel: a Preview build is a production
- * build, so NODE_ENV is 'production' there too. Preview environments routinely
- * have a narrower set of secrets — LINE's are commonly scoped to Production
- * alone — so the missing-variable check refused to boot every Preview, and the
- * 500 it produced was indistinguishable from the misconfiguration it exists to
- * catch. It also broke the one workflow that makes a startup throw safe:
- * opening the Preview to confirm the config before merging.
- *
- * VERCEL_ENV is 'production' | 'preview' | 'development' and is the only value
- * that distinguishes them. Off Vercel it is unset, and NODE_ENV is the best
- * available answer.
- */
-function isProductionDeployment(): boolean {
-  const vercelEnv = process.env.VERCEL_ENV?.trim();
-  if (vercelEnv) return vercelEnv === 'production';
-  return process.env.NODE_ENV === 'production';
-}
-
 export function validateLineEnvAtStartup(): void {
-  // Always, everywhere. A value in the wrong slot is wrong in Preview too, and
-  // catching it there is the entire point of having a Preview.
   assertLineEnvCoherent();
 
   const forBot = missingFrom(REQUIRED_FOR_BOT);
@@ -342,33 +274,4 @@ export function validateLineEnvAtStartup(): void {
       forBot.map((n) => `  ${n} — ${VARS[n].what}\n    ${VARS[n].where}`).join('\n'),
     );
   }
-
-  const forLogin = missingFrom(REQUIRED_FOR_LOGIN);
-
-  if (!isProductionDeployment()) {
-    // Preview and local: report and carry on. A Preview without LINE secrets is
-    // a normal, useful thing — every page that does not need them still works,
-    // and the email sign-in path, which is the one most worth testing, needs
-    // none of them.
-    if (forLogin.length) {
-      console.error(
-        `[line/env] LINE sign-in is not configured in this ${process.env.VERCEL_ENV ?? 'non-production'} ` +
-        'environment, so the LINE button will not work here. Not fatal outside production:\n' +
-        forLogin.map((n) => `  ${n} — ${VARS[n].what}`).join('\n'),
-      );
-    }
-    return;
-  }
-
-  if (forLogin.length) {
-    throw new LineEnvError(
-      'LINE sign-in cannot start — required environment variables are missing:\n\n' +
-      forLogin.map((n) => `  ${n}\n    What it is: ${VARS[n].what}\n    Where: ${VARS[n].where}`).join('\n\n') +
-      '\n\nSet them in Vercel → Settings → Environment Variables (Production AND ' +
-      'Preview), then redeploy. See .env.example.',
-    );
-  }
-
-  // Force the redirect-URI format checks now rather than at first sign-in.
-  getLineAuthRedirectUri();
 }

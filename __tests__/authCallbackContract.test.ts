@@ -38,7 +38,6 @@ const passwordApi  = read('app/api/auth/password/route.ts');
 const recovery     = read('lib/auth/recovery.ts');
 const authForm     = read('app/auth/AuthForm.tsx');
 const authShell    = read('app/auth/AuthShell.tsx');
-const lineCallback = read('app/api/auth/line/callback/route.ts');
 
 describe('email sign-in is a code that never leaves the page', () => {
   it('has no standalone email-link route — the code is the primary path', () => {
@@ -104,8 +103,8 @@ describe('the callback reads what the routes send', () => {
   });
 
   it("declares 'recovery' and 'magiclink' as accepted verification types", () => {
-    // 'magiclink' stays in the cast because the LINE bridge mints exactly that
-    // type internally — see app/api/auth/line/callback.
+    // 'magiclink' stays in the cast so links already sitting in inboxes keep
+    // working; the retired LINE bridge was the last thing minting them.
     expect(callback).toContain("'recovery'");
     expect(callback).toContain("'magiclink'");
   });
@@ -117,9 +116,11 @@ describe('the callback reads what the routes send', () => {
     expect(callback).toContain('/auth/reset/confirm');
   });
 
-  it('still accepts the LINE bridge handoff', () => {
-    expect(lineCallback).toContain('/auth/callback');
-    expect(lineCallback).toContain("set('token_hash'");
+  it('takes LINE sign-in as a code, like Google', () => {
+    // LINE is the Supabase provider custom:line: it arrives at the code
+    // exchange, marked so a failure can be retried as LINE.
+    expect(callback).toContain('exchangeCodeForSession');
+    expect(callback).toContain('LINE_CALLBACK_FLAG');
   });
 });
 

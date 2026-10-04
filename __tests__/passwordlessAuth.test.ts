@@ -30,7 +30,6 @@ const PAGE      = read('app/auth/page.tsx');
 const CALLBACK  = read('app/auth/callback/route.ts');
 const RESOLVE   = read('lib/auth/resolveRedirect.ts');
 const LINE_START= read('app/api/auth/line/start/route.ts');
-const LINE_CB   = read('app/api/auth/line/callback/route.ts');
 const INTAKE_API= read('app/api/intake/route.ts');
 const PREVIEW   = read('app/start/PreviewMatcher.tsx');
 const MIGRATION = read('scripts/20260901_v20_pending_intake.sql');
@@ -170,29 +169,30 @@ describe('inside the Facebook webview', () => {
 // ─── LINE ────────────────────────────────────────────────────────────────────
 
 describe('the LINE authorize URL', () => {
-  it('asks for the scopes we actually use', () => {
-    // No email (decided 2026-10-04). It was kept so LINE could one day return a
-    // real address, but under LINE_AUTH_MODE=supabase the profile comes from
-    // userinfo, which never carries one, and the Email address permission is
-    // not being applied for. Asking would show students a consent line for data
-    // we do not receive.
-    expect(LINE_START).toContain("'scope', 'openid profile'");
-    expect(LINE_START).not.toContain("'openid profile email'");
+  it('asks for no email', () => {
+    // Decided 2026-10-04. The profile comes from LINE's userinfo, which never
+    // carries an email, and the Email address permission is not being applied
+    // for — asking would show students a consent line for data we never get.
+    // Scopes live in the Supabase provider config (openid, profile); this route
+    // must not add any.
+    expect(LINE_START).not.toMatch(/scopes?\s*:/);
+    expect(LINE_START).not.toContain('openid profile email');
   });
 
   it('invites the OA friendship by default, which is what reminders need', () => {
     expect(read('lib/line/env.ts')).toContain("'normal' : 'aggressive'");
-    expect(LINE_START).toContain("'bot_prompt', getLineBotPrompt()");
+    expect(LINE_START).toContain('bot_prompt: getLineBotPrompt()');
   });
 
   it('never forces re-consent or disables auto login on a first attempt', () => {
-    expect(LINE_START).not.toContain("'prompt', 'consent'");
-    expect(LINE_START).toMatch(/if \(isRetry\) .*disable_auto_login/);
+    expect(LINE_START).not.toMatch(/prompt:\s*'consent'/);
+    expect(LINE_START).toContain("if (isRetry) queryParams.disable_auto_login = 'true'");
   });
 
-  it('randomises state per attempt and checks it on return', () => {
-    expect(LINE_START).toContain('randomBytes(24)');
-    expect(LINE_CB).toContain('line_state_mismatch');
+  it('a failed attempt is retried once, then explained', () => {
+    // State is Supabase's now; what this app owns is the response to a failure.
+    expect(CALLBACK).toContain('LINE_CALLBACK_RETRY_FLAG');
+    expect(CALLBACK).toContain('line_state_mismatch');
   });
 });
 
@@ -221,8 +221,8 @@ describe('the /start answers survive a browser switch', () => {
   it('threads the id through every hop that crosses a boundary', () => {
     expect(FORM).toContain(`qs.set(INTAKE_PARAM, intake)`);       // email redirect
     expect(FORM).toContain('url.searchParams.set(INTAKE_PARAM, intake)'); // LINE start
-    expect(LINE_START).toContain('LINE_AUTH_INTAKE_COOKIE');      // across LINE
-    expect(LINE_CB).toContain('INTAKE_PARAM, savedIntake');       // back from LINE
+    expect(LINE_START).toContain('callback.searchParams.set(INTAKE_PARAM, intakeParam)'); // across LINE
+    expect(CALLBACK).toContain('INTAKE_PARAM');                    // retry keeps it
     expect(CALLBACK).toContain('intakeParam:  searchParams.get(INTAKE_PARAM)');
     expect(RESOLVE).toContain('claimIntake');
   });
