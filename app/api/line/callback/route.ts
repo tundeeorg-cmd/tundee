@@ -43,6 +43,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { cookies } from 'next/headers';
 import { getLineRedirectUri, getLineLoginChannelId, getLineLoginChannelSecret } from '@/lib/line/env';
 
@@ -124,12 +125,20 @@ export async function GET(request: NextRequest) {
   const lineUserId = payload.sub;
   if (!lineUserId) return redirect('/tracker?line_error=no_sub');
 
-  // Store line_user_id on the user's profile
+  // Store line_user_id on the user's profile. The session says WHO; the write
+  // goes through the service role, because the LINE columns reject writes from
+  // a user session (scripts/20261004_v22_protect_line_columns.sql).
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return redirect('/auth?from=line-connect');
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+  if (!admin) {
+    console.error('[line/callback] SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL missing');
+    return redirect('/tracker?line_error=db_error');
+  }
+
+  const { error } = await admin
     .from('profiles')
     .update({ line_user_id: lineUserId, line_linked_at: new Date().toISOString() })
     .eq('id', user.id);
