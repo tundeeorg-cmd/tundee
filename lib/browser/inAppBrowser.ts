@@ -66,6 +66,12 @@ export interface InAppBrowserInfo {
    * so a LINE tap is handed to Chrome with the same intent the webviews use.
    */
   androidOtherBrowser: boolean;
+  /**
+   * HUAWEI or HONOR's own Android browser. It ignores the intent:// hand-off to
+   * Chrome entirely, even from a real link tap (2026-10-05), so lib/line/launch
+   * tries Chrome's own googlechrome:// scheme for it instead.
+   */
+  huaweiBrowser: boolean;
   /** iOS cannot be escaped programmatically; Android can. */
   platform: 'ios' | 'android' | 'other';
 }
@@ -77,6 +83,7 @@ const NOT_IN_APP: InAppBrowserInfo = {
   lineAppToAppBlocked: false,
   iosOtherBrowser:     false,
   androidOtherBrowser: false,
+  huaweiBrowser:       false,
   platform:            'other',
 };
 
@@ -146,6 +153,7 @@ export function inspectUserAgent(ua: string | null | undefined): InAppBrowserInf
     lineAppToAppBlocked: (app !== null && app !== 'line') || iosOtherBrowser || androidOtherBrowser,
     iosOtherBrowser,
     androidOtherBrowser,
+    huaweiBrowser: androidOtherBrowser && /HuaweiBrowser\/|HONORBrowser\//.test(ua),
     platform,
   };
 }
