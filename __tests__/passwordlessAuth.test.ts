@@ -171,9 +171,13 @@ describe('inside the Facebook webview', () => {
 
 describe('the LINE authorize URL', () => {
   it('asks for the scopes we actually use', () => {
-    // email stays: without it every LINE account gets a synthetic
-    // @line.tundee.invalid address and can never be sent a deadline reminder.
-    expect(LINE_START).toContain("'scope', 'openid profile email'");
+    // No email (decided 2026-10-04). It was kept so LINE could one day return a
+    // real address, but under LINE_AUTH_MODE=supabase the profile comes from
+    // userinfo, which never carries one, and the Email address permission is
+    // not being applied for. Asking would show students a consent line for data
+    // we do not receive.
+    expect(LINE_START).toContain("'scope', 'openid profile'");
+    expect(LINE_START).not.toContain("'openid profile email'");
   });
 
   it('invites the OA friendship by default, which is what reminders need', () => {

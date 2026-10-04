@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { LINE_PROVIDER } from '@/lib/line/authMode';
 
 /** Enough for ~4,000 accounts. Logged, not silently truncated, when exceeded. */
 const MAX_PAGES = 20;
@@ -42,6 +43,10 @@ export async function findUserByEmail(
 /** Which provider owns this account, for copy that names the right button. */
 export function providerOf(user: User): 'google' | 'line' | 'password' {
   if (user.app_metadata?.provider === 'google') return 'google';
+  // Supabase-mode LINE accounts carry it in app_metadata, which only the server
+  // can write; bridge-era accounts (and v23-migrated ones) in user_metadata.
+  if (user.app_metadata?.provider === LINE_PROVIDER) return 'line';
+  if ((user.app_metadata?.providers as string[] | undefined)?.includes(LINE_PROVIDER)) return 'line';
   if (user.user_metadata?.provider === 'line') return 'line';
   return 'password';
 }

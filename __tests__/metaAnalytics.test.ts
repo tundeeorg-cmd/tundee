@@ -123,6 +123,8 @@ describe('signupMethodFrom', () => {
     // Supabase reports LINE users as email-provider — only user_metadata,
     // written by app/api/auth/line/callback, distinguishes them.
     expect(signupMethodFrom('email', 'line')).toBe('line');
+    // LINE as a Supabase custom provider: reported in app_metadata, not user_metadata.
+    expect(signupMethodFrom('custom:line', undefined)).toBe('line');
   });
 
   it('falls back to email', () => {

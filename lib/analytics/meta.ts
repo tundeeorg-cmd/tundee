@@ -13,6 +13,7 @@
 
 import { hasAnalyticsConsent } from './consent';
 import type { SignupConversionMethod } from './signupConversion';
+import { LINE_PROVIDER } from '@/lib/line/authMode';
 
 declare global {
   interface Window {
@@ -242,6 +243,9 @@ export function signupMethodFrom(
   appMetadataProvider?: string | null,
   userMetadataProvider?: string | null,
 ): SignupConversionMethod {
+  // LINE as a Supabase provider (lib/line/authMode.ts) is reported by Supabase
+  // itself. Without this it fell through to 'email' below.
+  if (appMetadataProvider === LINE_PROVIDER) return 'line';
   // The LINE bridge (app/api/auth/line/callback) marks its users in
   // user_metadata; Supabase itself reports them as email-provider accounts.
   // The password route marks its own the same way, for the same reason.

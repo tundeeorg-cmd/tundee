@@ -49,6 +49,41 @@ drop it from login, set `LINE_BOT_PROMPT` to anything and remove the parameter i
 
 ---
 
+## LINE as a Supabase provider (`LINE_AUTH_MODE=supabase`)
+
+LINE is configured in Supabase as the custom provider `custom:line`:
+Authentication → Sign In / Providers → Custom Providers. **It must use Manual
+configuration.** Auto-discovery verifies LINE's ID token against LINE's JWKS,
+which only lists ES256, while LINE signs web-login tokens HS256 with the channel
+secret — every sign-in fails with `unexpected signature algorithm "HS256"`
+(confirmed on production, 2026-10-04). Manual mode with no JWKS reads the
+profile from userinfo instead.
+
+| Field | Value |
+|---|---|
+| Authorization URL | `https://access.line.me/oauth2/v2.1/authorize` |
+| Token URL | `https://api.line.me/oauth2/v2.1/token` |
+| Userinfo URL | `https://api.line.me/oauth2/v2.1/userinfo` |
+| JWKS URI | empty |
+| Client ID / Secret | the LINE Login channel's ID and channel secret |
+| Scopes | `openid, profile` |
+| Allow users without email | on |
+
+The configuration method cannot be changed after a provider is created —
+delete and recreate it instead. LINE's Callback URL list must include
+`https://<project>.supabase.co/auth/v1/callback`.
+
+`ui_locales`, `bot_prompt` and the retry's `disable_auto_login` are passed
+through Supabase as `queryParams` by `app/api/auth/line/start`. A failed LINE
+attempt comes back to `/auth/callback` with `via_line=1` and is retried there
+once. One case it cannot catch: if Supabase cannot read its own `state`, it
+does not know the redirect URL and sends the student to the Site URL instead.
+
+Rollout: run `scripts/20261005_v23_line_identities.sql` (trial on one account,
+then all), then set `LINE_AUTH_MODE=supabase` in Vercel and redeploy.
+
+---
+
 ## What only you can check — LINE Developers Console
 
 None of these are visible from the codebase, and any one of them can produce the
@@ -64,10 +99,10 @@ password form regardless of what the code sends.
       second is an easy mistake and breaks login entirely.
 - [ ] **The LINE Login channel is linked to the Messaging API channel.**
       Without the link `bot_prompt` silently does nothing.
-- [ ] **Email address permission** — its approval state decides whether LINE
-      returns a real address. Until it is approved, LINE accounts are created
-      with a synthetic `@line.tundee.invalid` address and are deliberately
-      skipped by the email reminder cron. 11 of 78 accounts are in this state.
+- [ ] **Email address permission — deliberately not applied for.** Under
+      `LINE_AUTH_MODE=supabase` the profile comes from LINE's userinfo endpoint,
+      which never returns an email, so the permission would buy nothing. Neither
+      flow requests the `email` scope any more.
 - [ ] `LINE_AUTH_REDIRECT_URI` in Vercel matches the registered URL **byte for
       byte**. LINE compares it exactly, on both the authorize and token calls.
 

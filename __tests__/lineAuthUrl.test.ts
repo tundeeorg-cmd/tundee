@@ -71,7 +71,8 @@ describe('the parameters that decide app-to-app versus the password form', () =>
   it('sends the OpenID parameters the callback verifies', async () => {
     const url = await authorizeUrl();
     expect(url.searchParams.get('response_type')).toBe('code');
-    expect(url.searchParams.get('scope')).toBe('openid profile email');
+    // No email: not applied for, and the Supabase provider could never receive it.
+    expect(url.searchParams.get('scope')).toBe('openid profile');
     expect(url.searchParams.get('nonce')).toBeTruthy();
     expect(url.searchParams.get('code_challenge')).toBeTruthy();
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');

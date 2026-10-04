@@ -32,13 +32,15 @@
 <input id="anon">
 <label for="provider">Custom provider id, exactly as the dashboard shows it</label>
 <input id="provider" placeholder="custom:line">
+<label for="qp">Extra LINE parameters, forwarded through Supabase (query-string form)</label>
+<input id="qp" placeholder="ui_locales=th&amp;bot_prompt=normal">
 <button id="go">เข้าสู่ระบบด้วย LINE</button>
 <button id="out">Sign out</button>
 <h2>Result</h2>
 <pre id="result">Not signed in.</pre>
 
 <script>
-  const FIELDS = ['url', 'anon', 'provider'];
+  const FIELDS = ['url', 'anon', 'provider', 'qp'];
   const $ = id => document.getElementById(id);
   const show = (text, isErr) => { $('result').textContent = text; $('result').className = isErr ? 'err' : ''; };
 
@@ -83,7 +85,13 @@
     if (!c || !provider) { show('Fill in all three fields first.', true); return; }
     const { error } = await c.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: location.origin + location.pathname, scopes: 'openid profile email' },
+      // Scopes come from the provider's dashboard config. queryParams is how the
+      // app passes LINE's own options (ui_locales, bot_prompt, disable_auto_login);
+      // if they reach LINE, its page is in Thai and offers the add-friend step.
+      options: {
+        redirectTo: location.origin + location.pathname,
+        queryParams: Object.fromEntries(new URLSearchParams($('qp').value.trim())),
+      },
     });
     if (error) show('signInWithOAuth error: ' + error.message, true);
   });
