@@ -57,6 +57,15 @@ export interface InAppBrowserInfo {
    * have no "Open in Safari" menu item the way Facebook's does.
    */
   iosOtherBrowser: boolean;
+  /**
+   * An Android browser that is not Chrome and not an in-app webview: the phone
+   * makers' own (Samsung Internet, Huawei, Xiaomi, Oppo/Realme, vivo), Firefox,
+   * Edge, Opera, UC and others. LINE cannot hand off to its app from them and
+   * shows its Google Play banner and email + password form; Chrome on the same
+   * phone opens the LINE app (confirmed 2026-10-05). Sets `lineAppToAppBlocked`,
+   * so a LINE tap is handed to Chrome with the same intent the webviews use.
+   */
+  androidOtherBrowser: boolean;
   /** iOS cannot be escaped programmatically; Android can. */
   platform: 'ios' | 'android' | 'other';
 }
@@ -67,6 +76,7 @@ const NOT_IN_APP: InAppBrowserInfo = {
   googleBlocked:       false,
   lineAppToAppBlocked: false,
   iosOtherBrowser:     false,
+  androidOtherBrowser: false,
   platform:            'other',
 };
 
@@ -75,6 +85,14 @@ const NOT_IN_APP: InAppBrowserInfo = {
  * few others send Safari's UA unchanged and cannot be told apart — they fall
  * through as Safari, the fail-open default.
  */
+/**
+ * Android browsers other than Chrome, by their UA token. All of them also send
+ * "Chrome/…" (they are built on Chromium), so Chrome is identified by the
+ * ABSENCE of every one of these. Brave sends Chrome's UA unchanged and passes
+ * as Chrome — the fail-open default.
+ */
+const ANDROID_OTHER_BROWSER = /SamsungBrowser\/|HuaweiBrowser\/|HONORBrowser\/|MiuiBrowser\/|XiaoMi\/|HeyTapBrowser\/|OppoBrowser\/|VivoBrowser\/|Firefox\/|EdgA\/|OPR\/|Opera|UCBrowser\/|YaBrowser\/|Quark\/|DuckDuckGo\/|Silk\//;
+
 const IOS_OTHER_BROWSER = /CriOS\/|FxiOS\/|EdgiOS\/|OPiOS\/|OPT\/|DuckDuckGo\/|GSA\/|YaBrowser\/|UCBrowser\//;
 
 /**
@@ -118,14 +136,16 @@ export function inspectUserAgent(ua: string | null | undefined): InAppBrowserInf
   const app = detectApp(ua);
   const platform = detectPlatform(ua);
   const iosOtherBrowser = app === null && platform === 'ios' && IOS_OTHER_BROWSER.test(ua);
+  const androidOtherBrowser = app === null && platform === 'android' && ANDROID_OTHER_BROWSER.test(ua);
   return {
     isInApp:       app !== null,
     app,
     // Every embedded webview is rejected by Google's policy, not just Facebook's.
     googleBlocked: app !== null,
     // LINE's own browser is the exception: auto login works there.
-    lineAppToAppBlocked: (app !== null && app !== 'line') || iosOtherBrowser,
+    lineAppToAppBlocked: (app !== null && app !== 'line') || iosOtherBrowser || androidOtherBrowser,
     iosOtherBrowser,
+    androidOtherBrowser,
     platform,
   };
 }

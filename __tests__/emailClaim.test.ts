@@ -216,6 +216,6 @@ describe('the /auth page has copy for every outcome', () => {
     const form = readFileSync('app/auth/AuthForm.tsx', 'utf8');
     for (const code of ['email_added', 'email_taken', 'claim_failed']) expect(form).toContain(`case '${code}'`);
     // A success must not be logged as a failed signup.
-    expect(form).toContain("if (err !== 'email_added')");
+    expect(form).toMatch(/if \(err !== 'email_added'( && [^)]*)?\)/);
   });
 });

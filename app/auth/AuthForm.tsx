@@ -93,6 +93,7 @@ function inAppContext(info: InAppBrowserInfo) {
     google_blocked: info.googleBlocked,
     line_blocked:   info.lineAppToAppBlocked,
     ios_other_browser: info.iosOtherBrowser,
+    android_other_browser: info.androidOtherBrowser,
     platform:       info.platform,
   };
 }
@@ -122,6 +123,14 @@ function authMessage(code: string, lang: string): { text: string; tone: 'error' 
   const info  = (text: string) => ({ text, tone: 'info'  as const });
 
   switch (code) {
+    // /api/auth/line/start sent an Android browser that cannot open the LINE
+    // app back here (a tap before hydration, a typed URL). The next tap on the
+    // hydrated button hands off to Chrome, which can.
+    case 'line_open_in_chrome':
+      return info(th
+        ? 'LINE เปิดแอปจากเบราว์เซอร์นี้ไม่ได้ แตะปุ่ม LINE อีกครั้ง ระบบจะเปิดใน Chrome ให้ หรือใช้อีเมลด้านล่างก็ได้'
+        : "LINE can't open its app from this browser. Tap the LINE button again and it will open in Chrome — or use email below.");
+
     // A LINE student tapped the link that adds an email to their account
     // (app/api/auth/verify-email, claim). Information, not failure: they can
     // sign in with that address right here, and it is already filled in.
@@ -378,8 +387,9 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           : authMessage(err, lang),
       );
       // 'email_added' rides the error param but is a success: an existing
-      // account just gained an address. Not a failed signup.
-      if (err !== 'email_added') {
+      // account just gained an address. 'line_open_in_chrome' is guidance.
+      // Neither is a failed signup.
+      if (err !== 'email_added' && err !== 'line_open_in_chrome') {
         logFunnelEvent({
           eventType: 'signup_failed',
           context: { reason: err, ...inAppContext(detectInAppBrowser()) },
