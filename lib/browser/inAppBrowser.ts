@@ -46,6 +46,17 @@ export interface InAppBrowserInfo {
    * working from there, and it is the one embedded browser where it does.
    */
   lineAppToAppBlocked: boolean;
+  /**
+   * An iPhone browser that is not Safari and not an in-app webview: Chrome,
+   * Firefox, Edge, Opera, DuckDuckGo, the Google app. Google sign-in works in
+   * these, so `isInApp` and `googleBlocked` stay false — but LINE cannot see the
+   * LINE app from them, shows its App Store banner and the email + password
+   * form, and never offers the one-tap hand-off. Confirmed on Chrome for iPhone,
+   * 2026-10-04, against Safari on the same phone, which opened the LINE app.
+   * Sets `lineAppToAppBlocked`; the help copy differs, because these browsers
+   * have no "Open in Safari" menu item the way Facebook's does.
+   */
+  iosOtherBrowser: boolean;
   /** iOS cannot be escaped programmatically; Android can. */
   platform: 'ios' | 'android' | 'other';
 }
@@ -55,8 +66,16 @@ const NOT_IN_APP: InAppBrowserInfo = {
   app:                 null,
   googleBlocked:       false,
   lineAppToAppBlocked: false,
+  iosOtherBrowser:     false,
   platform:            'other',
 };
+
+/**
+ * Third-party iOS browsers, by the token each adds to WebKit's UA. Brave and a
+ * few others send Safari's UA unchanged and cannot be told apart — they fall
+ * through as Safari, the fail-open default.
+ */
+const IOS_OTHER_BROWSER = /CriOS\/|FxiOS\/|EdgiOS\/|OPiOS\/|OPT\/|DuckDuckGo\/|GSA\/|YaBrowser\/|UCBrowser\//;
 
 /**
  * Markers, in the order Google's own policy treats them:
@@ -97,14 +116,17 @@ export function inspectUserAgent(ua: string | null | undefined): InAppBrowserInf
   if (!ua) return NOT_IN_APP;
 
   const app = detectApp(ua);
+  const platform = detectPlatform(ua);
+  const iosOtherBrowser = app === null && platform === 'ios' && IOS_OTHER_BROWSER.test(ua);
   return {
     isInApp:       app !== null,
     app,
     // Every embedded webview is rejected by Google's policy, not just Facebook's.
     googleBlocked: app !== null,
     // LINE's own browser is the exception: auto login works there.
-    lineAppToAppBlocked: app !== null && app !== 'line',
-    platform:      detectPlatform(ua),
+    lineAppToAppBlocked: (app !== null && app !== 'line') || iosOtherBrowser,
+    iosOtherBrowser,
+    platform,
   };
 }
 
