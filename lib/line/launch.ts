@@ -81,3 +81,42 @@ export function iosLineHelp(iab: InAppBrowserInfo, th: boolean): string {
     ? 'เพื่อใช้ LINE ให้กดจุด 3 จุดมุมขวาบน แล้วเลือก "เปิดใน Safari"'
     : 'To use LINE, tap the ••• at the top right and choose "Open in Safari".';
 }
+
+/** How long a Chrome hand-off gets before the page assumes it went nowhere. */
+export const CHROME_HANDOFF_WAIT_MS = 2500;
+
+/**
+ * Follow a LineLaunch `navigate` URL.
+ *
+ * An https URL is an ordinary navigation: the page goes away, nothing more to do.
+ *
+ * An Android `intent://` URL (the hand-off to Chrome) is followed by clicking a
+ * real link rather than assigning window.location. Some browsers only honour an
+ * app-switching link when it is an actual link activation inside the tap — and
+ * some ignore intents altogether: HUAWEI Browser 17 on 2026-10-05 left the
+ * spinner turning with nothing happening. So the outcome is checked: if the
+ * page is still in front after CHROME_HANDOFF_WAIT_MS, Chrome did not take
+ * over, and `onSettled(true)` lets the caller stop the spinner and show
+ * androidLineHelp. `onSettled(false)` means the hand-off happened (the page
+ * was hidden) — the spinner should stop too, for when the student comes back.
+ */
+export function followLineLaunch(url: string, onSettled: (stuck: boolean) => void): void {
+  if (!url.startsWith('intent:')) {
+    window.location.href = url;
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = url;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => onSettled(document.visibilityState === 'visible'), CHROME_HANDOFF_WAIT_MS);
+}
+
+/** Shown on Android when the hand-off to Chrome did not happen. */
+export function androidLineHelp(th: boolean): string {
+  return th
+    ? 'เปิด Chrome อัตโนมัติไม่สำเร็จ ให้กด "คัดลอกลิงก์" แล้ววางในแอป Chrome เพื่อเข้าสู่ระบบด้วย LINE'
+    : "Couldn't open Chrome automatically. Tap \"Copy link\", then paste it into Chrome to sign in with LINE.";
+}

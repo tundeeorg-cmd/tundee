@@ -25,7 +25,7 @@ import { CONSENT_COOKIE, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION } from '@/lib/c
 import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
 import { INTAKE_PARAM, readStoredIntakeId } from '@/lib/intake/pendingIntake';
 import { detectInAppBrowser, type InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
-import { lineStartUrl, lineLaunch, iosLineHelp } from '@/lib/line/launch';
+import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 
 const TH = { fontFamily: 'Sarabun, sans-serif' } as const;
@@ -88,7 +88,10 @@ export default function LineQuickStart({ signupHref }: { signupHref: string }) {
 
     if (launch.kind === 'ios_webview_help') { setIosHelp(iab); return; }
     setLeaving(true);
-    window.location.href = launch.url;
+    followLineLaunch(launch.url, (stuck) => {
+      setLeaving(false);
+      if (stuck) setIosHelp(iab);
+    });
   }
 
   return (
@@ -123,12 +126,13 @@ export default function LineQuickStart({ signupHref }: { signupHref: string }) {
         </p>
       )}
 
-      {/* iPhone, where LINE cannot open its app from this browser: an in-app
-          webview, or Chrome and the other non-Safari browsers. */}
+      {/* iPhone, where LINE cannot open its app from this browser (an in-app
+          webview, or Chrome and the other non-Safari browsers) — or Android,
+          when the hand-off to Chrome did not happen. */}
       {iosHelp && (
         <div className="mt-3 rounded-xl bg-[#EBF2FF] dark:bg-[#0D1F35] px-3 py-3 text-center">
           <p className="text-xs text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...TH, lineHeight: 1.8 }}>
-            {iosLineHelp(iosHelp, true)}
+            {iosHelp.platform === 'android' ? androidLineHelp(true) : iosLineHelp(iosHelp, true)}
           </p>
           <button
             type="button"

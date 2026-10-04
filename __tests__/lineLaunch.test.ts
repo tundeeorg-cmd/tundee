@@ -3,8 +3,10 @@
  * /start so the two buttons cannot drift.
  */
 
-import { describe, it, expect } from 'vitest';
-import { lineStartUrl, lineLaunch, iosLineHelp } from '@/lib/line/launch';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch, CHROME_HANDOFF_WAIT_MS,
+} from '@/lib/line/launch';
 import { inspectUserAgent } from '@/lib/browser/inAppBrowser';
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import { PREVIEW_PARAM } from '@/lib/preview/types';
@@ -148,5 +150,81 @@ describe('Android browsers other than Chrome', () => {
     const chrome = inspectUserAgent(CHROME_ANDROID);
     expect(chrome.androidOtherBrowser).toBe(false);
     expect(lineLaunch(start, chrome)).toEqual({ kind: 'navigate', url: start });
+  });
+});
+
+// ─── Following the hand-off ──────────────────────────────────────────────────
+// HUAWEI Browser 17 (2026-10-05) ignored the intent and left the spinner
+// turning forever. The hand-off is now a real link click, and its outcome is
+// checked: still in front after the wait means Chrome never took over.
+
+describe('followLineLaunch', () => {
+  let clicked: string[];
+  let visibility: 'visible' | 'hidden';
+  let location: { href: string };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    clicked = [];
+    visibility = 'visible';
+    location = { href: 'https://www.tundee.org/auth' };
+    const body = { appendChild: () => {}, };
+    vi.stubGlobal('document', {
+      body,
+      get visibilityState() { return visibility; },
+      createElement: () => {
+        const el = { href: '', style: {} as Record<string, string>, click() { clicked.push(el.href); }, remove() {} };
+        return el;
+      },
+    });
+    vi.stubGlobal('window', { location, setTimeout: globalThis.setTimeout });
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('an ordinary https URL is a plain navigation', () => {
+    const settled = vi.fn();
+    followLineLaunch('https://www.tundee.org/api/auth/line/start?next=%2F', settled);
+    expect(location.href).toBe('https://www.tundee.org/api/auth/line/start?next=%2F');
+    expect(clicked).toEqual([]);
+    vi.advanceTimersByTime(CHROME_HANDOFF_WAIT_MS * 2);
+    expect(settled).not.toHaveBeenCalled();
+  });
+
+  it('the Chrome intent is a real link click, not a location assignment', () => {
+    followLineLaunch('intent://www.tundee.org/x#Intent;scheme=https;package=com.android.chrome;end', () => {});
+    expect(clicked).toEqual(['intent://www.tundee.org/x#Intent;scheme=https;package=com.android.chrome;end']);
+    expect(location.href).toBe('https://www.tundee.org/auth');
+  });
+
+  it('reports stuck when the page is still in front after the wait — the HUAWEI case', () => {
+    const settled = vi.fn();
+    followLineLaunch('intent://www.tundee.org/x#Intent;end', settled);
+    vi.advanceTimersByTime(CHROME_HANDOFF_WAIT_MS - 1);
+    expect(settled).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(settled).toHaveBeenCalledWith(true);
+  });
+
+  it('reports a hand-off when Chrome took over and the page went to the background', () => {
+    const settled = vi.fn();
+    followLineLaunch('intent://www.tundee.org/x#Intent;end', settled);
+    visibility = 'hidden';
+    vi.advanceTimersByTime(CHROME_HANDOFF_WAIT_MS);
+    expect(settled).toHaveBeenCalledWith(false);
+  });
+
+  it('the help it leads to says to copy the link into Chrome', () => {
+    expect(androidLineHelp(true)).toContain('คัดลอกลิงก์');
+    expect(androidLineHelp(true)).toContain('Chrome');
+  });
+
+  it('both LINE buttons use it, and stop the spinner either way', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['app/auth/AuthForm.tsx', 'components/start/LineQuickStart.tsx']) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, file).toContain('followLineLaunch(launch.url');
+      expect(src, file).not.toMatch(/window\.location\.href = launch\.url/);
+      expect(src, file).toContain('androidLineHelp(');
+    }
   });
 });
