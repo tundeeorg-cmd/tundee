@@ -111,14 +111,23 @@ describe('the screen is in the order the brief specifies', () => {
 
   for (const src of [['AuthForm', FORM], ['AuthShell', SHELL]] as const) {
     it(`${src[0]} renders them top to bottom`, () => {
+      // AuthForm renders the consent through the shared component (also used by
+      // /start's LINE button), so in its source the 5th item is the component.
+      const needles = src[0] === 'AuthForm'
+        ? [...order.slice(0, -1), '<ConsentCheckbox']
+        : order;
       let cursor = -1;
-      for (const needle of order) {
+      for (const needle of needles) {
         const at = src[1].indexOf(needle, cursor + 1);
         expect(at, `${needle} missing or out of order in ${src[0]}`).toBeGreaterThan(cursor);
         cursor = at;
       }
     });
   }
+
+  it('the shared consent component carries the consent wording', () => {
+    expect(read('components/auth/ConsentCheckbox.tsx')).toContain('ฉันยอมรับ');
+  });
 
   it('uses LINE green, filled, on the primary button', () => {
     expect(FORM).toContain('bg-[#06C755]');
@@ -146,7 +155,9 @@ describe('the screen is in the order the brief specifies', () => {
 
 describe('inside the Facebook webview', () => {
   it('escapes to Chrome on Android and never opens a popup', () => {
-    expect(FORM).toContain(`buildEscapeUrl(start, 'android')`);
+    // The decision lives in lib/line/launch, shared with /start's button.
+    expect(FORM).toContain('lineLaunch(startUrl(), iab)');
+    expect(read('lib/line/launch.ts')).toContain(`buildEscapeUrl(startUrl, 'android')`);
     expect(FORM).toContain('window.location.href');
     // The call, not the word — the file explains in prose why it never opens one.
     expect(FORM, 'popups are blocked in webviews').not.toMatch(/window\.open\s*\(/);
@@ -220,7 +231,8 @@ describe('the /start answers survive a browser switch', () => {
 
   it('threads the id through every hop that crosses a boundary', () => {
     expect(FORM).toContain(`qs.set(INTAKE_PARAM, intake)`);       // email redirect
-    expect(FORM).toContain('url.searchParams.set(INTAKE_PARAM, intake)'); // LINE start
+    expect(FORM).toContain('intake: intakeId()');                  // LINE start…
+    expect(read('lib/line/launch.ts')).toContain('url.searchParams.set(INTAKE_PARAM, ctx.intake)'); // …built here
     expect(LINE_START).toContain('callback.searchParams.set(INTAKE_PARAM, intakeParam)'); // across LINE
     expect(CALLBACK).toContain('INTAKE_PARAM');                    // retry keeps it
     expect(CALLBACK).toContain('intakeParam:  searchParams.get(INTAKE_PARAM)');

@@ -41,13 +41,14 @@ import {
   CONSENT_VERSION,
 } from '@/lib/consent';
 import {
-  buildEscapeUrl,
   detectInAppBrowser,
   type InAppBrowserInfo,
 } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
+import { lineStartUrl, lineLaunch } from '@/lib/line/launch';
+import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
   isPlausibleEmail,
@@ -515,16 +516,10 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
 
   // ── LINE ────────────────────────────────────────────────────────────────────
 
-  function lineStartUrl(): string {
-    const url = new URL('/api/auth/line/start', window.location.origin);
-    url.searchParams.set('next', next);
-    url.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
-    const preview = guestSession();
-    if (preview) url.searchParams.set(PREVIEW_PARAM, preview);
-    const intake = intakeId();
-    if (intake) url.searchParams.set(INTAKE_PARAM, intake);
-    if (utmCampaign) url.searchParams.set('utm_campaign', utmCampaign);
-    return url.toString();
+  function startUrl(): string {
+    return lineStartUrl(window.location.origin, {
+      next, preview: guestSession(), intake: intakeId(), utmCampaign,
+    });
   }
 
   /** Server-renderable equivalent, so the link has a real href before hydration. */
@@ -536,34 +531,16 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     return `/api/auth/line/start?${qs.toString()}`;
   })();
 
-  /**
-   * Always a same-tab navigation, never window.open: popups are blocked on
-   * mobile and inside every webview, and a blocked popup looks like a dead
-   * button. Inside a third-party webview the flow is handed to Chrome first
-   * (Android) — LINE's app-to-app login needs an App Link, which those webviews
-   * block, and without it LINE falls back to its own email + password form,
-   * which most Thai users cannot complete because they signed up by phone.
-   */
+  /** Where the tap goes — same rules as /start's button; see lib/line/launch. */
   function signInWithLine() {
     if (blocked) { setMessage({ tone: 'error', text: otpMessage('consent_required', lang) }); return; }
     setMessage(null);
     recordConsent();
 
-    const start = lineStartUrl();
-
-    if (iab.lineAppToAppBlocked) {
-      if (iab.platform === 'android') {
-        const escape = buildEscapeUrl(start, 'android');
-        if (escape) { setLineLoading(true); window.location.href = escape; return; }
-      }
-      // iOS cannot be escaped programmatically. Show the way out instead of
-      // starting a flow that is guaranteed to dead-end.
-      setIosHelp(true);
-      return;
-    }
-
+    const launch = lineLaunch(startUrl(), iab);
+    if (launch.kind === 'ios_webview_help') { setIosHelp(true); return; }
     setLineLoading(true);
-    window.location.href = start;
+    window.location.href = launch.url;
   }
 
   /** iOS fallback: hand them the URL so they can paste it into Safari. */
@@ -856,26 +833,12 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
               normally the wrong call, because a dead button reads as a broken
               page — is the standing hint directly beneath it. The student is
               never left guessing why nothing happened. */}
-      <label className="flex items-start gap-3 mt-5 cursor-pointer select-none" style={THAI}>
-        <input
-          ref={consentRef}
-          type="checkbox"
-          name={CONSENT_PARAM}
-          value={CONSENT_VERSION}
-          checked={consent}
-          onChange={(e) => { setConsent(e.target.checked); setMessage(null); }}
-          className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
-        />
-        <span className="text-xs leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
-          ฉันยอมรับ{' '}
-          <a href="/terms" target="_blank" rel="noopener noreferrer"
-             className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">ข้อกำหนดการใช้งาน</a>
-          {' '}และ{' '}
-          <a href="/privacy" target="_blank" rel="noopener noreferrer"
-             className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">นโยบายความเป็นส่วนตัว</a>
-          {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
-        </span>
-      </label>
+      <ConsentCheckbox
+        className="mt-5"
+        inputRef={consentRef}
+        checked={consent}
+        onChange={(checked) => { setConsent(checked); setMessage(null); }}
+      />
 
       {blocked && (
         <p className="mt-2 text-xs text-[#C2410C] dark:text-[#FDBA74] text-center" style={THAI}>
