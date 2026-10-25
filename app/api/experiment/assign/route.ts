@@ -13,6 +13,9 @@
  *   2. the write is conditional on ranking_variant IS NULL
  *   3. trg_freeze_ranking_variant raises on any attempt to change it
  *
+ * Students without research consent are never assigned: ranking_variant stays
+ * null and they see the baseline ranking.
+ *
  * Pilot users (cohort = 'pilot') are never assigned. Assignment after
  * enrolment is not random assignment (§9.1), and a CHECK constraint refuses
  * the write regardless of what this route does.
@@ -21,6 +24,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { isResearchConsented } from '@/lib/research/consentGate';
 import {
   ASSIGNMENT_ALGORITHM_VERSION,
   computeFairnessEligible,
@@ -77,6 +81,32 @@ export async function POST(request: NextRequest) {
       ranking_variant: null,
       cohort: 'pilot',
       reason: 'pilot_cohort_not_randomized',
+    });
+  }
+
+  // ── No research consent, no randomization ─────────────────────────────────
+  // A student who has not agreed to take part in the study still gets the whole
+  // product — with the baseline ranking — and is simply not in the trial:
+  // ranking_variant stays null. That is an ethical condition, not a preference.
+  //
+  // Read from student_profile, the one table every research export gates on, so
+  // "consented" means the same thing here as it does at export. A read error is
+  // an error, never a quiet "no consent": that would leave a consenting student
+  // out of the trial without anyone knowing.
+  const { data: consentRow, error: consentErr } = await supabase
+    .from('student_profile')
+    .select('consent_research, consent_version')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (consentErr) {
+    console.error('[assign] consent read failed:', consentErr.message);
+    return NextResponse.json({ error: 'consent_read_failed' }, { status: 500 });
+  }
+  if (!consentRow || !isResearchConsented(consentRow)) {
+    return NextResponse.json({
+      ranking_variant: null,
+      reason: 'research_consent_not_given',
     });
   }
 
