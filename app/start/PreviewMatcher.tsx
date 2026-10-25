@@ -21,6 +21,7 @@ import PreviewResults from './PreviewResults';
 import { storeIntakeId, isIntakeId } from '@/lib/intake/pendingIntake';
 import TrustStrip from '@/components/trust/TrustStrip';
 import { START_CONSENT } from '@/lib/research/startConsent';
+import { researchParticipation } from '@/lib/research/startEligibility';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -69,6 +70,8 @@ export default function PreviewMatcher({
   // Never pre-ticked. Declining costs nothing: the same scholarships, the baseline
   // ranking, and no place in the study.
   const [researchConsent, setResearchConsent] = useState(false);
+  // Self-declared, never pre-selected, skippable. null = not answered.
+  const [adult, setAdult] = useState<boolean | null>(null);
 
   // quiz_started fires once per session, on the first field the visitor
   // actually touches — not on render. A view is landing_view; this event is
@@ -151,7 +154,8 @@ export default function PreviewMatcher({
         province:       input.province,
         income_bracket: input.income,
         gave_gpa:       input.gpa !== null,
-        ...(researchConsentOffered ? { research_consent: researchConsent } : {}),
+        // Where the visitor stands in the study. Counts only; nothing about the person is stored.
+        research_participation: researchParticipation({ offered: researchConsentOffered, adult, consented: researchConsent }),
       },
     });
 
@@ -168,12 +172,12 @@ export default function PreviewMatcher({
      * recorded, so a visitor we failed to randomize is countable as that and never
      * mistaken for one who declined.
      */
-    if (researchConsentOffered && researchConsent) {
+    if (researchConsentOffered && adult === true && researchConsent) {
       try {
         const res = await fetch('/api/start/randomize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ answers: input, consent: true }),
+          body:    JSON.stringify({ answers: input, adult: true, consent: true }),
         });
         if (!res.ok) {
           console.error('[TunDee] randomization failed:', res.status);
@@ -282,29 +286,63 @@ export default function PreviewMatcher({
     <form onSubmit={handleSubmit} noValidate className="max-w-[500px] mx-auto text-left">
       <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5">
 
-        {/* Research consent — shown before the questions, only when randomization is on. */}
+        {/* The study, offered only when randomization is on. The age question comes first and
+            decides whether the consent text is shown at all. Nothing here is required to see
+            scholarships, and nothing is pre-selected. */}
         {researchConsentOffered && (
           <div className="mb-5 rounded-xl bg-[#F5F7FA] dark:bg-[#0D1F35] border border-[#E8ECF2] dark:border-[#1A2E4A] p-4">
             <p className="text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
-              {START_CONSENT.heading}
+              {START_CONSENT.ageQuestion}
             </p>
-            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] leading-relaxed" style={th}>
-              {START_CONSENT.body}{' '}
-              <a href={START_CONSENT.detailsHref} target="_blank" rel="noopener noreferrer"
-                 className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{START_CONSENT.detailsLabel}</a>
+            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] mb-3" style={th}>
+              {START_CONSENT.ageHint}
             </p>
-            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] mt-1" style={th}>
-              {START_CONSENT.minorNote}
-            </p>
-            <label className="mt-3 flex items-start gap-3 cursor-pointer" style={th}>
-              <input
-                type="checkbox"
-                checked={researchConsent}
-                onChange={(e) => setResearchConsent(e.target.checked)}
-                className="mt-0.5 w-5 h-5 shrink-0"
-              />
-              <span className="text-sm text-[#0A2342] dark:text-[#E8EDF5]">{START_CONSENT.checkbox}</span>
-            </label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label={START_CONSENT.ageQuestion}>
+              {([['yes', START_CONSENT.ageYes, true], ['no', START_CONSENT.ageNo, false]] as const).map(([key, label, value]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={adult === value}
+                  onClick={() => { setAdult(value); if (!value) setResearchConsent(false); }}
+                  style={th}
+                  className={`min-h-[48px] px-3 rounded-xl border-2 font-semibold text-sm transition-colors ${
+                    adult === value
+                      ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
+                      : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {adult === false && (
+              <p className="mt-3 text-xs text-[#4A5A70] dark:text-[#8e9bb0]" style={th}>
+                {START_CONSENT.minorOutcome}
+              </p>
+            )}
+
+            {adult === true && (
+              <div className="mt-4 pt-4 border-t border-[#E8ECF2] dark:border-[#1A2E4A]">
+                <p className="text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
+                  {START_CONSENT.heading}
+                </p>
+                <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] leading-relaxed" style={th}>
+                  {START_CONSENT.body}{' '}
+                  <a href={START_CONSENT.detailsHref} target="_blank" rel="noopener noreferrer"
+                     className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{START_CONSENT.detailsLabel}</a>
+                </p>
+                <label className="mt-3 flex items-start gap-3 cursor-pointer" style={th}>
+                  <input
+                    type="checkbox"
+                    checked={researchConsent}
+                    onChange={(e) => setResearchConsent(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 shrink-0"
+                  />
+                  <span className="text-sm text-[#0A2342] dark:text-[#E8EDF5]">{START_CONSENT.checkbox}</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
