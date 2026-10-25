@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { persistAdParams, buildSignupHref, trackStartPageView, type AdParams } from '@/lib/adTracking';
-import PreviewMatcher from './PreviewMatcher';
+import StartBrowse from '@/components/start/StartBrowse';
+import type { TdScholarship } from '@/lib/tdScholarships/types';
 import {
   DEFAULT_LANDING_VARIANT,
   landingCopy,
@@ -70,6 +71,8 @@ export default function StartLanding({
   funderCount,
   landingVariant = DEFAULT_LANDING_VARIANT,
   registeredCount,
+  initialCards,
+  listOk,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
@@ -80,6 +83,10 @@ export default function StartLanding({
   landingVariant?: string;
   /** Rounded signup count for the social-proof line; null hides it. */
   registeredCount: number | null;
+  /** Open scholarships by soonest deadline, rendered on the server. Same for every visitor. */
+  initialCards: TdScholarship[];
+  /** False when the server could not load them; the matcher is then offered at once. */
+  listOk: boolean;
 }) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
   const copy    = landingCopy(landingVariant);
@@ -127,8 +134,8 @@ export default function StartLanding({
       </div>
 
       {/* ── A) Hero + matcher ────────────────────────────────────────────────── */}
-      {/* The matcher sits directly under the headline so it stays above the fold
-          on a phone — cold ad traffic sees real matches before any signup ask. */}
+      {/* Real scholarships sit directly under the headline: cold ad traffic sees what
+          TunDee has before it is asked anything. The matcher is an opt-in inside it. */}
       <section ref={heroRef} id={MATCHER_ANCHOR} className="px-5 pt-6 pb-10 text-center scroll-mt-4">
         <p
           className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-xs font-semibold px-3 py-1.5 rounded-full mb-4"
@@ -149,7 +156,9 @@ export default function StartLanding({
           {copy.sub}
         </p>
 
-        <PreviewMatcher
+        <StartBrowse
+          initialCards={initialCards}
+          listOk={listOk}
           signupHref={ctaHref}
           registeredCount={registeredCount}
           scholarshipCount={scholarshipCount}

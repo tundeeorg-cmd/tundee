@@ -194,15 +194,15 @@ describe('logged-out matching', () => {
     expect(result.items).toHaveLength(1);
   });
 
-  it('splits into previewed and locked cards', () => {
+  it('splits into the cards shown and the remainder, which is linked rather than withheld', () => {
     const many = Array.from({ length: 15 }, (_, i) =>
       makeScholarship({ scholarship_id: `SCH-${i}` }),
     );
     const items = match(many).items;
     const preview = items.slice(0, PREVIEW_TOP_N);
 
-    expect(preview).toHaveLength(3);
-    expect(items.length - preview.length).toBe(12);
+    expect(preview).toHaveLength(PREVIEW_TOP_N);
+    expect(items.length - preview.length).toBe(15 - PREVIEW_TOP_N);
   });
 
   it('finds broader options when relaxing GPA, for the empty state', () => {

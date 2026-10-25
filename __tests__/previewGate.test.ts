@@ -52,20 +52,27 @@ describe('roundForDisplay — the social-proof count', () => {
   });
 });
 
-describe('gate arithmetic', () => {
-  // lockedCount is computed server-side as total - preview.length; these assertions
-  // describe what the copy then claims, which is what a visitor actually reads.
-  const locked = (total: number) => Math.max(0, total - Math.min(total, PREVIEW_TOP_N));
+describe('nothing is gated', () => {
+  // lockedCount is computed server-side as total - preview.length. It is the count of
+  // eligible scholarships beyond the cards shown, which the page LINKS to (no blur,
+  // no account needed). It keeps its name so the response shape does not change.
+  const more = (total: number) => Math.max(0, total - Math.min(total, PREVIEW_TOP_N));
 
-  it('shows three free cards and locks the remainder', () => {
-    expect(PREVIEW_TOP_N).toBe(3);
-    expect(locked(12)).toBe(9);
-    expect(locked(4)).toBe(1);
+  it('shows up to ten full cards', () => {
+    expect(PREVIEW_TOP_N).toBe(10);
+    expect(more(25)).toBe(15);
+    expect(more(11)).toBe(1);
   });
 
-  it('locks nothing when the visitor has three matches or fewer', () => {
-    // This is the case that used to drop the signup ask entirely: with no locked cards
-    // the whole gate block was hidden and those visitors were never asked to sign up.
-    for (const total of [0, 1, 2, 3]) expect(locked(total)).toBe(0);
+  it('has nothing beyond the cards when there are ten matches or fewer', () => {
+    for (const total of [0, 1, 3, 10]) expect(more(total)).toBe(0);
+  });
+
+  it('the results block no longer blurs or covers anything', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('app/start/PreviewResults.tsx', 'utf8');
+    expect(src).not.toMatch(/blur\(/);
+    expect(src).not.toContain('LockedCard');
+    expect(src).toContain('/scholarships?from=preview');
   });
 });

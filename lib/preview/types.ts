@@ -27,8 +27,12 @@ export const PREVIEW_COOKIE_MAX_AGE = 60 * 60 * 24;
  */
 export const PREVIEW_PARAM = 'p';
 
-/** How many full, unlocked cards a logged-out visitor sees. */
-export const PREVIEW_TOP_N = 3;
+/**
+ * How many full cards the matcher shows. Nothing is gated any more: the rest of the
+ * eligible list is linked, not blurred. (`lockedCount` in the response is the
+ * historical field name for "how many more" and is kept so the shape does not change.)
+ */
+export const PREVIEW_TOP_N = 10;
 
 /** Upper bound on matches computed per preview request. */
 export const PREVIEW_LIMIT = 50;
