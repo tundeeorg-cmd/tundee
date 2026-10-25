@@ -114,9 +114,14 @@ function readCookie(name: string): string | null {
  * reads as "you did something wrong" when the correct message is "check your
  * email, we have handled it".
  */
-function authMessage(code: string, lang: string): { text: string; tone: 'error' | 'info' } {
+type AuthBanner = { text: string; tone: 'error' | 'info'; retryLine?: boolean };
+
+function authMessage(code: string, lang: string): AuthBanner {
   const th = lang === 'th';
   const error = (text: string) => ({ text, tone: 'error' as const });
+  // A LINE failure always offers the retry button: the old copy sent people to
+  // email and left no way to try LINE again without finding the button.
+  const lineError = (text: string) => ({ text, tone: 'error' as const, retryLine: true });
   const info  = (text: string) => ({ text, tone: 'info'  as const });
 
   switch (code) {
@@ -161,7 +166,7 @@ function authMessage(code: string, lang: string): { text: string; tone: 'error' 
         : 'Account created. Please check your email to confirm before signing in.');
 
     case 'line_cancelled':
-      return error(th ? 'ยกเลิกการเข้าสู่ระบบด้วย LINE' : 'LINE sign-in was cancelled.');
+      return lineError(th ? 'ยกเลิกการเข้าสู่ระบบด้วย LINE' : 'LINE sign-in was cancelled.');
 
     case 'line_not_configured':
       return error(th
@@ -179,15 +184,20 @@ function authMessage(code: string, lang: string): { text: string; tone: 'error' 
     case 'line_nonce_mismatch':
     case 'line_no_sub':
     case 'line_token_exchange':
-      return error(th
-        ? 'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ ลองสมัครด้วยอีเมลและรหัสผ่านได้เลย'
-        : 'LINE sign-in failed. You can sign up with email and password instead.');
+      return lineError(th
+        ? 'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กดลองอีกครั้ง หรือสมัครด้วยอีเมลแทนก็ได้'
+        : 'LINE sign-in failed. Try again, or use email instead.');
 
+    // Our side failed after LINE said yes: the account, its confirmation, its
+    // profile row or the session handoff. Named separately from the codes above
+    // so the log and the funnel can tell "LINE refused" from "we dropped it".
     case 'line_user_provisioning':
+    case 'line_confirm_failed':
+    case 'line_profile_failed':
     case 'line_session_failed':
-      return error(th
-        ? 'สร้างบัญชีจาก LINE ไม่สำเร็จ กรุณาลองใหม่ หรือใช้อีเมลและรหัสผ่านแทน'
-        : "Couldn't finish LINE sign-in. Please try again, or use email and password.");
+      return lineError(th
+        ? 'สร้างบัญชีจาก LINE ไม่สำเร็จ กดลองอีกครั้ง หรือใช้อีเมลแทนก็ได้'
+        : "Couldn't finish LINE sign-in. Try again, or use email instead.");
 
     case 'link_invalid':
       return error(th
@@ -239,7 +249,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   const [verifying,   setVerifying]   = useState(false);
   const [lineLoading, setLineLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [message,     setMessage]     = useState<{ text: string; tone: 'error' | 'info' } | null>(null);
+  const [message,     setMessage]     = useState<AuthBanner | null>(null);
   const [consent,     setConsent]     = useState(false);
   const [iosHelp,     setIosHelp]     = useState(false);
   const [copied,      setCopied]      = useState(false);
@@ -599,6 +609,17 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       style={{ ...THAI, lineHeight: 1.8 }}
     >
       {message.text}
+      {message.retryLine && (
+        <button
+          type="button"
+          onClick={() => signInWithLine()}
+          disabled={busy}
+          className="mt-3 w-full rounded-lg bg-[#06C755] hover:bg-[#05B34C] disabled:bg-[#06C755]/40 text-white font-bold min-h-[44px]"
+          style={THAI}
+        >
+          {th ? 'ลองอีกครั้ง' : 'Try again'}
+        </button>
+      )}
     </div>
   );
 

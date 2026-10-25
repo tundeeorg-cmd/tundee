@@ -62,7 +62,7 @@ interface LineIdentity {
 async function resolveUser(
   admin: SupabaseClient,
   identity: LineIdentity,
-): Promise<{ id: string; email: string } | null> {
+): Promise<{ id: string; email: string; confirmed: boolean } | null> {
   // 1. Already linked? profiles.line_user_id is written on every LINE login and
   //    by the existing bot-linking flow, so returning users resolve in one hop.
   const { data: linked } = await admin
@@ -74,18 +74,22 @@ async function resolveUser(
   if (linked?.id) {
     const { data, error } = await admin.auth.admin.getUserById(linked.id);
     if (!error && data.user) {
-      return { id: data.user.id, email: data.user.email ?? syntheticEmail(identity.sub) };
+      return {
+        id: data.user.id,
+        email: data.user.email ?? syntheticEmail(identity.sub),
+        confirmed: !!data.user.email_confirmed_at,
+      };
     }
     // Auth user was deleted but the profile row lingered — fall through and
     // create a fresh account rather than failing the login.
-    console.warn('[auth/line/callback] profile referenced a missing auth user:', linked.id);
+    console.warn('[auth/line] profile referenced a missing auth user:', linked.id);
   }
 
   // 2. Same email as an existing account (only possible once LINE grants email)
   const email = identity.email?.toLowerCase() ?? syntheticEmail(identity.sub);
   if (identity.email) {
     const existing = await findUserByEmail(admin, email);
-    if (existing) return { id: existing.id, email };
+    if (existing) return { id: existing.id, email, confirmed: !!existing.email_confirmed_at };
   }
 
   // 3. New account
@@ -103,18 +107,22 @@ async function resolveUser(
   if (error || !data.user) {
     // Race: another request created it between the lookup and this call.
     const existing = await findUserByEmail(admin, email);
-    if (existing) return { id: existing.id, email };
-    console.error('[auth/line/callback] createUser failed:', error?.message);
+    if (existing) return { id: existing.id, email, confirmed: !!existing.email_confirmed_at };
+    console.error('[auth/line] createUser failed:', error?.message);
     return null;
   }
 
-  return { id: data.user.id, email };
+  return { id: data.user.id, email, confirmed: !!data.user.email_confirmed_at };
 }
 
 export async function GET(request: NextRequest) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
-  const fail = (reason: string) =>
-    NextResponse.redirect(`${siteUrl}/auth?error=${encodeURIComponent(reason)}`);
+  // Every failure is logged here, once, with its reason — a redirect to /auth
+  // alone is invisible in Vercel Logs and is how this broke for three weeks.
+  const fail = (reason: string, detail?: Record<string, unknown>) => {
+    console.error('[auth/line] FAIL', reason, detail ?? {});
+    return NextResponse.redirect(`${siteUrl}/auth?error=${encodeURIComponent(reason)}`);
+  };
 
   const { searchParams } = new URL(request.url);
   const code  = searchParams.get('code');
@@ -144,7 +152,7 @@ export async function GET(request: NextRequest) {
 
   if (err) {
     // Includes the ordinary "user tapped cancel" case
-    console.error('[auth/line/callback] LINE returned an error:', err, searchParams.get('error_description'));
+    console.error('[auth/line] LINE returned an error:', err, searchParams.get('error_description'));
     return fail('line_cancelled');
   }
 
@@ -172,7 +180,7 @@ export async function GET(request: NextRequest) {
       if (savedPreview) again.searchParams.set(PREVIEW_PARAM, savedPreview);
       if (savedIntake) again.searchParams.set(INTAKE_PARAM, savedIntake);
       if (savedUtm) again.searchParams.set('utm_campaign', savedUtm);
-      console.warn('[auth/line/callback] state mismatch — retrying with disable_auto_login');
+      console.warn('[auth/line] state mismatch — retrying with disable_auto_login');
       return NextResponse.redirect(again.toString());
     }
     return fail('line_state_mismatch');
@@ -190,7 +198,7 @@ export async function GET(request: NextRequest) {
     channelId     = getLineLoginChannelId();
     channelSecret = getLineLoginChannelSecret();
   } catch (e) {
-    console.error('[auth/line/callback] LINE env misconfigured:', e);
+    console.error('[auth/line] LINE env misconfigured:', e);
     return fail('line_not_configured');
   }
 
@@ -199,7 +207,7 @@ export async function GET(request: NextRequest) {
 
   if (!supabaseUrl || !serviceKey) {
     console.error(
-      '[auth/line/callback] Supabase env missing:',
+      '[auth/line] Supabase env missing:',
       !supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL' : '',
       !serviceKey  ? 'SUPABASE_SERVICE_ROLE_KEY' : '',
     );
@@ -210,7 +218,7 @@ export async function GET(request: NextRequest) {
   try {
     redirectUri = getLineAuthRedirectUri();
   } catch (e) {
-    console.error('[auth/line/callback] redirect_uri misconfigured:', e);
+    console.error('[auth/line] redirect_uri misconfigured:', e);
     return fail('line_not_configured');
   }
 
@@ -232,7 +240,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!tokenRes.ok) {
-    console.error('[auth/line/callback] token exchange failed:', await tokenRes.text());
+    console.error('[auth/line] token exchange failed:', await tokenRes.text());
     return fail('line_token_exchange');
   }
 
@@ -254,7 +262,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!verifyRes.ok) {
-    console.error('[auth/line/callback] id_token verify failed:', await verifyRes.text());
+    console.error('[auth/line] id_token verify failed:', await verifyRes.text());
     return fail('line_verify_failed');
   }
 
@@ -265,7 +273,7 @@ export async function GET(request: NextRequest) {
   // echoed value that disagrees with ours means something is wrong that we
   // should not sign a session over.
   if (savedNonce && payload.nonce && payload.nonce !== savedNonce) {
-    console.error('[auth/line/callback] nonce mismatch');
+    console.error('[auth/line] nonce mismatch');
     return fail('line_nonce_mismatch');
   }
 
@@ -282,10 +290,24 @@ export async function GET(request: NextRequest) {
   });
 
   const user = await resolveUser(admin, identity);
-  if (!user) return fail('line_user_provisioning');
+  if (!user) return fail('line_user_provisioning', { stage: 'resolveUser' });
 
-  // Remember the link so the next login resolves in one query, and so the
-  // existing LINE reminder/bot pipeline can reach this student.
+  // A confirmed address is what lets the magic-link handoff below mint a session
+  // at all. createUser sets it for new accounts; this catches an account that
+  // already existed unconfirmed (an earlier half-finished sign-up) rather than
+  // letting verifyOtp refuse it later with an error the student cannot act on.
+  if (!user.confirmed) {
+    const { error: confirmError } = await admin.auth.admin.updateUserById(user.id, { email_confirm: true });
+    if (confirmError) {
+      return fail('line_confirm_failed', { userId: user.id, message: confirmError.message });
+    }
+    console.warn('[auth/line] confirmed a previously unconfirmed account', { userId: user.id });
+  }
+
+  // The profile row and the LINE link, written before the session exists so a
+  // student can never be signed in without one. A failure here used to be
+  // swallowed with a log line, which is exactly how accounts became orphans.
+  // A unique violation means another account already holds this LINE id.
   const { error: linkError } = await admin
     .from('profiles')
     .upsert(
@@ -293,8 +315,11 @@ export async function GET(request: NextRequest) {
       { onConflict: 'id' },
     );
   if (linkError) {
-    // Non-fatal: the user still gets a session, they just resolve by email next time.
-    console.error('[auth/line/callback] profile link failed:', linkError.message);
+    return fail('line_profile_failed', {
+      userId: user.id,
+      code: linkError.code,
+      message: linkError.message,
+    });
   }
 
   // ── Mint a one-time token and hand off to the shared auth callback ────────
@@ -304,8 +329,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (linkErr || !link.properties?.hashed_token) {
-    console.error('[auth/line/callback] generateLink failed:', linkErr?.message);
-    return fail('line_session_failed');
+    return fail('line_session_failed', { userId: user.id, message: linkErr?.message ?? 'no hashed_token' });
   }
 
   const handoff = new URL(`${siteUrl}/auth/callback`);
@@ -325,5 +349,6 @@ export async function GET(request: NextRequest) {
   if (savedUtm) handoff.searchParams.set('utm_campaign', savedUtm);
   handoff.searchParams.set(CONSENT_PARAM, CONSENT_VERSION);
 
+  console.info('[auth/line] OK handoff to /auth/callback', { userId: user.id, hasRealEmail: !!identity.email });
   return NextResponse.redirect(handoff.toString());
 }
