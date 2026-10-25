@@ -20,6 +20,7 @@
 import {
   GRADE_LEVEL_VALUES, canonicalizeGradeLevel, coherentGradeYear,
 } from '@/lib/profile/gradeLevels';
+import { PRIOR_KNOWLEDGE_QUESTION_VERSION } from '@/lib/research/questionVersions';
 import { PROVINCES_TH } from '@/lib/translations';
 
 /** profiles.income_bracket CHECK: BETWEEN 1 AND 7. */
@@ -64,6 +65,17 @@ export interface SetupAnswers {
   welfareCard: boolean;
   fields: string[];
   priorKnowledge: number | null;
+  /**
+   * "ไม่แน่ใจ" — recorded separately from 0 ("none"). Mutually exclusive with a
+   * numeric priorKnowledge; both unset means the question was skipped.
+   */
+  priorKnowledgeUnsure?: boolean;
+  /**
+   * True when the student had already seen a ranked scholarship list (the /start
+   * results) before answering the prior-knowledge question. False means no such
+   * exposure was OBSERVED — browsing the public list is not observed.
+   */
+  askedAfterSeeingResults?: boolean;
   heardAboutUs: string;
   consentTerms: boolean;
   researchOptIn: boolean;
@@ -237,6 +249,27 @@ export function determineSignupCohort(provinceId: string): typeof SIGNUP_COHORT_
  * arriving from the /start preview. Sending an empty wizard field as null would
  * wipe exactly the answers that made onboarding skippable.
  */
+/**
+ * prior_scholarship_knowledge and the columns that qualify it, written together.
+ *
+ * "Unsure" is not a number: it clears the numeric column explicitly (null, not
+ * undefined — undefined would leave a previous answer behind) and sets its own
+ * flag, so 0 stays "knew none" and never doubles as "do not know". Whenever the
+ * question is answered, the wording version and the exposure flag go with it.
+ * Skipped writes nothing, so a partial save never clears an earlier answer.
+ */
+function priorKnowledgeColumns(answers: Partial<SetupAnswers>): Record<string, unknown> {
+  const unsure  = answers.priorKnowledgeUnsure === true;
+  const numeric = typeof answers.priorKnowledge === 'number' ? answers.priorKnowledge : null;
+  if (!unsure && numeric === null) return {};
+  return {
+    prior_scholarship_knowledge:      unsure ? null : numeric,
+    prior_knowledge_unsure:           unsure,
+    prior_knowledge_question_version: PRIOR_KNOWLEDGE_QUESTION_VERSION,
+    asked_after_seeing_results:       answers.askedAfterSeeingResults ?? false,
+  };
+}
+
 function compact<T extends Record<string, unknown>>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
@@ -288,7 +321,7 @@ export function buildProfilePayload(
     income_bracket:              answers.incomeBracket,
     welfare_card:                answers.welfareCard,
     fields_of_interest:          answers.fields && answers.fields.length > 0 ? answers.fields : undefined,
-    prior_scholarship_knowledge: answers.priorKnowledge ?? undefined,
+    ...priorKnowledgeColumns(answers),
     // v16 renamed this. The pre-registered recruitment_source (§5.4) is a
     // different variable, derived from utm_campaign server-side; writing a
     // self-report slug there violates its CHECK, by design.
