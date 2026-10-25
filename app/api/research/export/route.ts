@@ -16,8 +16,20 @@
  *   - Every excluded row is COUNTED by reason in the X-Excluded-* response headers,
  *     so an export that quietly shrinks is visible.
  *
- * KNOWN: experiment_variant below comes from the legacy experiment_assignment table,
- * which is pilot-era and NOT the randomization; profiles.ranking_variant is.
+ * THE ARM. Each row carries the arm the student was in AT THE TIME of the event, from
+ * profiles.ranking_variant (the randomization, PREREG §5.6) — never from the legacy
+ * experiment_assignment table, which is pilot-era, was driven by a different hash and
+ * agreed with the real assignment only at chance. The rule is the one apply_click uses
+ * (lib/research/outcomeBinding.ts): an event at or after ranking_assigned_at by a
+ * randomized main-cohort student carries the arm; every other event — before the
+ * assignment, never randomized, pilot — has ranking_variant null and
+ * excluded_from_primary true. Nothing is dropped.
+ *
+ * This is an extract an administrator downloads on purpose. It computes and shows no
+ * rate, but it makes arm-level analysis possible, so PREREG §8 applies to whoever
+ * opens it: no outcome analysis by arm before the registered stopping point. Each
+ * request that is served is logged ([research/export]) so the extract is a decision on
+ * the record, not a habit.
  *
  * Requires: ADMIN_EMAILS env var (comma-separated) to gate access.
  */
@@ -29,6 +41,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient }               from '@supabase/supabase-js';
 import crypto                         from 'crypto';
 import { CURRENT_CONSENT_VERSION, exportExclusion, type ExportExclusion } from '@/lib/research/consentGate';
+import { bindOutcome, type ProfileFacts } from '@/lib/research/outcomeBinding';
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',').map(e => e.trim()).filter(Boolean);
 
@@ -68,9 +81,6 @@ export async function GET(request: NextRequest) {
         region, area_type, household_income_band, welfare_card,
         school_type, first_generation, birth_year, gpa,
         intended_level, intended_field, consent_research, consent_version, guardian_consent
-      ),
-      experiment_assignment!user_id (
-        experiment_key, variant
       )
     `)
     .not('user_id', 'is', null)
@@ -88,16 +98,44 @@ export async function GET(request: NextRequest) {
   const excluded: Record<ExportExclusion, number> = {
     no_student_profile: 0, no_research_consent: 0, stale_consent_version: 0, minor_without_guardian: 0,
   };
-  const lines = (data ?? [])
-    .filter((row: Row) => {
-      const why = exportExclusion(row.student_profile as unknown as Sp);
-      if (why) { excluded[why]++; return false; }
-      return true;
-    })
+  const exportable = (data ?? []).filter((row: Row) => {
+    const why = exportExclusion(row.student_profile as unknown as Sp);
+    if (why) { excluded[why]++; return false; }
+    return true;
+  });
+
+  // The arm lives on profiles. Read only for the students that are actually exported;
+  // a failure is an error, never an export with the arm column quietly empty.
+  const ids = Array.from(new Set(exportable.map((r: Row) => r.user_id as string)));
+  const profiles = new Map<string, ProfileFacts & {
+    assignment_algorithm_version: string | null; fairness_eligible: boolean | null;
+    region_group: string | null; income_bracket: number | null;
+  }>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: rows, error: pErr } = await db
+      .from('profiles')
+      .select('id, cohort, ranking_variant, ranking_assigned_at, assignment_algorithm_version, fairness_eligible, region_group, income_bracket')
+      .in('id', ids.slice(i, i + 200));
+    if (pErr) {
+      console.error('[research/export] profiles read failed:', pErr.message);
+      return NextResponse.json({ error: 'profiles_read_failed' }, { status: 500 });
+    }
+    for (const p of (rows ?? []) as unknown as Array<{ id: string } & ProfileFacts & {
+      assignment_algorithm_version: string | null; fairness_eligible: boolean | null;
+      region_group: string | null; income_bracket: number | null;
+    }>) profiles.set(p.id, p);
+  }
+
+  const lines = exportable
     .map((row: Row) => {
       const sp = row.student_profile as unknown as Record<string, unknown> | null;
-      const ea = row.experiment_assignment as { experiment_key?: string; variant?: string }[] | null;
-      const rankingVariant = (ea ?? []).find(a => a.experiment_key === 'ranking')?.variant ?? null;
+      const profile = profiles.get(row.user_id as string) ?? null;
+      const arm = bindOutcome({
+        userId: row.user_id as string,
+        clickedAt: new Date(row.occurred_at as string),
+        profile,
+        impression: null,
+      });
 
       return JSON.stringify({
         pseudo_user_id:        pseudonymise(row.user_id as string),
@@ -117,9 +155,22 @@ export async function GET(request: NextRequest) {
         gpa:                   sp?.gpa ?? null,
         intended_level:        sp?.intended_level ?? null,
         intended_field:        sp?.intended_field ?? null,
-        experiment_variant:    rankingVariant,
+        // The arm AT THE TIME OF THE EVENT (see the header comment), and what it rests on.
+        ranking_variant:       arm.ranking_variant,
+        ranking_assigned_at:   arm.ranking_assigned_at,
+        excluded_from_primary: arm.excluded_from_primary,
+        cohort:                profile?.cohort ?? null,
+        assignment_algorithm_version: profile?.assignment_algorithm_version ?? null,
+        fairness_eligible:     profile?.fairness_eligible ?? null,
+        region_group:          profile?.region_group ?? null,
+        income_bracket:        profile?.income_bracket ?? null,
       });
     });
+
+  console.info('[research/export] served', {
+    by: user.email, rows: lines.length, since: since ?? null,
+    excluded: excluded,
+  });
 
   // Stream as NDJSON (easy to parse with pandas: pd.read_json(..., lines=True))
   return new NextResponse(lines.join('\n') + '\n', {
@@ -129,6 +180,7 @@ export async function GET(request: NextRequest) {
       'X-Record-Count':      String(lines.length),
       'X-Export-Basis':      'PDPA-2562-consent',
       'X-Consent-Version':   CURRENT_CONSENT_VERSION,
+      'X-Arm-Source':        'profiles.ranking_variant as of the event; null before assignment',
       'X-Excluded-No-Student-Profile':   String(excluded.no_student_profile),
       'X-Excluded-No-Consent':           String(excluded.no_research_consent),
       'X-Excluded-Stale-Consent':        String(excluded.stale_consent_version),
