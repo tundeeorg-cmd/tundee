@@ -3,10 +3,21 @@
  * Admin-only NDJSON export of pseudonymised funnel_events + student_profile data.
  *
  * PDPA compliance:
- *   - Only includes users where consent_research = TRUE
+ *   - Only students whose consent is to the CURRENT wording (CURRENT_CONSENT_VERSION),
+ *     and, for a minor whose birth_year is known, whose guardian also consented —
+ *     exportExclusion() in lib/research/consentGate.ts, the one test shared by every
+ *     gate. `consent_research = TRUE` alone is not enough: that let through students
+ *     who agreed to superseded wording.
  *   - user_id replaced by stable SHA-256 hash (pseudonymous_id)
  *   - No PII: no name, email, phone, LINE id
- *   - Uses v_research_export view defined in add_research_v2.sql
+ *   - Reads funnel_events and student_profile directly; it does NOT use the SQL
+ *     views (v_research_export and friends), which still gate on consent_research
+ *     alone — see the note in research/PROPOSAL-2026-10-minors-and-consent.md.
+ *   - Every excluded row is COUNTED by reason in the X-Excluded-* response headers,
+ *     so an export that quietly shrinks is visible.
+ *
+ * KNOWN: experiment_variant below comes from the legacy experiment_assignment table,
+ * which is pilot-era and NOT the randomization; profiles.ranking_variant is.
  *
  * Requires: ADMIN_EMAILS env var (comma-separated) to gate access.
  */
@@ -17,6 +28,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient }               from '@supabase/supabase-js';
 import crypto                         from 'crypto';
+import { CURRENT_CONSENT_VERSION, exportExclusion, type ExportExclusion } from '@/lib/research/consentGate';
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',').map(e => e.trim()).filter(Boolean);
 
@@ -55,7 +67,7 @@ export async function GET(request: NextRequest) {
       student_profile!user_id (
         region, area_type, household_income_band, welfare_card,
         school_type, first_generation, birth_year, gpa,
-        intended_level, intended_field, consent_research
+        intended_level, intended_field, consent_research, consent_version, guardian_consent
       ),
       experiment_assignment!user_id (
         experiment_key, variant
@@ -70,12 +82,17 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Filter to consented users and pseudonymise
+  // Filter to students whose consent covers this export, and pseudonymise.
   type Row = typeof data extends (infer R)[] | null ? R : never;
+  type Sp = Parameters<typeof exportExclusion>[0];
+  const excluded: Record<ExportExclusion, number> = {
+    no_student_profile: 0, no_research_consent: 0, stale_consent_version: 0, minor_without_guardian: 0,
+  };
   const lines = (data ?? [])
     .filter((row: Row) => {
-      const sp = row.student_profile as { consent_research?: boolean } | null;
-      return sp?.consent_research === true;
+      const why = exportExclusion(row.student_profile as unknown as Sp);
+      if (why) { excluded[why]++; return false; }
+      return true;
     })
     .map((row: Row) => {
       const sp = row.student_profile as unknown as Record<string, unknown> | null;
@@ -111,6 +128,11 @@ export async function GET(request: NextRequest) {
       'Content-Disposition': `attachment; filename="tundee_research_${new Date().toISOString().slice(0,10)}.ndjson"`,
       'X-Record-Count':      String(lines.length),
       'X-Export-Basis':      'PDPA-2562-consent',
+      'X-Consent-Version':   CURRENT_CONSENT_VERSION,
+      'X-Excluded-No-Student-Profile':   String(excluded.no_student_profile),
+      'X-Excluded-No-Consent':           String(excluded.no_research_consent),
+      'X-Excluded-Stale-Consent':        String(excluded.stale_consent_version),
+      'X-Excluded-Minor-No-Guardian':    String(excluded.minor_without_guardian),
     },
   });
 }
