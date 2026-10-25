@@ -20,6 +20,7 @@ import { logFunnelEvent } from '@/lib/research/funnel';
 import PreviewResults from './PreviewResults';
 import { storeIntakeId, isIntakeId } from '@/lib/intake/pendingIntake';
 import TrustStrip from '@/components/trust/TrustStrip';
+import { START_CONSENT } from '@/lib/research/startConsent';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -48,7 +49,10 @@ export default function PreviewMatcher({
   registeredCount,
   scholarshipCount,
   funderCount,
+  researchConsentOffered = false,
 }: {
+  /** True only when ANON_RANDOMIZATION is on; otherwise no consent block and no extra request. */
+  researchConsentOffered?: boolean;
   signupHref: string;
   /** Resolved on the server — see lib/social/userCount.ts. Null hides the line. */
   registeredCount: number | null;
@@ -62,6 +66,9 @@ export default function PreviewMatcher({
   // Optional. Left blank, GPA-gated scholarships are excluded from the results
   // rather than assumed away, so the count stays honest.
   const [gpa,      setGpa]      = useState('');
+  // Never pre-ticked. Declining costs nothing: the same scholarships, the baseline
+  // ranking, and no place in the study.
+  const [researchConsent, setResearchConsent] = useState(false);
 
   // quiz_started fires once per session, on the first field the visitor
   // actually touches — not on render. A view is landing_view; this event is
@@ -144,6 +151,7 @@ export default function PreviewMatcher({
         province:       input.province,
         income_bracket: input.income,
         gave_gpa:       input.gpa !== null,
+        ...(researchConsentOffered ? { research_consent: researchConsent } : {}),
       },
     });
 
@@ -151,6 +159,30 @@ export default function PreviewMatcher({
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(input));
     } catch {
       // non-fatal — the server cookie is the source of truth through signup
+    }
+
+    /**
+     * Randomize BEFORE the ranking is requested, so the list this visitor is shown
+     * is the one their arm calls for. Only with consent, only when the switch is on.
+     * A failure never blocks the visitor — they see the baseline list — but it is
+     * recorded, so a visitor we failed to randomize is countable as that and never
+     * mistaken for one who declined.
+     */
+    if (researchConsentOffered && researchConsent) {
+      try {
+        const res = await fetch('/api/start/randomize', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ answers: input, consent: true }),
+        });
+        if (!res.ok) {
+          console.error('[TunDee] randomization failed:', res.status);
+          logFunnelEvent({ eventType: 'signup_failed', context: { reason: `anon_randomize_failed:${res.status}` } });
+        }
+      } catch (err) {
+        console.error('[TunDee] randomization request failed:', err);
+        logFunnelEvent({ eventType: 'signup_failed', context: { reason: 'anon_randomize_failed:network' } });
+      }
     }
 
     /**
@@ -249,6 +281,32 @@ export default function PreviewMatcher({
   return (
     <form onSubmit={handleSubmit} noValidate className="max-w-[500px] mx-auto text-left">
       <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5">
+
+        {/* Research consent — shown before the questions, only when randomization is on. */}
+        {researchConsentOffered && (
+          <div className="mb-5 rounded-xl bg-[#F5F7FA] dark:bg-[#0D1F35] border border-[#E8ECF2] dark:border-[#1A2E4A] p-4">
+            <p className="text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
+              {START_CONSENT.heading}
+            </p>
+            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] leading-relaxed" style={th}>
+              {START_CONSENT.body}{' '}
+              <a href={START_CONSENT.detailsHref} target="_blank" rel="noopener noreferrer"
+                 className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{START_CONSENT.detailsLabel}</a>
+            </p>
+            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] mt-1" style={th}>
+              {START_CONSENT.minorNote}
+            </p>
+            <label className="mt-3 flex items-start gap-3 cursor-pointer" style={th}>
+              <input
+                type="checkbox"
+                checked={researchConsent}
+                onChange={(e) => setResearchConsent(e.target.checked)}
+                className="mt-0.5 w-5 h-5 shrink-0"
+              />
+              <span className="text-sm text-[#0A2342] dark:text-[#E8EDF5]">{START_CONSENT.checkbox}</span>
+            </label>
+          </div>
+        )}
 
         {/* ระดับชั้น */}
         <label className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2.5" style={th}>

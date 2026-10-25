@@ -22,6 +22,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { parsePreviewInput } from '@/lib/preview/types';
+import { anonRandomizationEnabled } from '@/lib/research/anonAssignment';
+import { anonIdFromRequest } from '@/lib/research/anonRequest';
 
 export async function POST(request: NextRequest) {
   let body: unknown;
@@ -65,7 +67,11 @@ export async function POST(request: NextRequest) {
 
   const { error } = await supabase
     .from('pending_intake')
-    .insert({ id, answers });
+    // With the switch on, the visitor's anonymous id travels with their parked answers,
+    // so signing up in a DIFFERENT browser (the Facebook webview -> Chrome case) can
+    // still find the arm they were given. The intake id is the one thing that already
+    // rides every sign-in link. Off by default: the row is exactly what it always was.
+    .insert({ id, answers: withAnonId(answers, request) });
 
   if (error) {
     // Never fatal for the visitor: /start still works, the cookie still carries
@@ -77,4 +83,11 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, id });
+}
+
+/** answers plus the visitor's anon_id, when randomization is on and they have one. */
+function withAnonId(answers: object, request: NextRequest): object {
+  if (!anonRandomizationEnabled()) return answers;
+  const anonId = anonIdFromRequest(request);
+  return anonId ? { ...answers, anon_id: anonId } : answers;
 }
