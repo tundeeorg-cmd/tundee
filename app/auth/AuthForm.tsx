@@ -47,6 +47,7 @@ import {
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
+import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext } from '@/lib/auth/inAppLogin';
 import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
 import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
@@ -133,8 +134,8 @@ function authMessage(code: string, lang: string): AuthBanner {
     // hydrated button hands off to Chrome, which can.
     case 'line_open_in_chrome':
       return info(th
-        ? 'LINE เปิดแอปจากเบราว์เซอร์นี้ไม่ได้ แตะปุ่ม LINE อีกครั้ง ระบบจะเปิดใน Chrome ให้ หรือใช้อีเมลด้านล่างก็ได้'
-        : "LINE can't open its app from this browser. Tap the LINE button again and it will open in Chrome — or use email below.");
+        ? 'LINE เปิดแอปจากเบราว์เซอร์นี้ไม่ได้ ใช้อีเมลรับรหัส 6 หลักได้เลยในหน้านี้ หรือกด "เปิดใน Chrome เพื่อเข้าสู่ระบบด้วย LINE"'
+        : "LINE can't open its app from this browser. Use the six-digit email code right here, or tap \"Open in Chrome to sign in with LINE\".");
 
     // A LINE student tapped the link that adds an email to their account
     // (app/api/auth/verify-email, claim). Information, not failure: they can
@@ -419,6 +420,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     const info = detectInAppBrowser();
     setIab(info);
     logFunnelEvent({ eventType: 'signup_started', context: inAppContext(info) });
+    logFunnelEvent({ eventType: 'login_method_shown', context: loginEventContext(info, 'auth') });
     trackAuthPageView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -466,6 +468,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           eventType: 'signup_failed',
           context: { reason: `otp_send:${kind}`, method: 'email_otp', ...inAppContext(iab) },
         });
+        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'auth', { step: 'send', reason: kind }) });
         return;
       }
 
@@ -473,6 +476,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       setCooldown(OTP_RESEND_COOLDOWN_SECONDS);
       setStage('code');
       setCode('');
+      logFunnelEvent({ eventType: 'otp_sent', context: loginEventContext(iab, 'auth', { resend: isResend }) });
       if (isResend) {
         setMessage({
           tone: 'info',
@@ -487,6 +491,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         eventType: 'signup_failed',
         context: { reason: 'otp_send:network', method: 'email_otp', ...inAppContext(iab) },
       });
+      logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'auth', { step: 'send', reason: 'network' }) });
     } finally {
       setSending(false);
     }
@@ -523,6 +528,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           eventType: 'signup_failed',
           context: { reason: `otp_verify:${kind}`, method: 'email_otp', ...inAppContext(iab) },
         });
+        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'auth', { step: 'verify', reason: kind }) });
         return;
       }
 
@@ -530,6 +536,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         eventType: 'signup_completed',
         context: { method: 'email_otp', ...inAppContext(iab) },
       });
+      logFunnelEvent({ eventType: 'otp_verified', context: loginEventContext(iab, 'auth') });
       clearStoredIntakeId();
 
       // A full navigation, not router.push: the session cookies were just
@@ -573,6 +580,14 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     recordConsent();
 
     const launch = lineLaunch(startUrl(), iab);
+    // Measured so the in-app fix can be judged: every LINE tap made inside a webview, and
+    // the ones that actually try the Chrome hand-off (Android only; a tap, never a load).
+    if (iab.isInApp) {
+      logFunnelEvent({ eventType: 'line_login_clicked_in_app', context: loginEventContext(iab, 'auth') });
+      if (launch.kind === 'navigate' && !/^https?:/i.test(launch.url)) {
+        logFunnelEvent({ eventType: 'open_in_chrome_clicked', context: loginEventContext(iab, 'auth') });
+      }
+    }
     if (launch.kind === 'ios_webview_help') { setIosHelp(true); return; }
     setLineLoading(true);
     // A Chrome hand-off that goes nowhere must not leave the spinner turning:
@@ -755,9 +770,111 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Stage 1 — the choice. Order is fixed: heading, LINE, divider, email,
-  // consent. Google sits below all of it, never between.
+  // Stage 1 — the choice. Heading, then LINE and email — LINE first, except inside an
+  // in-app browser, where email is first — then consent. Google sits below all of it.
   // ══════════════════════════════════════════════════════════════════════════
+  const emailFirst = emailFirstLogin(iab);
+
+  // The LINE button and what it says. Rendered first or second, see emailFirst.
+  const lineBlock = (
+    <>
+      {/* 2 ── LINE. The loudest thing on the screen, except inside an in-app browser (see emailFirst). */}
+      {emailFirst && iab.platform === 'ios' ? (
+        <p className="rounded-xl bg-[#EBF2FF] dark:bg-[#0D1F35] px-3 py-3 mb-3 text-xs text-center text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...THAI, lineHeight: 1.8 }}>
+          {IN_APP_COPY.iosInstruction}
+        </p>
+      ) : (
+      <a
+        href={lineHref}
+        onClick={(e) => { e.preventDefault(); signInWithLine(); }}
+        aria-disabled={blocked || busy}
+        className={`w-full flex items-center justify-center gap-3 rounded-xl min-h-[56px] px-4 text-base font-bold transition-colors ${
+          emailFirst
+            ? `border-2 border-[#06C755] bg-white dark:bg-transparent ${blocked || busy ? 'text-[#06C755]/50 border-[#06C755]/40 cursor-not-allowed' : 'text-[#06A04A] dark:text-[#4ADE80]'}`
+            : `text-white ${blocked || busy ? 'bg-[#06C755]/40 cursor-not-allowed' : 'bg-[#06C755] hover:bg-[#05B34C]'}`
+        }`}
+        style={THAI}
+      >
+        {lineLoading ? (
+          <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+          </svg>
+        )}
+        {emailFirst && iab.platform === 'android'
+          ? IN_APP_COPY.androidChromeButton
+          : (th ? 'เข้าสู่ระบบด้วย LINE' : 'Sign in with LINE')}
+      </a>
+      )}
+      <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
+        {emailFirst
+          ? IN_APP_COPY.lineNote
+          : (th ? 'เร็วที่สุด ไม่ต้องจำรหัสผ่าน' : 'Fastest — no password to remember')}
+      </p>
+      {/* What TunDee receives from LINE, and what not — see lib/line/dataNotice. */}
+      <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
+        {th ? LINE_DATA_NOTICE.th : LINE_DATA_NOTICE.en}{' '}
+        <a href="/privacy" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">
+          {th ? LINE_DATA_NOTICE.privacyLabel.th : LINE_DATA_NOTICE.privacyLabel.en}
+        </a>
+      </p>
+    </>
+  );
+
+  const methodDivider = (
+    <>
+      {/* 3 ── Divider */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+        <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium" style={THAI}>
+          {th ? 'หรือ' : 'or'}
+        </span>
+        <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
+      </div>
+
+    </>
+  );
+
+  // One field, no password. Rendered first or second, see emailFirst.
+  const emailBlock = (
+    <>
+      {/* 4 ── Email. One field, no password. The only path that completes
+              without ever leaving a webview, which is why it must never be
+              behind anything that can fail. */}
+      <form
+        onSubmit={(e) => { e.preventDefault(); void sendCode(); }}
+        noValidate={hydrated}
+      >
+        <label htmlFor="auth-email" className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5" style={THAI}>
+          {th ? 'อีเมล' : 'Email'}
+        </label>
+        <input
+          id="auth-email"
+          name="email"
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setMessage(null); }}
+          placeholder="you@example.com"
+          autoComplete="email"
+          inputMode="email"
+          disabled={busy}
+          style={{ ...THAI, fontSize: '16px' }}
+          className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#aeaeb2] focus:outline-none focus:border-[#1B3A6B] focus:ring-2 focus:ring-[#1B3A6B]/20 transition-colors mb-3 disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={blocked || busy}
+          className="w-full flex items-center justify-center gap-2 bg-[#1B3A6B] hover:bg-[#15305A] text-white font-bold rounded-xl min-h-[52px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={THAI}
+        >
+          {sending && <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+          {th ? 'ส่งรหัสเข้าอีเมล' : 'Email me a code'}
+        </button>
+      </form>
+    </>
+  );
+
   return shell(
     <>
       {/* 1 ── Heading */}
@@ -795,89 +912,20 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         </div>
       )}
 
-      {/* 2 ── LINE. The loudest thing on the screen, in every context. */}
-      <a
-        href={lineHref}
-        onClick={(e) => { e.preventDefault(); signInWithLine(); }}
-        aria-disabled={blocked || busy}
-        className={`w-full flex items-center justify-center gap-3 rounded-xl min-h-[56px] px-4 text-base font-bold text-white transition-colors ${
-          blocked || busy
-            ? 'bg-[#06C755]/40 cursor-not-allowed'
-            : 'bg-[#06C755] hover:bg-[#05B34C]'
-        }`}
-        style={THAI}
-      >
-        {lineLoading ? (
-          <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-        ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-          </svg>
-        )}
-        {th ? 'เข้าสู่ระบบด้วย LINE' : 'Sign in with LINE'}
-      </a>
-      <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={THAI}>
-        {th ? 'เร็วที่สุด ไม่ต้องจำรหัสผ่าน' : 'Fastest — no password to remember'}
-      </p>
-      {/* What TunDee receives from LINE, and what not — see lib/line/dataNotice. */}
-      <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
-        {th ? LINE_DATA_NOTICE.th : LINE_DATA_NOTICE.en}{' '}
-        <a href="/privacy" className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">
-          {th ? LINE_DATA_NOTICE.privacyLabel.th : LINE_DATA_NOTICE.privacyLabel.en}
-        </a>
-      </p>
-
-      {/* Android inside a webview: a real way out, one tap. */}
-      {iab.lineAppToAppBlocked && iab.platform === 'android' && (
-        <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] -mt-3 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
-          {th
-            ? 'ปุ่ม LINE จะเปิดใน Chrome ให้อัตโนมัติ'
-            : 'The LINE button will open Chrome for you.'}
+      {/* Why LINE is second, only where it is: inside Facebook / Instagram / TikTok. */}
+      {emailFirst && (
+        <p className="mb-4 text-sm text-center text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ ...THAI, lineHeight: 1.8 }}>
+          {inAppNotice(iab)}
         </p>
       )}
 
-      {/* 3 ── Divider */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-        <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium" style={THAI}>
-          {th ? 'หรือ' : 'or'}
-        </span>
-        <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-      </div>
+      {/* 2–4 ── LINE and email. LINE first everywhere LINE's one tap can work; email
+              first inside an in-app browser, where it is the only way in that never
+              leaves the page (lib/auth/inAppLogin). */}
+      {emailFirst
+        ? <>{emailBlock}{methodDivider}{lineBlock}</>
+        : <>{lineBlock}{methodDivider}{emailBlock}</>}
 
-      {/* 4 ── Email. One field, no password. The only path that completes
-              without ever leaving a webview, which is why it must never be
-              behind anything that can fail. */}
-      <form
-        onSubmit={(e) => { e.preventDefault(); void sendCode(); }}
-        noValidate={hydrated}
-      >
-        <label htmlFor="auth-email" className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5" style={THAI}>
-          {th ? 'อีเมล' : 'Email'}
-        </label>
-        <input
-          id="auth-email"
-          name="email"
-          type="email"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); setMessage(null); }}
-          placeholder="you@example.com"
-          autoComplete="email"
-          inputMode="email"
-          disabled={busy}
-          style={{ ...THAI, fontSize: '16px' }}
-          className="w-full border border-[#e0e0e0] dark:border-[#3a3a3c] rounded-xl px-4 py-3.5 text-[#1D1D1F] dark:text-[#F5F5F7] dark:bg-[#0D1F35] placeholder-[#aeaeb2] focus:outline-none focus:border-[#1B3A6B] focus:ring-2 focus:ring-[#1B3A6B]/20 transition-colors mb-3 disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={blocked || busy}
-          className="w-full flex items-center justify-center gap-2 bg-[#1B3A6B] hover:bg-[#15305A] text-white font-bold rounded-xl min-h-[52px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={THAI}
-        >
-          {sending && <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
-          {th ? 'ส่งรหัสเข้าอีเมล' : 'Email me a code'}
-        </button>
-      </form>
 
       {/* 5 ── Consent. Gates both methods, per the brief.
               The reason this control is allowed to disable buttons — which is
