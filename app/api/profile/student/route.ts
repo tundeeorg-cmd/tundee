@@ -15,7 +15,7 @@ import {
 // '2026-01-v1' while lib/research/consentGate.ts gated on '2026-07-v1', so
 // consent written here could never satisfy isResearchConsented() — every
 // consenting user would have been silently excluded from the research dataset.
-import { CURRENT_CONSENT_VERSION } from '@/lib/research/consentGate';
+import { CURRENT_CONSENT_VERSION, MINOR_AGE_THRESHOLD } from '@/lib/research/consentGate';
 
 /** Where the consent decision was captured (PREREG §12.4). */
 const CONSENT_METHODS = ['signup_inline', 'profile_settings', 'line_optin'] as const;
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   const guardianConsent = body.guardian_consent === true;
   if (minor && consentResearch && !guardianConsent) {
     return NextResponse.json(
-      { error: 'guardian_consent is required before research consent can be enabled for users under 18' },
+      { error: `guardian_consent is required before research consent can be enabled for users under ${MINOR_AGE_THRESHOLD} (or turning ${MINOR_AGE_THRESHOLD} this year)` },
       { status: 422 },
     );
   }

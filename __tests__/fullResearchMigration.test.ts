@@ -412,14 +412,15 @@ describe('Consent gate', () => {
     expect(isResearchConsented({ ...consented, consent_version: '2025-01-v1' })).toBe(false);
   });
 
-  it('requiresGuardianConsent — true for minor (under 18)', () => {
+  it('requiresGuardianConsent — true for minor (under 20)', () => {
     const currentYear = new Date().getFullYear();
     expect(requiresGuardianConsent(currentYear - 16, currentYear)).toBe(true);
+    expect(requiresGuardianConsent(currentYear - 18, currentYear)).toBe(true);
   });
 
-  it('requiresGuardianConsent — false for adult (18+)', () => {
+  it('requiresGuardianConsent — false for an adult (born 21+ years before)', () => {
     const currentYear = new Date().getFullYear();
-    expect(requiresGuardianConsent(currentYear - 20, currentYear)).toBe(false);
+    expect(requiresGuardianConsent(currentYear - 21, currentYear)).toBe(false);
   });
 
   it('isMinorFullyConsented — requires both consent_research and guardian_consent', () => {

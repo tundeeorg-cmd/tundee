@@ -12,12 +12,12 @@
  *   • Agree and decline carry equal visual weight — no dark pattern steering.
  *   • Plain Thai at secondary-school reading level, because participants
  *     include minors. No legal register.
- *   • Under-18 students are asked for guardian acknowledgement, surfaced only
+ *   • Students who may be minors (see MINOR_AGE_THRESHOLD) are asked for guardian acknowledgement, surfaced only
  *     when the server says it is required.
  */
 
 import { useEffect, useState } from 'react';
-import { CURRENT_CONSENT_VERSION } from '@/lib/research/consentGate';
+import { CURRENT_CONSENT_VERSION, MINOR_AGE_THRESHOLD } from '@/lib/research/consentGate';
 
 type Decision = 'agree' | 'decline';
 
@@ -37,8 +37,8 @@ const COPY = {
   agree:   { th: 'ยินยอมเข้าร่วม', en: 'I agree to participate' },
   decline: { th: 'ไม่เข้าร่วม',     en: "Don't participate" },
   guardian: {
-    th: 'ฉันอายุต่ำกว่า 18 ปี และผู้ปกครองรับทราบแล้ว',
-    en: 'I am under 18 and my guardian knows about this.',
+    th: `ฉันอายุต่ำกว่า ${MINOR_AGE_THRESHOLD} ปี (หรือครบ ${MINOR_AGE_THRESHOLD} ปีในปีนี้) และผู้ปกครองรับทราบแล้ว`,
+    en: `I am under ${MINOR_AGE_THRESHOLD} (or turning ${MINOR_AGE_THRESHOLD} this year) and my guardian knows about this.`,
   },
   saved:   { th: 'บันทึกแล้ว ขอบคุณ', en: 'Saved — thank you.' },
   failed:  { th: 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง', en: 'Could not save. Please try again.' },

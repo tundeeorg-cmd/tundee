@@ -282,10 +282,16 @@ describe('requiresGuardianConsent', () => {
   it(`requires consent for students under ${MINOR_AGE_THRESHOLD}`, () => {
     expect(requiresGuardianConsent(CURRENT_YEAR - 15, CURRENT_YEAR)).toBe(true);
     expect(requiresGuardianConsent(CURRENT_YEAR - 17, CURRENT_YEAR)).toBe(true);
+    expect(requiresGuardianConsent(CURRENT_YEAR - 18, CURRENT_YEAR)).toBe(true);
+    expect(requiresGuardianConsent(CURRENT_YEAR - 19, CURRENT_YEAR)).toBe(true);
   });
 
-  it(`does not require consent for students ${MINOR_AGE_THRESHOLD}+`, () => {
-    expect(requiresGuardianConsent(CURRENT_YEAR - 18, CURRENT_YEAR)).toBe(false);
+  it(`still requires it in the year the student can turn ${MINOR_AGE_THRESHOLD} (only the birth year is known)`, () => {
+    expect(requiresGuardianConsent(CURRENT_YEAR - MINOR_AGE_THRESHOLD, CURRENT_YEAR)).toBe(true);
+  });
+
+  it(`does not require consent once the student is certainly ${MINOR_AGE_THRESHOLD}+`, () => {
+    expect(requiresGuardianConsent(CURRENT_YEAR - MINOR_AGE_THRESHOLD - 1, CURRENT_YEAR)).toBe(false);
     expect(requiresGuardianConsent(CURRENT_YEAR - 25, CURRENT_YEAR)).toBe(false);
   });
 
@@ -296,7 +302,8 @@ describe('requiresGuardianConsent', () => {
   it('uses current year by default', () => {
     const thisYear = new Date().getFullYear();
     expect(requiresGuardianConsent(thisYear - 15)).toBe(true);
-    expect(requiresGuardianConsent(thisYear - 18)).toBe(false);
+    expect(requiresGuardianConsent(thisYear - 18)).toBe(true);
+    expect(requiresGuardianConsent(thisYear - MINOR_AGE_THRESHOLD - 1)).toBe(false);
   });
 });
 
@@ -304,7 +311,7 @@ describe('isMinorFullyConsented', () => {
   const CURRENT_YEAR = 2026;
 
   it('returns true for an adult regardless of guardian_consent', () => {
-    const p = makeProfile({ birth_year: CURRENT_YEAR - 20, consent_research: true, guardian_consent: false });
+    const p = makeProfile({ birth_year: CURRENT_YEAR - (MINOR_AGE_THRESHOLD + 1), consent_research: true, guardian_consent: false });
     expect(isMinorFullyConsented(p)).toBe(true);
   });
 

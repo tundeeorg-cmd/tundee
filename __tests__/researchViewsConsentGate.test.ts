@@ -16,13 +16,25 @@ import { CURRENT_CONSENT_VERSION, MINOR_AGE_THRESHOLD, exportExclusion } from '@
 
 const SQL = readFileSync('scripts/20261031_v29_research_views_consent_gate.sql', 'utf8');
 const live = SQL.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');   // un-commented statements only
+const V33 = readFileSync('scripts/20261101_v33_minor_age_threshold_20.sql', 'utf8');
+const V33_LIVE = V33.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 
 describe('the constants match the TypeScript ones', () => {
   it('current consent version', () => {
     expect(SQL).toContain(`SELECT '${CURRENT_CONSENT_VERSION}'::TEXT`);
   });
-  it('minor age threshold', () => {
-    expect(SQL).toMatch(new RegExp(`research_minor_age_threshold\\(\\)\\s*RETURNS INTEGER LANGUAGE sql IMMUTABLE AS \\$\\$ SELECT ${MINOR_AGE_THRESHOLD} \\$\\$`));
+  // The threshold was 18 when v29 PART 1 ran; v33 replaces it (and the year comparison).
+  it('minor age threshold (v33 is the live definition)', () => {
+    expect(V33).toMatch(new RegExp(`research_minor_age_threshold\\(\\)\\s*RETURNS INTEGER LANGUAGE sql IMMUTABLE AS \\$\\$ SELECT ${MINOR_AGE_THRESHOLD} \\$\\$`));
+  });
+  it('v33 treats a student as an adult only when the year difference EXCEEDS the threshold, as TypeScript does', () => {
+    expect(V33_LIVE).toMatch(/p_birth_year\)\s*>\s*public\.research_minor_age_threshold\(\)/);
+    expect(V33_LIVE).not.toMatch(/p_birth_year\)\s*>=\s*public\.research_minor_age_threshold/);
+  });
+  it('v33 only replaces the two functions: no table, view, data or constraint', () => {
+    for (const bad of [/\bINSERT\b/i, /\bUPDATE\b/i, /\bDELETE\b/i, /\bTRUNCATE\b/i, /\bDROP\b/i, /\bALTER\b/i, /\bCREATE OR REPLACE VIEW\b/i, /\bCONSTRAINT\b/i]) {
+      expect(V33_LIVE).not.toMatch(bad);
+    }
   });
 });
 
@@ -125,7 +137,7 @@ describe('the SQL function agrees with the TypeScript gate on its four inputs', 
   const year = new Date().getFullYear();
   const sqlAllowed = (consent: boolean | null, version: string | null, guardian: boolean | null, birthYear: number | null) =>
     !!consent && version === CURRENT_CONSENT_VERSION &&
-    (birthYear === null || (year - birthYear) >= MINOR_AGE_THRESHOLD || !!guardian);
+    (birthYear === null || (year - birthYear) > MINOR_AGE_THRESHOLD || !!guardian);   // v33: ">" the threshold
 
   const cases: Array<[boolean | null, string | null, boolean | null, number | null]> = [
     [true, CURRENT_CONSENT_VERSION, false, year - 30],
@@ -137,7 +149,9 @@ describe('the SQL function agrees with the TypeScript gate on its four inputs', 
     [true, null,                    true,  year - 30],
     [false, CURRENT_CONSENT_VERSION, true, year - 30],
     [null,  CURRENT_CONSENT_VERSION, true, year - 30],
-    [true, CURRENT_CONSENT_VERSION, false, year - MINOR_AGE_THRESHOLD],
+    [true, CURRENT_CONSENT_VERSION, false, year - MINOR_AGE_THRESHOLD - 1],   // adult for certain
+    [true, CURRENT_CONSENT_VERSION, false, year - MINOR_AGE_THRESHOLD],       // may be 19: guardian needed
+    [true, CURRENT_CONSENT_VERSION, true,  year - MINOR_AGE_THRESHOLD],
     [true, CURRENT_CONSENT_VERSION, false, year - MINOR_AGE_THRESHOLD + 1],
   ];
 

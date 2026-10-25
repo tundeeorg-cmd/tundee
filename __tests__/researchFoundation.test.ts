@@ -245,18 +245,18 @@ describe('region derivation', () => {
 describe('guardian consent', () => {
   function needsGuardianConsent(birthYear: number | null): boolean {
     if (birthYear === null) return false;
-    return new Date().getFullYear() - birthYear < 18;
+    return new Date().getFullYear() - birthYear <= 20;
   }
 
-  it('requires guardian consent for birth year indicating age < 18', () => {
+  it('requires guardian consent for birth year indicating age < 20', () => {
     const thisYear = new Date().getFullYear();
     expect(needsGuardianConsent(thisYear - 15)).toBe(true);
-    expect(needsGuardianConsent(thisYear - 17)).toBe(true);
+    expect(needsGuardianConsent(thisYear - 19)).toBe(true);
   });
 
   it('does not require guardian consent for adults', () => {
     const thisYear = new Date().getFullYear();
-    expect(needsGuardianConsent(thisYear - 18)).toBe(false);
+    expect(needsGuardianConsent(thisYear - 21)).toBe(false);
     expect(needsGuardianConsent(thisYear - 25)).toBe(false);
   });
 

@@ -240,8 +240,9 @@ school\_province, gpa, class\_rank\_pct), and academic intent
 - `consent_research = TRUE` is required before any row enters a research
   export. The SQL views and the TypeScript `filterConsented()` utility both
   enforce this gate.
-- When `EXTRACT(year FROM now()) - birth_year < 18` (i.e. the student is
-  under 18), `guardian_consent = TRUE` is also required. The API enforces
+- When `EXTRACT(year FROM now()) - birth_year <= 20` (i.e. the student is
+  under 20, or turns 20 this year: only the birth year is stored),
+  `guardian_consent = TRUE` is also required. The API enforces
   this server-side; the DB records the assertion.
 - Opting out sets `consent_research = FALSE`, stopping future research use
   immediately. Historical pseudonymised exports (SHA-256 `user_id`) cannot
