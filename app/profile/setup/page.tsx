@@ -37,6 +37,7 @@ import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { PRIOR_KNOWLEDGE_QUESTION_HISTORY, PRIOR_KNOWLEDGE_QUESTION_VERSION } from '@/lib/research/questionVersions';
 import { readAdParams } from '@/lib/adTracking';
 import { profileCompleted } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
@@ -319,6 +320,8 @@ export default function ProfileSetupPage() {
   const [selectedFields,    setSelectedFields]    = useState<string[]>([]);
   // Research fields
   const [priorKnowledge,    setPriorKnowledge]    = useState<number | null>(null);
+  // "ไม่แน่ใจ" is its own answer, never a 0 and never a skip (PART 2 step 5).
+  const [priorKnowledgeUnsure, setPriorKnowledgeUnsure] = useState(false);
   const [recruitmentSource, setRecruitmentSource] = useState('');
   // Consent (PDPA)
   const [consentTerms,           setConsentTerms]           = useState(false);
@@ -335,7 +338,11 @@ export default function ProfileSetupPage() {
     displayName, gradeLevel, gradeYear, gpa, province,
     incomeBracket, welfareCard,
     fields: selectedFields,
-    priorKnowledge, heardAboutUs: recruitmentSource,
+    priorKnowledge, priorKnowledgeUnsure,
+    // A student who arrived with the /start results had seen a ranked list
+    // before this question. Anyone else has no exposure we can observe.
+    askedAfterSeeingResults: prefilled,
+    heardAboutUs: recruitmentSource,
     consentTerms, researchOptIn, guardianAcknowledged,
     acquisitionSource,
   };
@@ -549,7 +556,7 @@ export default function ProfileSetupPage() {
         .from('profiles')
         .select(
           'display_name, grade_level, grade_year, gpa, province, income_bracket, welfare_card, ' +
-          'fields_of_interest, prior_scholarship_knowledge, heard_about_us, ' +
+          'fields_of_interest, prior_scholarship_knowledge, prior_knowledge_unsure, heard_about_us, ' +
           'consent_version, research_opt_in, guardian_acknowledged',
         )
         .eq('id', user.id)
@@ -578,6 +585,7 @@ export default function ProfileSetupPage() {
       if (typeof merged.welfareCard === 'boolean') setWelfareCard(merged.welfareCard);
       if (merged.fields?.length) setSelectedFields(merged.fields);
       if (typeof merged.priorKnowledge === 'number') setPriorKnowledge(merged.priorKnowledge);
+      if (merged.priorKnowledgeUnsure === true) setPriorKnowledgeUnsure(true);
       if (merged.heardAboutUs) setRecruitmentSource(merged.heardAboutUs);
       if (merged.consentTerms) setConsentTerms(true);
       if (typeof merged.researchOptIn === 'boolean') setResearchOptIn(merged.researchOptIn);
@@ -1132,9 +1140,7 @@ export default function ProfileSetupPage() {
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">🔍</div>
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
-            {lang === 'th'
-              ? 'ก่อนใช้ทุนดี คุณรู้จักทุนการศึกษากี่ทุน?'
-              : 'Before TunDee, how many scholarships did you know?'}
+            {PRIOR_KNOWLEDGE_QUESTION_HISTORY[PRIOR_KNOWLEDGE_QUESTION_VERSION][lang === 'th' ? 'th' : 'en']}
           </h1>
           <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-1" style={{ fontFamily: font }}>
             {lang === 'th'
@@ -1147,9 +1153,9 @@ export default function ProfileSetupPage() {
           {PRIOR_KNOWLEDGE_OPTIONS.map((opt) => (
             <button
               key={opt.label}
-              onClick={() => { setPriorKnowledge(opt.value); nextStep(); }}
+              onClick={() => { setPriorKnowledge(opt.value); setPriorKnowledgeUnsure(false); nextStep(); }}
               className={`flex flex-col items-center justify-center px-4 py-5 rounded-xl border-2 transition-all ${
-                priorKnowledge === opt.value
+                !priorKnowledgeUnsure && priorKnowledge === opt.value
                   ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
                   : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] hover:border-[#2E6BE6]/50'
               }`}
@@ -1160,6 +1166,18 @@ export default function ProfileSetupPage() {
               </span>
             </button>
           ))}
+          {/* Its own answer. 0 means "I knew none"; this means "I cannot say". */}
+          <button
+            onClick={() => { setPriorKnowledge(null); setPriorKnowledgeUnsure(true); nextStep(); }}
+            className={`col-span-2 px-4 py-4 rounded-xl border-2 transition-all text-sm ${
+              priorKnowledgeUnsure
+                ? 'border-[#2E6BE6] bg-[#EFF4FF] dark:bg-[#162552]'
+                : 'border-[#e0e0e0] dark:border-[#3a3a3c] bg-white dark:bg-[#2c2c2e] hover:border-[#2E6BE6]/50'
+            }`}
+            style={{ fontFamily: font }}
+          >
+            {lang === 'th' ? 'ไม่แน่ใจ' : 'Not sure'}
+          </button>
         </div>
 
         <p className="text-center">

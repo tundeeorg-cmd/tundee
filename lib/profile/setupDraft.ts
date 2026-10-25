@@ -113,6 +113,8 @@ function isAnswered(value: unknown): boolean {
 export function resumeStep(profile: Record<string, unknown> | null | undefined): number {
   if (!profile) return 0;
   for (const { step, column } of STEP_FIELDS) {
+    // "Unsure" is an answer: it leaves the numeric column empty on purpose.
+    if (column === 'prior_scholarship_knowledge' && profile.prior_knowledge_unsure === true) continue;
     if (!isAnswered(profile[column])) return step;
   }
   return STEP_FIELDS[STEP_FIELDS.length - 1].step;
@@ -135,6 +137,7 @@ export function answersFromProfile(profile: Record<string, unknown> | null | und
     fields:               fields.length > 0 ? fields : undefined,
     priorKnowledge:       typeof profile.prior_scholarship_knowledge === 'number'
                             ? profile.prior_scholarship_knowledge : null,
+    priorKnowledgeUnsure: profile.prior_knowledge_unsure === true ? true : undefined,
     heardAboutUs:         typeof profile.heard_about_us === 'string' ? profile.heard_about_us : undefined,
     consentTerms:         typeof profile.consent_version === 'string' && profile.consent_version !== '',
     researchOptIn:        typeof profile.research_opt_in === 'boolean' ? profile.research_opt_in : undefined,

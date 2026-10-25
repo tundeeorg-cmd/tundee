@@ -58,6 +58,8 @@ function readAnswers(body: Record<string, unknown>): Partial<SetupAnswers> {
     welfareCard:          bool(a.welfareCard),
     fields:               Array.isArray(a.fields) ? a.fields.filter(f => typeof f === 'string') as string[] : undefined,
     priorKnowledge:       typeof a.priorKnowledge === 'number' ? a.priorKnowledge : null,
+    priorKnowledgeUnsure:    bool(a.priorKnowledgeUnsure),
+    askedAfterSeeingResults: bool(a.askedAfterSeeingResults),
     heardAboutUs:         str(a.heardAboutUs),
     consentTerms:         bool(a.consentTerms),
     researchOptIn:        bool(a.researchOptIn),
@@ -99,6 +101,12 @@ export async function POST(request: NextRequest) {
     }
   } else {
     errors = validateSetupAnswers(answers);
+  }
+
+  // A numeric answer and "unsure" cannot both be true. Refused, not resolved: the
+  // wizard never produces it, so it means a client bug the server should not hide.
+  if (answers.priorKnowledgeUnsure === true && typeof answers.priorKnowledge === 'number') {
+    errors.priorKnowledge = 'prior_knowledge_invalid';
   }
 
   if (hasErrors(errors)) {
