@@ -98,8 +98,26 @@ State of the two stores on 2026-10-26 (counts of profiles): 21 consent in both; 
 ### 6.1 `funnel_events` (live, append-only)
 Written from the browser through RLS. Columns used for the trial: `event_type`, `user_id` (NULL if anonymous), `session_id`, `scholarship_id`, `served_rank`, `ranking_variant`, `context` (JSON), `occurred_at`. 379,463 rows on 2026-10-26, mostly `impression`. Impression events carry `context.fairness_mode` (`'on'` only when a fairness-adjusted ranking was applied) and `context.rank`. Failures are recorded as `signup_failed` with `context.reason` (e.g. `research_consent_not_recorded`, `assign_failed:<status>`, LINE and OTP reasons).
 
-### 6.2 `apply_click` (live)
-`id, user_id, scholarship_id, clicked_at` — 293 rows. **It has no arm, rank or personalization columns.** To use it for the primary outcome (PREREG §6.1: at least one apply-click within 14 days of `profile_completed`), join to `profiles` on `user_id`, take `ranking_variant` from there (it is immutable), and drop clicks earlier than `ranking_assigned_at`. Clicks made before assignment cannot be told apart from after unless that comparison is made at analysis time.
+### 6.2 `apply_click` (live) — the primary outcome
+Written by `POST /api/apply-click` from the scholarship detail page and the tracker. 293 rows on 2026-10-26. The `/start` preview card logs only a `funnel_events` `click_apply` and never writes here.
+
+Columns from the original table: `id, user_id, scholarship_id, clicked_at`.
+
+**Planned columns (migration `20261028_v26`, not run when this was written; §7)**, bound **by the server at click time**, never supplied by the browser:
+
+| Column | Meaning |
+|---|---|
+| `ranking_variant` | The arm the student was in at that moment. NULL = not in the trial then (never randomized, pilot, anonymous, or the click preceded the assignment). |
+| `ranking_assigned_at` | When that student was assigned; NULL if never. Kept even on a pre-assignment click. |
+| `excluded_from_primary` | TRUE = recorded as behaviour, not counted in the primary outcome (§6.1, §9). A CHECK requires an arm and an assignment time whenever this is FALSE. NULL = not yet bound; treat as excluded and re-run the backfill. |
+| `rank_position` | 1-indexed position in the list clicked from, from the latest `impression` of that scholarship for that student within 24 h before the click. NULL = unknown (tracker or direct link, no impression, or too old). |
+| `was_personalized` | TRUE = that impression was on the personalized `matches` tab; FALSE = `browse`; NULL = unknown. |
+| `served_fairness_mode` | `'on'`/`'off'`: whether that list was served with the fairness adjustment. |
+| `binding_source` | `server` (bound at click), `server_unbound` (the profile lookup failed: excluded, re-bindable from `profiles`), `backfill` (derived afterwards from `profiles`; rank, personalization and mode are unknown). |
+
+Rule (`lib/research/outcomeBinding.ts`): a click at or after `ranking_assigned_at` by a randomized `main`-cohort student carries the arm and counts; anything else is kept with `ranking_variant` NULL and `excluded_from_primary = TRUE`. Rows that existed before v26 are backfilled from `profiles` with `binding_source = 'backfill'`: exact for arm and exclusion, never reconstructed for rank or personalization.
+
+`funnel_events` `click_apply` is written from the browser and carries no server-bound arm; it is **not** the outcome record. Use `apply_click`.
 
 ### 6.3 Other tables
 `user_events` (1,815 rows, legacy event log), `recommendation_request` (417), `profile_baselines` (40), `student_profile` (39), `experiment_assignment` (34, pilot-era and **not** the randomization, DEPRECATED), `platform_rollouts` (5 rows; columns: province, region, feature name and description, rollout date and type, `is_ab_test`, `treatment_group_size`). `comparison_sample`, `foundation_outcomes`, `event`, `outcomes`, `pending_intake` held 0 rows. `platform_rollouts`, `comparison_sample` and `foundation_outcomes` exist in the database but **no migration in the repository creates them**.
@@ -123,7 +141,8 @@ Written from the browser through RLS. Columns used for the trial: `event_type`, 
 | 2026-08-31 | Grade-level domain fix (v19) | |
 | 2026-09-01 | `pending_intake` (answers parked across browsers) | |
 | 2026-10-04 | LINE sign-in via Supabase `custom:line` (#43/#44); LINE accounts have no email | 13 LINE accounts created from 2026-10-05 to 2026-10-18; 11 signed in. |
-| 2026-10-27 *(pending: PR not merged, `20261027_v25` not run)* | Prior-knowledge question reworded (v1 → v2): "ก่อนรู้จัก TunDee คุณรู้จักทุนที่ตัวเองมีสิทธิ์สมัครกี่ทุน?" replaces "ก่อนใช้ทุนดี คุณรู้จักทุนการศึกษากี่ทุน?"; "ไม่แน่ใจ" option; `prior_knowledge_unsure`, `prior_knowledge_question_version`, `asked_after_seeing_results` | v1 answers are all rows with a numeric `prior_scholarship_knowledge` before the date this PR is deployed. |
+| 2026-10-28 *(pending: PR not merged, `20261028_v26` not run)* | `apply_click` bound to the arm at click time by the server: `ranking_variant`, `ranking_assigned_at`, `excluded_from_primary`, `rank_position`, `was_personalized`, `served_fairness_mode`, `binding_source`; existing rows backfilled from `profiles` | Clicks before this date are exact for arm and exclusion but have no rank or personalization. |
+| 2026-10-27 (PR #54, `20261027_v25` run) | Prior-knowledge question reworded (v1 → v2): "ก่อนรู้จัก TunDee คุณรู้จักทุนที่ตัวเองมีสิทธิ์สมัครกี่ทุน?" replaces "ก่อนใช้ทุนดี คุณรู้จักทุนการศึกษากี่ทุน?"; "ไม่แน่ใจ" option; `prior_knowledge_unsure`, `prior_knowledge_question_version`, `asked_after_seeing_results` | v1 answers are all rows with a numeric `prior_scholarship_knowledge` before the date this PR is deployed. |
 | 2026-10-26 | Randomization requires current research consent; consent decision is recorded before the arm; failures recorded in `funnel_events` (#52) | Students who decline are no longer randomized (§9). |
 
 ---
@@ -142,7 +161,7 @@ Written from the browser through RLS. Columns used for the trial: `event_type`, 
 
 **8.6 Per-answer history does not exist.** The wizard stores the latest answer only, so a changed answer overwrites the old one, and a question shown but not answered leaves no trace. Differential attrition (PREREG §10.6) can currently be assessed only from profile completeness.
 
-**8.7 Attribution.** `apply_click` carries no arm, so arm is attached by joining to `profiles`; clicks before `ranking_assigned_at` must be dropped at analysis time.
+**8.7 Attribution.** Until v26 is run and deployed, `apply_click` carries no arm: attach it by joining to `profiles` and drop clicks earlier than `ranking_assigned_at` at analysis time. After v26, rows written by the server carry it; backfilled rows have an exact arm but no rank. A click from a personalized list can only be recognised if the matching impression event was recorded; impressions are written from the browser and can be missing (offline, blocked), in which case rank and `was_personalized` are NULL.
 
 **8.8 Provenance gaps.** Tables outside migrations (§6.3); no Vercel runtime logs older than ~30 minutes (Hobby plan), so signup failures before 2026-10-26 are only visible where a client logged `signup_failed`.
 
