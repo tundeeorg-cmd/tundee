@@ -77,38 +77,51 @@ export function buildSignupHref(adParams: AdParams, next?: string): string {
   return `/auth?${qs.toString()}`;
 }
 
-/** The visitor arrived at /start. */
+/** The visitor arrived at /start, which now opens straight onto scholarships. */
 export function trackStartPageView() {
-  analytics.viewContent({ contentName: 'start_page' });
+  analytics.viewContent({ contentName: 'start_browse' });
 }
 
 const LEAD_FIRED_KEY = 'tundee_lead_fired';
+const PERSONALIZED_FIRED_KEY = 'tundee_personalized_fired';
+
+/** True the first time it is called in this browser session for `key`, false after. */
+function firstThisSession(key: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (sessionStorage.getItem(key)) return false;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    // sessionStorage unavailable (private mode, embedded webview) — fire once for
+    // this render and accept the small risk of a repeat on a second mount; the
+    // alternative is dropping the event entirely.
+  }
+  return true;
+}
 
 /**
- * The visitor answered the 3-question form and saw real matched
- * scholarships — Lead, the event ad delivery optimizes against. This is the
- * one call site: it used to fire on the signup-gate CTA click instead, a step
- * later and easy to miss if the visitor never tapped through.
+ * The visitor opened a scholarship's detail page — Lead, the event ad delivery
+ * optimizes against. Intent is clear and the volume is high enough for Meta to
+ * learn from; signing up (~16 per fortnight) is not. Once per session, because
+ * Meta counts a lead once per person, not once per page.
  *
- * Guarded by sessionStorage, not just a component-level ref — a visitor who
- * navigates back to /start and resubmits the form within the same tab session
- * must not re-fire it, since Meta counts a lead once per person, not once per
- * render. (components/PreviewResults.tsx also holds its own mount-level ref,
- * which is what stops a same-mount double-invoke; the two guards cover
- * different repeats.)
+ * Until 26 Oct 2026 Lead fired when the 3-question form's results appeared. That
+ * moment is trackPersonalized() now.
  */
-export function trackFormResultsSeen(matchCount: number) {
-  if (typeof window !== 'undefined') {
-    try {
-      if (sessionStorage.getItem(LEAD_FIRED_KEY)) return;
-      sessionStorage.setItem(LEAD_FIRED_KEY, '1');
-    } catch {
-      // sessionStorage unavailable (private mode, embedded webview) — fire
-      // once for this render and accept the small risk of a repeat on a
-      // second mount; the alternative is dropping the lead entirely.
-    }
-  }
-  analytics.lead({ value: matchCount });
+export function trackScholarshipOpened(scholarshipId: string) {
+  if (!scholarshipId) return;
+  if (!firstThisSession(LEAD_FIRED_KEY)) return;
+  analytics.lead({ scholarshipId });
+}
+
+/**
+ * The visitor answered the matcher's questions and saw matched scholarships.
+ * Once per session; PreviewResults also holds a mount-level ref for the same-mount
+ * double invoke — the two guards cover different repeats.
+ */
+export function trackPersonalized(matchCount: number) {
+  if (!firstThisSession(PERSONALIZED_FIRED_KEY)) return;
+  analytics.personalized({ matchCount });
 }
 
 /** The visitor reached the login/signup screen. */

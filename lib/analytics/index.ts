@@ -9,9 +9,10 @@
  *
  *   pageView()               fbq PageView             ttq page()              ga page_view
  *   search()                 fbq Search               ttq Search              ga search
- *   viewContent(start_page)  fbq ViewContent          ttq ViewContent         ga view_search_results     — arriving at /start
+ *   viewContent(start_browse) fbq ViewContent          ttq ViewContent         ga view_search_results     — arriving at /start
  *   viewContent(scholarship) fbq ViewContent          ttq ViewContent         ga view_search_results     — opening a scholarship
- *   lead()                   fbq Lead                 ttq SubmitForm          ga generate_lead           — 3-question form answered, results seen (once/session)
+ *   lead()                   fbq Lead                 ttq SubmitForm          ga generate_lead           — a scholarship's detail page opened (once/session)
+ *   personalized()           fbq trackCustom Personalized ttq Personalized    ga personalized            — matcher answered, matched results seen (once/session)
  *   initiateCheckout()       fbq InitiateCheckout     ttq InitiateCheckout    ga begin_checkout          — arriving at /auth
  *   completeRegistration()   fbq CompleteRegistration ttq CompleteRegistration ga sign_up
  *   profileCompleted()       fbq trackCustom ProfileCompleted ttq ProfileCompleted ga profile_completed  — onboarding wizard finished
@@ -90,7 +91,7 @@ export function search(input: {
 }
 
 /**
- * Arriving at /start ('start_page'), matched results rendered, or a
+ * Arriving at /start ('start_browse'), matched results rendered, or a
  * scholarship detail page opened — content_ids is present only for the last
  * two, see the note on meta.trackViewContent.
  */
@@ -107,17 +108,25 @@ export function viewContent(input: {
 }
 
 /**
- * The visitor answered the 3-question form and saw real matched scholarships.
- * This is the event ad delivery optimizes against — call it exactly once per
- * session (lib/adTracking.ts's trackFormResultsSeen guards this) and from
- * nowhere else. `value` is the match count, for lead-value reporting.
+ * The visitor opened a scholarship's detail page. This is the event ad delivery
+ * optimizes against — call it at most once per session (lib/adTracking.ts's
+ * trackScholarshipOpened guards this) and from nowhere else.
  */
-export function lead(input: { value: number }): void {
+export function lead(input: { scholarshipId: string }): void {
   if (!allowed()) return;
   const browser = browserContext();
   meta.trackLead({ ...input, browser });
   tiktok.trackLead({ ...input, browser });
   ga.trackLead({ ...input, browser });
+}
+
+/** The visitor answered the matcher's questions and saw matched scholarships. */
+export function personalized(input: { matchCount: number }): void {
+  if (!allowed()) return;
+  const browser = browserContext();
+  meta.trackPersonalized({ ...input, browser });
+  tiktok.trackPersonalized({ ...input, browser });
+  ga.trackPersonalized({ ...input, browser });
 }
 
 /** The visitor reached the login/signup screen. */

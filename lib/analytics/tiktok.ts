@@ -37,6 +37,7 @@ export type TikTokEventName =
   | 'CompleteRegistration'
   | 'AddToWishlist'
   | 'ProfileCompleted'
+  | 'Personalized'
   | 'ApplyClicked';
 
 export function getTikTokPixelId(): string | undefined {
@@ -96,13 +97,18 @@ export function trackViewContent(input: {
   });
 }
 
-/** Mirrors meta.trackLead — see the note there on why this fires exactly once, here only. */
-export function trackLead(input: { value: number; browser?: BrowserContext }): void {
+/** Mirrors meta.trackLead — fires once per session, when a scholarship's detail page is opened. */
+export function trackLead(input: { scholarshipId: string; browser?: BrowserContext }): void {
   track('SubmitForm', {
-    content_type:     'start_form_completed',
-    value:            input.value,
+    content_type: 'scholarship_detail_opened',
+    content_id:   input.scholarshipId,
     ...browserParams(input.browser),
   });
+}
+
+/** The visitor answered the matcher's questions and saw matched scholarships. */
+export function trackPersonalized(input: { matchCount: number; browser?: BrowserContext }): void {
+  track('Personalized', { num_items: input.matchCount, ...browserParams(input.browser) });
 }
 
 /** The visitor reached the login/signup screen. */

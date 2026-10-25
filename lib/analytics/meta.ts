@@ -38,7 +38,7 @@ export type MetaEventName =
  * not a naming convention: 'track' expects one of its enumerated standard
  * names for automatic matching and Events Manager categorisation.
  */
-export type MetaCustomEventName = 'ProfileCompleted' | 'ApplyClicked';
+export type MetaCustomEventName = 'ProfileCompleted' | 'ApplyClicked' | 'Personalized';
 
 export type MetaAnyEventName = MetaEventName | MetaCustomEventName;
 
@@ -282,7 +282,7 @@ export function trackSearch(input: {
 
 /**
  * Two distinct call shapes: arriving at /start passes only `contentName`
- * ('start_page'); opening a scholarship passes only `contentIds`. content_type
+ * ('start_browse'); opening a scholarship passes only `contentIds`. content_type
  * only makes sense for the second — a landing page isn't a scholarship — so it
  * rides along with content_ids rather than being sent unconditionally.
  */
@@ -301,17 +301,32 @@ export function trackViewContent(input: {
 }
 
 /**
- * The visitor answered the 3-question form and saw real matched scholarships —
- * the moment they have something worth signing up for. This is the event ad
- * delivery optimizes against, so it must fire exactly once per session (see
- * lib/adTracking.ts's session guard) and nowhere else; it used to fire on the
- * signup-gate CTA click instead, a step later and easier to miss entirely if
- * the visitor never taps through.
+ * The visitor opened a scholarship's detail page — Lead, the event ad delivery
+ * optimizes against. That is a clear signal of intent and there are enough of
+ * them for Meta to learn from (it wants roughly 50 a week per ad set); account
+ * creation, at ~16 per fortnight, is too sparse to optimize on.
+ *
+ * It must fire at most once per session (lib/adTracking.ts's
+ * trackScholarshipOpened guards this) and from nowhere else. It used to fire when
+ * the 3-question form's results were shown; that moment is now `Personalized`.
  */
-export function trackLead(input: { value: number; browser?: BrowserContext }): void {
+export function trackLead(input: { scholarshipId: string; browser?: BrowserContext }): void {
   send('Lead', {
-    content_category: 'start_form_completed',
-    value:            input.value,
+    content_category: 'scholarship_detail_opened',
+    content_type:     'scholarship',
+    content_ids:      [input.scholarshipId],
+    ...browserParams(input.browser),
+  });
+}
+
+/**
+ * The visitor answered the matcher's questions and saw matched scholarships.
+ * A custom event, not mirrored to the server: it is a mid-funnel signal for
+ * reporting and audiences, not something ads are optimized on.
+ */
+export function trackPersonalized(input: { matchCount: number; browser?: BrowserContext }): void {
+  sendCustom('Personalized', {
+    num_items: input.matchCount,
     ...browserParams(input.browser),
   });
 }

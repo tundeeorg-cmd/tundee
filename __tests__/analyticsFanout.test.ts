@@ -68,17 +68,25 @@ describe('every event reaches every platform', () => {
   });
 
   it('viewContent — /start arrival, contentName only, no contentIds', () => {
-    analytics.viewContent({ contentName: 'start_page' });
+    analytics.viewContent({ contentName: 'start_browse' });
     expect(fbqEvents()).toEqual(['ViewContent']);
     expect(ttqEvents()).toEqual(['ViewContent']);
     expect(gaEvents()).toEqual(['view_search_results']);
   });
 
   it('lead maps to TikTok SubmitForm', () => {
-    analytics.lead({ value: 12 });
+    analytics.lead({ scholarshipId: 'TD-0001' });
     expect(fbqEvents()).toEqual(['Lead']);
     expect(ttqEvents()).toEqual(['SubmitForm']);
     expect(gaEvents()).toEqual(['generate_lead']);
+  });
+
+  it('personalized is a custom event on every platform, not a standard one', () => {
+    analytics.personalized({ matchCount: 12 });
+    expect(fbqEvents()).toEqual([]);
+    expect(fbqCustomEvents()).toEqual(['Personalized']);
+    expect(ttqEvents()).toEqual(['Personalized']);
+    expect(gaEvents()).toEqual(['personalized']);
   });
 
   it('initiateCheckout — arriving at /auth, no params needed', () => {
@@ -132,12 +140,13 @@ describe('consent gate', () => {
     analytics.pageView();
     analytics.search({ educationLevel: 'm6', gpa: 3.2, province: 'สุรินทร์' });
     analytics.viewContent({ contentIds: ['TD-0001'] });
-    analytics.lead({ value: 12 });
+    analytics.lead({ scholarshipId: 'TD-0001' });
     analytics.initiateCheckout();
     analytics.completeRegistration('line');
     analytics.addToWishlist({ scholarshipId: 'TD-0001' });
     analytics.applyClicked({ scholarshipId: 'TD-0001' });
     analytics.profileCompleted({ gradeLevel: 'M4-M6', province: 'ขอนแก่น' });
+    analytics.personalized({ matchCount: 12 });
 
     expect(fbq).not.toHaveBeenCalled();
     expect(ttqTrack).not.toHaveBeenCalled();

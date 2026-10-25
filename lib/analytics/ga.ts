@@ -54,14 +54,14 @@ export function trackViewContent(input: { contentIds?: string[]; contentName?: s
   });
 }
 
-/** Mirrors meta.trackLead — fires exactly once, when results are seen. */
+/** Mirrors meta.trackLead — fires once per session, when a scholarship's detail page is opened. */
 export function trackLead(input: {
-  value: number;
+  scholarshipId: string;
   browser?: { inWebview: boolean; app: string | null };
 }): void {
   send('generate_lead', {
-    content_category: 'start_form_completed',
-    value:            input.value,
+    content_category: 'scholarship_detail_opened',
+    item_id:          input.scholarshipId,
     ...(input.browser
       ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }
       : {}),
@@ -94,6 +94,19 @@ export function trackAddToWishlist(input: { scholarshipId: string }): void {
 /** The visitor clicked through to a funder's external application form. */
 export function trackApplyClicked(input: { scholarshipId: string }): void {
   send('apply_clicked', { item_id: input.scholarshipId });
+}
+
+/** The visitor answered the matcher's questions and saw matched scholarships. */
+export function trackPersonalized(input: {
+  matchCount: number;
+  browser?: { inWebview: boolean; app: string | null };
+}): void {
+  send('personalized', {
+    num_items: input.matchCount,
+    ...(input.browser
+      ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }
+      : {}),
+  });
 }
 
 /** The onboarding wizard was finished — the account is a real, qualified lead. */
