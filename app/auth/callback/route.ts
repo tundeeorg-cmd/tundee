@@ -64,7 +64,15 @@ export async function GET(request: NextRequest) {
   const lineRetried = searchParams.get(LINE_CALLBACK_RETRY_FLAG) === '1'
   const lineFailure = (reason: string) => {
     if (reason === 'access_denied') return NextResponse.redirect(`${origin}/auth?error=line_cancelled`)
-    if (lineRetried) return NextResponse.redirect(`${origin}/auth?error=line_state_mismatch`)
+    if (lineRetried) {
+      // The two exchange failures keep their own code so /auth reports (and the
+      // funnel's signup_failed event records) WHICH one it was; everything else
+      // is the old catch-all.
+      const code = reason === 'verifier_missing' ? 'line_verifier_missing'
+                 : reason === 'exchange_failed'   ? 'line_exchange_failed'
+                 : 'line_state_mismatch'
+      return NextResponse.redirect(`${origin}/auth?error=${code}`)
+    }
     const again = new URL(`${origin}/api/auth/line/start`)
     again.searchParams.set('next', next)
     again.searchParams.set('retry', '1')
@@ -73,14 +81,14 @@ export async function GET(request: NextRequest) {
       const value = searchParams.get(key)
       if (value) again.searchParams.set(key, value)
     }
-    console.warn('[TunDee] LINE sign-in failed (%s) — retrying once with disable_auto_login', reason)
+    console.warn('[auth/line] FAIL %s — retrying once with disable_auto_login', reason)
     return NextResponse.redirect(again.toString())
   }
 
   const oauthError = searchParams.get('error')
   if (oauthError && !code && !token_hash) {
     console.error(
-      '[TunDee] OAuth error on callback:', oauthError,
+      isLine ? '[auth/line] FAIL provider error:' : '[TunDee] OAuth error on callback:', oauthError,
       searchParams.get('error_code') ?? '', searchParams.get('error_description') ?? '',
       isLine ? '(LINE)' : '',
     )
@@ -119,6 +127,13 @@ export async function GET(request: NextRequest) {
 
   // ── OAuth code exchange (PKCE) ────────────────────────────────────────────
   if (code) {
+    // exchangeCodeForSession needs the verifier cookie /api/auth/line/start (or
+    // the page, for Google) set in THIS browser. LINE's app-to-app login can
+    // return to a different browser from the one that started — the cookie jar
+    // is then empty — and that is indistinguishable from any other failed
+    // exchange unless we look first. Name only, never the value.
+    const hasVerifier = request.cookies.getAll().some(c => c.name.endsWith('-code-verifier'))
+
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
@@ -127,14 +142,23 @@ export async function GET(request: NextRequest) {
       const lineSub = data.user ? lineSubOf(data.user) : null
       if (lineSub && data.user) {
         const admin = createAdminClient()
-        if (admin) await linkLineProfile(admin, data.user.id, lineSub)
-        else console.error('[TunDee] LINE sign-in: service role not configured, line_user_id not written')
+        if (admin) {
+          const linked = await linkLineProfile(admin, data.user.id, lineSub)
+          if (linked !== 'linked') console.error('[auth/line] FAIL profile link:', linked, { userId: data.user.id })
+        } else {
+          console.error('[auth/line] FAIL service role not configured, line_user_id not written')
+        }
+        console.info('[auth/line] OK session established', { userId: data.user.id })
       }
       return redirectWithConversion(origin, await merge())
     }
 
-    console.error('[TunDee] exchangeCodeForSession error:', error.status, error.message)
-    if (isLine) return lineFailure('exchange_failed')
+    console.error(
+      isLine ? '[auth/line] FAIL exchangeCodeForSession' : '[TunDee] exchangeCodeForSession error:',
+      error.status, error.message,
+      isLine ? { hasVerifier, retried: lineRetried, ua: request.headers.get('user-agent')?.slice(0, 160) ?? '' } : '',
+    )
+    if (isLine) return lineFailure(hasVerifier ? 'exchange_failed' : 'verifier_missing')
     return NextResponse.redirect(`${origin}/auth?error=exchange_failed`)
   }
 
