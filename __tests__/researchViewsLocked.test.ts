@@ -35,10 +35,13 @@ describe('v30 — the lock', () => {
     expect(lockList).toContain('research_export');
   });
 
-  it('leaves the admin_* views alone: /admin reads them from the browser, with the user\'s session', () => {
+  it('leaves the admin_* views to v32: /admin now reads them on the server, not from the browser', () => {
+    // v30 did not lock them because the page read them with the user's session. It does not
+    // any more (adminServerReads.test.ts), and scripts/20261031_v32 locks them.
     for (const v of ['admin_summary', 'admin_province_stats', 'admin_top_scholarships', 'admin_daily_signups', 'admin_daily_active']) {
       expect(lockList).not.toContain(v);
-      expect(readFileSync('app/admin/page.tsx', 'utf8')).toContain(v);
+      expect(readFileSync('app/admin/page.tsx', 'utf8')).not.toContain(v);
+      expect(readFileSync('scripts/20261031_v32_lock_admin_views.sql', 'utf8')).toContain(`'${v}'`);
     }
   });
 

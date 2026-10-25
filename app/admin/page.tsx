@@ -318,18 +318,23 @@ export default function AdminPage() {
     setStatsLoading(true);
     setStatsError('');
     try {
-      // Try the admin_summary view first; fall back to direct queries if view doesn't exist
-      const [summaryRes, trendRes, activeRes, topRes, provinceRes, recentRes] = await Promise.all([
-        supabase.from('admin_summary').select('*').maybeSingle(),
-        supabase.from('admin_daily_signups').select('*'),
-        supabase.from('admin_daily_active').select('*'),
-        supabase.from('admin_top_scholarships').select('*').limit(10),
-        supabase.from('admin_province_stats').select('*').limit(15),
-        supabase.from('profiles')
-          .select('id, display_name, province, gpa, welfare_card, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20),
-      ]);
+      // Read on the server (see /api/admin/analytics): the admin_* views are service-role
+      // only now, so they can no longer be read from the browser with the user's session.
+      const res = await fetch('/api/admin/analytics', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`analytics ${res.status}`);
+      const body = await res.json() as {
+        summary: Record<string, number> | null; signups: Record<string, unknown>[]; active: Record<string, unknown>[];
+        top: unknown[]; provinces: unknown[]; recent: unknown[];
+        research: { events: number; outcomes: number; priorKnowledge: number; recruitmentSources: { source: string; count: number }[] };
+        errors: string[];
+      };
+      const summaryRes = { data: body.summary };
+      const trendRes   = { data: body.signups };
+      const activeRes  = { data: body.active };
+      const topRes     = { data: body.top };
+      const provinceRes = { data: body.provinces };
+      const recentRes  = { data: body.recent };
+      if (body.errors.length > 0) setStatsError(`Some figures could not be read: ${body.errors.join(', ')}.`);
 
       // Summary stats
       if (summaryRes.data) {
@@ -350,9 +355,9 @@ export default function AdminPage() {
           welfare_card_users:  d.welfare_card_users ?? 0,
         });
       } else {
-        // View doesn't exist yet show zeros (developer needs to run admin_views.sql)
+        // The summary could not be read (or the view does not exist yet): show zeros, and say so.
         setSummary(ZERO_STATS);
-        setStatsError('Run scripts/admin_views.sql in Supabase to enable analytics.');
+        setStatsError(prev => prev || 'Could not read the summary. If this is a new project, run scripts/admin_views.sql.');
       }
 
       // Trend data merge daily_signups + daily_active by day
@@ -383,31 +388,11 @@ export default function AdminPage() {
       // Recent profiles
       setRecentProfiles((recentRes.data ?? []) as RecentProfile[]);
 
-      // Research data (separate queries — don't fail main analytics if these tables are empty)
-      try {
-        const [eventsRes, outcomesRes, priorRes, recruitRes] = await Promise.all([
-          supabase.from('user_events').select('*', { count: 'exact', head: true }),
-          supabase.from('recommendations').select('*', { count: 'exact', head: true }).eq('led_to_application', true),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).not('prior_scholarship_knowledge', 'is', null),
-          supabase.from('profiles').select('recruitment_source').not('recruitment_source', 'is', null),
-        ]);
-        setEventCount(eventsRes.count ?? 0);
-        setOutcomesTracked(outcomesRes.count ?? 0);
-        setPriorKnowledgeCount(priorRes.count ?? 0);
-        // Group recruitment sources
-        const sourceMap = new Map<string, number>();
-        ((recruitRes.data ?? []) as { recruitment_source: string }[]).forEach((row) => {
-          const src = row.recruitment_source || 'unknown';
-          sourceMap.set(src, (sourceMap.get(src) ?? 0) + 1);
-        });
-        setRecruitmentSources(
-          Array.from(sourceMap.entries())
-            .map(([source, count]) => ({ source, count }))
-            .sort((a, b) => b.count - a.count)
-        );
-      } catch {
-        // Research queries failed silently — tables may not exist yet
-      }
+      // Research counts, computed on the server with the rest.
+      setEventCount(body.research.events);
+      setOutcomesTracked(body.research.outcomes);
+      setPriorKnowledgeCount(body.research.priorKnowledge);
+      setRecruitmentSources(body.research.recruitmentSources);
     } catch (err) {
       console.error('[TunDee] Admin analytics load error:', err);
       setStatsError('Could not load analytics data. Check console for details.');
