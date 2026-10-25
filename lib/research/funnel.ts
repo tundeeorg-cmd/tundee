@@ -42,7 +42,14 @@ export type FunnelEventType =
   | 'signup_failed'
   // /start browse-first funnel (scripts/20261029_v27_funnel_steps.sql adds these two)
   | 'browsed'
-  | 'personalize_shown';
+  | 'personalize_shown'
+  // Sign-in inside in-app browsers (scripts/20261101_v34_login_funnel_events.sql adds these)
+  | 'login_method_shown'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'otp_failed'
+  | 'open_in_chrome_clicked'
+  | 'line_login_clicked_in_app';
 
 export interface FunnelEventPayload {
   eventType: FunnelEventType;

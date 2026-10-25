@@ -268,20 +268,27 @@ export default function PreviewResults({
         </ul>
 
         {/* LINE first, right here: no /auth page load in between, which inside
-            a webview is a step people drop at. Email stays one tap below. */}
-        <LineQuickStart signupHref={signupHref} />
+            a webview is a step people drop at. Email stays one tap below.
+            Inside Facebook / Instagram the order flips and the email code is typed
+            on this page (LineQuickStart renders it and drops the link below). */}
+        <LineQuickStart
+          signupHref={signupHref}
+          fallback={
+            <>
+              <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
+                หรือสมัครด้วยอีเมล
+              </p>
 
-        <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
-          หรือสมัครด้วยอีเมล
-        </p>
-
-        <Link
-          href={signupHref}
-          style={th}
-          className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
-        >
-          สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
-        </Link>
+              <Link
+                href={signupHref}
+                style={th}
+                className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
+              >
+                สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
+              </Link>
+            </>
+          }
+        />
         <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
           ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา
         </p>

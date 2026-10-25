@@ -125,6 +125,6 @@ export function followLineLaunch(url: string, onSettled: (stuck: boolean) => voi
 /** Shown on Android when the hand-off to Chrome did not happen. */
 export function androidLineHelp(th: boolean): string {
   return th
-    ? 'เปิด Chrome อัตโนมัติไม่สำเร็จ ให้กด "คัดลอกลิงก์" แล้ววางในแอป Chrome เพื่อเข้าสู่ระบบด้วย LINE'
-    : "Couldn't open Chrome automatically. Tap \"Copy link\", then paste it into Chrome to sign in with LINE.";
+    ? 'ยังเปิด Chrome ไม่ได้ ให้กด "คัดลอกลิงก์" แล้ววางในแอป Chrome เพื่อเข้าสู่ระบบด้วย LINE'
+    : "Chrome did not open. Tap \"Copy link\", then paste it into Chrome to sign in with LINE.";
 }
