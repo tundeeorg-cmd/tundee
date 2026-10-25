@@ -3,10 +3,11 @@
 /**
  * Preview result cards for /start.
  *
- * The top matches render as real, complete cards — name, funder, award, deadline
- * and the recommender's own Thai "why you match" sentence. Everything below is
- * blurred with an explicit count, so the signup gate reads as "there is more of
- * this waiting" rather than "you hit a paywall".
+ * The matches render as real, complete cards — name, funder, award, deadline and
+ * the recommender's own Thai "why you match" sentence. Nothing is blurred, covered
+ * or withheld: the rest of the list is one tap away, with no account. What an
+ * account adds (LINE reminders before a deadline, a saved list) is what the ask at
+ * the end offers, because that is the only part that genuinely needs one.
  *
  * Thai-only by design: /start serves cold Thai ad traffic and has no language
  * toggle (unlike the main app, which is bilingual).
@@ -112,24 +113,6 @@ function MatchCard({ card, onApply }: { card: PreviewMatchCard; onApply: (c: Pre
   );
 }
 
-// ── Blurred, gated card ───────────────────────────────────────────────────────
-
-function LockedCard() {
-  return (
-    <div
-      aria-hidden="true"
-      className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5 select-none"
-      style={{ filter: 'blur(5px)' }}
-    >
-      <div className="h-4 w-3/4 rounded bg-[#DDE4EE] dark:bg-[#1A2E4A]" />
-      <div className="h-3 w-1/2 rounded bg-[#E8ECF2] dark:bg-[#16263F] mt-2.5" />
-      <div className="h-3 w-2/3 rounded bg-[#E8ECF2] dark:bg-[#16263F] mt-4" />
-      <div className="h-3 w-1/2 rounded bg-[#E8ECF2] dark:bg-[#16263F] mt-2" />
-      <div className="h-12 rounded-xl bg-[#EBF2FF] dark:bg-[#0D1F35] mt-4" />
-    </div>
-  );
-}
-
 // ── Results block ─────────────────────────────────────────────────────────────
 
 export default function PreviewResults({
@@ -179,8 +162,7 @@ export default function PreviewResults({
     });
   }, [results]);
 
-  const lockedPlaceholders = Math.min(results.lockedCount, 2);
-  const hasLocked = results.lockedCount > 0;
+  const hasMore = results.lockedCount > 0;
 
   // The portal below needs document.body, which does not exist during SSR.
   const [mounted, setMounted] = useState(false);
@@ -195,10 +177,11 @@ export default function PreviewResults({
     });
   }
 
+  // What an account actually adds. Looking at scholarships needs none.
   const GATE_BULLETS = [
-    'ดูทุนทั้งหมดที่คุณมีสิทธิ์สมัคร',
-    'แจ้งเตือนก่อนวันปิดรับ ไม่พลาดแน่นอน',
+    'แจ้งเตือนทาง LINE ก่อนทุนปิดรับ ไม่พลาดแน่นอน',
     'บันทึกทุนที่สนใจไว้ดูทีหลัง',
+    'ติดตามสถานะการสมัครของแต่ละทุน',
   ];
 
   return (
@@ -224,22 +207,20 @@ export default function PreviewResults({
         ))}
       </div>
 
-      {hasLocked && (
-        <div className="relative mt-3">
-          <div className="flex flex-col gap-3" aria-hidden="true">
-            {Array.from({ length: lockedPlaceholders }, (_, i) => <LockedCard key={i} />)}
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#F5F7FA]/80 to-[#F5F7FA] dark:via-[#07111F]/80 dark:to-[#07111F]">
-            <p className="font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center px-5" style={{ ...th, fontSize: '1rem' }}>
-              อีก {results.lockedCount} ทุนที่คุณมีสิทธิ์ รออยู่
-            </p>
-          </div>
-        </div>
+      {/* Nothing is withheld. The scholarships beyond the cards above are on the
+          public list, one tap away, with no account. What an account adds is
+          reminders and a saved list — and that is what the ask below says. */}
+      {hasMore && (
+        <p className="mt-3 text-center text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
+          ยังมีอีก {results.lockedCount.toLocaleString('th-TH')} ทุนที่คุณมีสิทธิ์{' '}
+          <Link href="/scholarships?from=preview" className="font-bold text-[#1B3A6B] dark:text-[#8FB4FF] underline">
+            ดูทั้งหมดได้เลย ไม่ต้องสมัคร
+          </Link>
+        </p>
       )}
 
       {/* Sticky CTA, phones only.
-          Three full cards plus the blurred pair put the inline CTA ~2.5 screens down on a
+          Ten full cards put the inline CTA several screens down on a
           375px viewport, and this traffic is almost entirely small-phone; the brief
           requires the primary action stay reachable without pinch-zoom.
 
@@ -256,7 +237,7 @@ export default function PreviewResults({
             style={th}
             className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
           >
-            ดูทุนทั้งหมด — ฟรี
+            สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
           </Link>
         </div>,
         document.body,
@@ -270,11 +251,9 @@ export default function PreviewResults({
             reframed around the reminder rather than around locked cards. This block used
             to be hidden entirely when nothing was locked, so those visitors reached the
             end of their results and were never asked to sign up at all. */}
-        {!hasLocked && (
-          <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
-            รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
-          </p>
-        )}
+        <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
+          รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
+        </p>
 
         <ul className="flex flex-col gap-2 mb-4">
           {GATE_BULLETS.map((bullet) => (
@@ -301,7 +280,7 @@ export default function PreviewResults({
           style={th}
           className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
         >
-          ดูทุนทั้งหมด — ฟรี
+          สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
         </Link>
         <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
           ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา

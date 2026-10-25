@@ -11,6 +11,7 @@ import type { Metadata } from 'next';
 import StartLanding from './StartLanding';
 import { getRegisteredUserCount } from '@/lib/social/userCount';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
+import { getStartCards } from '@/lib/scholarships/startBrowse';
 import { resolveLandingVariant } from '@/lib/landing/variants';
 
 // The opengraph-image.tsx in this directory is auto-resolved by Next.js for
@@ -72,9 +73,10 @@ export default async function StartPage({
     typeof searchParams.v === 'string' ? searchParams.v : undefined,
   );
 
-  const [stats, registeredCount] = await Promise.all([
+  const [stats, registeredCount, startCards] = await Promise.all([
     getScholarshipStats(),
     getRegisteredUserCount(),
+    getStartCards(),
   ]);
   return (
     <StartLanding
@@ -83,6 +85,8 @@ export default async function StartPage({
       funderCount={stats.ok ? stats.funders : null}
       registeredCount={registeredCount}
       landingVariant={landingVariant}
+      initialCards={startCards.cards}
+      listOk={startCards.ok}
     />
   );
 }
