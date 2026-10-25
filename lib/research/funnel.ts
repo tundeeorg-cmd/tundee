@@ -39,7 +39,10 @@ export type FunnelEventType =
   | 'results_viewed'
   | 'signup_started'
   | 'signup_completed'
-  | 'signup_failed';
+  | 'signup_failed'
+  // /start browse-first funnel (scripts/20261029_v27_funnel_steps.sql adds these two)
+  | 'browsed'
+  | 'personalize_shown';
 
 export interface FunnelEventPayload {
   eventType: FunnelEventType;
