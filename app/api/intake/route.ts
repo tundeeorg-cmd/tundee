@@ -19,6 +19,7 @@
 export const runtime = 'nodejs';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { parsePreviewInput } from '@/lib/preview/types';
 
@@ -51,11 +52,20 @@ export async function POST(request: NextRequest) {
   // ever grew a select.
   const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-  const { data, error } = await supabase
+  // The id is minted HERE, and the insert asks for nothing back.
+  //
+  // This used to be `.insert({ answers }).select('id').single()`. A RETURNING
+  // clause needs SELECT on the table, and v20 deliberately grants anon INSERT
+  // only (the table is readable by the service role alone), so every request
+  // failed and returned 500. pending_intake had 0 rows on 26 Oct 2026 against
+  // 2-18 completed quizzes a day: for its whole life no answers were parked.
+  // Minting the id here keeps the privileges exactly as v20 set them and needs
+  // no migration.
+  const id = randomUUID();
+
+  const { error } = await supabase
     .from('pending_intake')
-    .insert({ answers })
-    .select('id')
-    .single();
+    .insert({ id, answers });
 
   if (error) {
     // Never fatal for the visitor: /start still works, the cookie still carries
@@ -66,5 +76,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'park_failed' }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, id: data.id });
+  return NextResponse.json({ ok: true, id });
 }
