@@ -1,21 +1,23 @@
 /**
  * lib/adTracking.ts — the /start-funnel-specific wrappers over lib/analytics.
  *
- * trackFormResultsSeen is the one that matters most here: it fires Lead, the
- * event ad delivery optimizes against, and the ticket that moved it to this
- * touchpoint was explicit that it must fire exactly once per session, never
- * on a re-render or a resubmitted form.
+ * trackScholarshipOpened is the one that matters most here: it fires Lead, the
+ * event ad delivery optimizes against (opening a scholarship's detail page), and
+ * it must fire at most once per session, never on a re-render or a second page.
+ * trackPersonalized is the matcher's own custom event and is guarded the same way.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const lead = vi.fn();
+const personalized = vi.fn();
 const initiateCheckout = vi.fn();
 const viewContent = vi.fn();
 const completeRegistration = vi.fn();
 
 vi.mock('@/lib/analytics', () => ({
   lead: (...args: unknown[]) => lead(...args),
+  personalized: (...args: unknown[]) => personalized(...args),
   initiateCheckout: (...args: unknown[]) => initiateCheckout(...args),
   viewContent: (...args: unknown[]) => viewContent(...args),
   completeRegistration: (...args: unknown[]) => completeRegistration(...args),
@@ -26,7 +28,8 @@ vi.mock('@/lib/research/funnel', () => ({ logFunnelEvent: vi.fn() }));
 
 import {
   trackStartPageView,
-  trackFormResultsSeen,
+  trackScholarshipOpened,
+  trackPersonalized,
   trackAuthPageView,
   trackSignupComplete,
 } from '@/lib/adTracking';
@@ -46,6 +49,7 @@ function installSessionStorage() {
 beforeEach(() => {
   installSessionStorage();
   lead.mockClear();
+  personalized.mockClear();
   initiateCheckout.mockClear();
   viewContent.mockClear();
   completeRegistration.mockClear();
@@ -53,23 +57,28 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('trackStartPageView', () => {
-  it('fires ViewContent with content_name start_page, no content_ids', () => {
+  it('fires ViewContent with content_name start_browse, no content_ids', () => {
     trackStartPageView();
-    expect(viewContent).toHaveBeenCalledWith({ contentName: 'start_page' });
+    expect(viewContent).toHaveBeenCalledWith({ contentName: 'start_browse' });
   });
 });
 
-describe('trackFormResultsSeen', () => {
-  it('fires Lead with the match count as value', () => {
-    trackFormResultsSeen(12);
-    expect(lead).toHaveBeenCalledWith({ value: 12 });
+describe('trackScholarshipOpened — Lead', () => {
+  it('fires Lead with the scholarship that was opened', () => {
+    trackScholarshipOpened('TD-0001');
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0001' });
   });
 
-  it('fires only once per session — a second call is a no-op', () => {
-    trackFormResultsSeen(12);
-    trackFormResultsSeen(12);
-    trackFormResultsSeen(5); // even with a different value
+  it('fires only once per session, whichever scholarships are opened next', () => {
+    trackScholarshipOpened('TD-0001');
+    trackScholarshipOpened('TD-0001');
+    trackScholarshipOpened('TD-0002');
     expect(lead).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing without a scholarship id', () => {
+    trackScholarshipOpened('');
+    expect(lead).not.toHaveBeenCalled();
   });
 
   it('still fires once even when sessionStorage throws (private mode, embedded webview)', () => {
@@ -79,8 +88,29 @@ describe('trackFormResultsSeen', () => {
         setItem: () => { throw new Error('blocked'); },
       },
     });
-    expect(() => trackFormResultsSeen(3)).not.toThrow();
-    expect(lead).toHaveBeenCalledWith({ value: 3 });
+    expect(() => trackScholarshipOpened('TD-0003')).not.toThrow();
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0003' });
+  });
+});
+
+describe('trackPersonalized — the matcher finished', () => {
+  it('fires the custom Personalized event with the match count, and never Lead', () => {
+    trackPersonalized(12);
+    expect(personalized).toHaveBeenCalledWith({ matchCount: 12 });
+    expect(lead).not.toHaveBeenCalled();
+  });
+
+  it('fires only once per session', () => {
+    trackPersonalized(12);
+    trackPersonalized(5);
+    expect(personalized).toHaveBeenCalledTimes(1);
+  });
+
+  it('is independent of Lead: one does not use up the other', () => {
+    trackScholarshipOpened('TD-0001');
+    trackPersonalized(7);
+    expect(lead).toHaveBeenCalledTimes(1);
+    expect(personalized).toHaveBeenCalledTimes(1);
   });
 });
 

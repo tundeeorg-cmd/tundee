@@ -10,6 +10,7 @@ import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types
 import { recordApplyClick } from '@/lib/analytics/applyClick';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { viewContent, applyClicked } from '@/lib/analytics';
+import { trackScholarshipOpened } from '@/lib/adTracking';
 import TrackButton from '@/components/TrackButton';
 import { resolveScheduleText } from '@/lib/tdScholarships/scheduleText';
 
@@ -197,6 +198,8 @@ export default function TdScholarshipDetailPage() {
           contentIds:  [id],
           contentName: row.scholarship_name_th || row.scholarship_name_en || undefined,
         });
+        // Lead: opening a scholarship is the intent signal ads are optimized on.
+        trackScholarshipOpened(id);
         const { data: { user } } = await supabase.auth.getUser();
         logFunnelEvent({ eventType: 'view_detail', scholarshipId: id, userId: user?.id ?? null });
       }
