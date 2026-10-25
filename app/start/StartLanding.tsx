@@ -73,6 +73,7 @@ export default function StartLanding({
   registeredCount,
   initialCards,
   listOk,
+  researchConsentOffered = false,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
@@ -87,6 +88,8 @@ export default function StartLanding({
   initialCards: TdScholarship[];
   /** False when the server could not load them; the matcher is then offered at once. */
   listOk: boolean;
+  /** True only when ANON_RANDOMIZATION is on: the matcher then asks for research consent. */
+  researchConsentOffered?: boolean;
 }) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
   const copy    = landingCopy(landingVariant);
@@ -159,6 +162,7 @@ export default function StartLanding({
         <StartBrowse
           initialCards={initialCards}
           listOk={listOk}
+          researchConsentOffered={researchConsentOffered}
           signupHref={ctaHref}
           registeredCount={registeredCount}
           scholarshipCount={scholarshipCount}

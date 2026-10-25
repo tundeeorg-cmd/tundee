@@ -35,6 +35,10 @@ import {
   type PreviewResponse,
 } from '@/lib/preview/types';
 import { fetchAllRows } from '@/lib/supabase/fetchAll';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { anonFairnessMode, anonRandomizationEnabled } from '@/lib/research/anonAssignment';
+import { loadAnonAssignment } from '@/lib/research/anonStore';
+import { anonIdFromRequest } from '@/lib/research/anonRequest';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -199,11 +203,33 @@ export async function POST(request: NextRequest) {
   );
   const profile = buildProfile(input);
 
-  // Fairness re-ranking off for anonymous visitors — they have no experiment
-  // assignment, and the preview must not silently enrol them in the study.
+  // Fairness re-ranking is OFF for an anonymous visitor unless they have been
+  // randomized into the adjusted arm (they consented on /start and answered the
+  // matcher), so the preview never silently enrols anyone in the study.
+  //
+  // With ANON_RANDOMIZATION off — the default — this is exactly the old behaviour
+  // and nothing below it reads a cookie or touches the database.
+  let fairnessMode: 'on' | 'off' = 'off';
+  let variantLabel = 'anonymous';
+  if (anonRandomizationEnabled()) {
+    const anonId = anonIdFromRequest(request);
+    const admin = anonId ? createAdminClient() : null;
+    if (anonId && admin) {
+      const found = await loadAnonAssignment(admin, anonId);
+      if (found.error) {
+        // Serve the baseline, and say so: a visitor whose arm we could not read
+        // must not be given a treatment on a guess.
+        console.error('[anon] preview-match could not read the assignment:', found.error);
+      } else if (found.row) {
+        fairnessMode = anonFairnessMode(found.row);
+        variantLabel = `anonymous-${found.row.ranking_variant}`;
+      }
+    }
+  }
+
   let result = recommend(scholarships, profile, {
-    fairness_mode: 'off',
-    variant:       'anonymous',
+    fairness_mode: fairnessMode,
+    variant:       variantLabel,
     limit:         PREVIEW_LIMIT,
   });
 
@@ -215,7 +241,7 @@ export async function POST(request: NextRequest) {
     result = recommend(
       scholarships,
       { ...profile, gpa: 4.0 },
-      { fairness_mode: 'off', variant: 'anonymous', limit: PREVIEW_BROADENED_N },
+      { fairness_mode: fairnessMode, variant: variantLabel, limit: PREVIEW_BROADENED_N },
     );
   }
 

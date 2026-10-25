@@ -8,6 +8,8 @@ import { LINE_CALLBACK_FLAG, LINE_CALLBACK_RETRY_FLAG, lineSubOf } from '@/lib/l
 import { linkLineProfile } from '@/lib/line/linkProfile'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveRedirect, safeNext, redirectWithConversion } from '@/lib/auth/resolveRedirect'
+import { anonRandomizationEnabled } from '@/lib/research/anonAssignment'
+import { mergeAnonAfterSignIn } from '@/lib/research/anonMerge'
 
 /**
  * Auth callback handles:
@@ -49,6 +51,17 @@ export async function GET(request: NextRequest) {
     utmCampaign:  searchParams.get('utm_campaign'),
     userAgent:    request.headers.get('user-agent'),
   })
+
+  /**
+   * Anonymous randomization, merged into the account that has just signed in.
+   * A no-op unless ANON_RANDOMIZATION=on, and never allowed to block a sign-in.
+   * Runs AFTER merge(): the profile row must exist before an arm can be written.
+   */
+  const mergeAnon = async (knownUserId?: string | null) => {
+    if (!anonRandomizationEnabled()) return
+    const id = knownUserId ?? (await supabase.auth.getUser()).data.user?.id
+    if (id) await mergeAnonAfterSignIn(request, id, searchParams.get(INTAKE_PARAM))
+  }
 
   /*
    * A Supabase-mode LINE attempt that failed. Supabase appends `error` to the
@@ -116,7 +129,9 @@ export async function GET(request: NextRequest) {
         const params = new URLSearchParams({ next })
         return NextResponse.redirect(`${origin}/auth/reset/confirm?${params.toString()}`)
       }
-      return redirectWithConversion(origin, await merge())
+      const resolved = await merge()
+      await mergeAnon()
+      return redirectWithConversion(origin, resolved)
     }
 
     console.error('[TunDee] verifyOtp error:', error.status, error.message)
@@ -150,7 +165,9 @@ export async function GET(request: NextRequest) {
         }
         console.info('[auth/line] OK session established', { userId: data.user.id })
       }
-      return redirectWithConversion(origin, await merge())
+      const resolved = await merge()
+      await mergeAnon(data.user?.id)
+      return redirectWithConversion(origin, resolved)
     }
 
     console.error(
@@ -170,7 +187,11 @@ export async function GET(request: NextRequest) {
   // one thing every new session has to pass through.
   {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) return redirectWithConversion(origin, await merge())
+    if (user) {
+      const resolved = await merge()
+      await mergeAnon(user.id)
+      return redirectWithConversion(origin, resolved)
+    }
   }
 
   // ── Nothing usable arrived ────────────────────────────────────────────────

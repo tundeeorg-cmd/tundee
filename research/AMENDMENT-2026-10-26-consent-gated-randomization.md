@@ -27,7 +27,20 @@
 
 **Prevention.** Pending: ask research consent on `/start` before the questions, then call the assignment route at completion on that path.
 
-## 3. Other facts the paper should state
+## 3. Moving the randomization point before sign-in (proposed, not in effect)
+
+**What would change.** PREREG §4 fixes assignment "at profile completion (the `profile_completed` event), once". The browse-first `/start` lets a visitor see and act on scholarships before any account, so the plan randomizes at the moment a consenting visitor has answered the matcher (level, province, income band) and is about to be served a ranked list, with sign-in later. The code exists and is **switched off** (`ANON_RANDOMIZATION`, default off); nothing in this section is in effect.
+
+**What stays the same.** The unit, the 1:1 ratio, the stratification (`region_group` × `income_bracket`), the HMAC and its salt, immutability, and the pilot exclusion. The anonymous arm is computed from a server-issued anonymous id in place of the user id; the account's arm always wins on a disagreement and the disagreement is recorded.
+
+**What differs from §4 and must be decided.**
+- *Timing.* Assignment precedes profile completion for visitors who consent on `/start`. The primary outcome's window (§6.1) opens at `profile_completed`; pre-sign-in activity is anonymous and is outside it, so a randomized visitor's clicks before signing up are not counted.
+- *Identity.* An anonymous id can be discarded by clearing cookies, which re-rolls the visitor. A visitor who signs in on another device is matched through the parked-answers id; one who cannot be matched is randomized again at sign-in.
+- *Consent.* §12.4 says consent is separate from the terms and versioned and timestamped. The `/start` wording is a short rendering of the research form (`lib/research/startConsent.ts`, a draft) and **has not been approved**.
+- *Minors.* §12.5 requires a guardian's consent for under-18 participants. `/start` does not ask age and a checkbox is not a guardian's consent. **This is the blocker:** the switch must not be turned on until the team decides how participants under 18 are identified and consented.
+- *Outcome data.* The amendment would be made after outcome records exist (§0).
+
+## 4. Other facts the paper should state
 - 16 students ticked research consent but have no `student_profile` row and are excluded from every export.
 - The export gate (`/api/research/export`, `v_event_research_export`) does not check `consent_version`; 8 students consented under superseded wording (`2026-01-v1`).
 - Effective sample is tens of students against a target of 294 per arm; the stopping rule (31 January 2027) will apply to whatever is obtained.

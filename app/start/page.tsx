@@ -12,6 +12,7 @@ import StartLanding from './StartLanding';
 import { getRegisteredUserCount } from '@/lib/social/userCount';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { getStartCards } from '@/lib/scholarships/startBrowse';
+import { anonRandomizationEnabled } from '@/lib/research/anonAssignment';
 import { resolveLandingVariant } from '@/lib/landing/variants';
 
 // The opengraph-image.tsx in this directory is auto-resolved by Next.js for
@@ -87,6 +88,7 @@ export default async function StartPage({
       landingVariant={landingVariant}
       initialCards={startCards.cards}
       listOk={startCards.ok}
+      researchConsentOffered={anonRandomizationEnabled()}
     />
   );
 }

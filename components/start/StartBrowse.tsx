@@ -77,6 +77,7 @@ function useSeenOnce(ref: React.RefObject<Element | null>, onSeen: () => void) {
 export default function StartBrowse({
   initialCards,
   listOk,
+  researchConsentOffered = false,
   signupHref,
   registeredCount,
   scholarshipCount,
@@ -85,6 +86,8 @@ export default function StartBrowse({
   initialCards: TdScholarship[];
   /** False when the server could not load the list: the matcher is then shown at once. */
   listOk: boolean;
+  /** True only when ANON_RANDOMIZATION is on. */
+  researchConsentOffered?: boolean;
   signupHref: string;
   registeredCount: number | null;
   scholarshipCount: number | null;
@@ -240,6 +243,7 @@ export default function StartBrowse({
             registeredCount={registeredCount}
             scholarshipCount={scholarshipCount}
             funderCount={funderCount}
+            researchConsentOffered={researchConsentOffered}
           />
         </div>
       )}
