@@ -4,7 +4,11 @@
  * BEHIND A SWITCH: answers 404 {enabled:false} unless ANON_RANDOMIZATION=on. See
  * lib/research/anonAssignment.ts for what must be true before that is turned on.
  *
- * Body: { answers: PreviewInput, consent: true }
+ * Body: { answers: PreviewInput, adult: true, consent: true }
+ *
+ * - Age first: unless the visitor declared they have reached the threshold
+ *   (START_ADULT_AGE) there is no assignment, no cookie and no row — they get the full
+ *   service outside the study. Self-declared, so a limit of the design, not a check.
  *
  * - No consent, no assignment, no cookie, no row: the visitor simply gets the
  *   baseline ranking and is not in the study (PART 2 step 6).
@@ -25,19 +29,22 @@ import { parsePreviewInput } from '@/lib/preview/types';
 import { anonRandomizationEnabled, buildAnonAssignment, anonLogTag } from '@/lib/research/anonAssignment';
 import { ANON_CONSENT_VERSION, saveAnonAssignment } from '@/lib/research/anonStore';
 import { anonIdFromRequest, mintAnonId, setAnonCookie } from '@/lib/research/anonRequest';
+import { mayBeRandomized } from '@/lib/research/startEligibility';
 
 export async function POST(request: NextRequest) {
   if (!anonRandomizationEnabled()) {
     return NextResponse.json({ enabled: false }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => null) as { answers?: unknown; consent?: unknown } | null;
+  const body = await request.json().catch(() => null) as { answers?: unknown; consent?: unknown; adult?: unknown } | null;
   const answers = parsePreviewInput(body?.answers);
   if (!answers) return NextResponse.json({ error: 'invalid_answers' }, { status: 400 });
 
-  // Consent is an explicit `true`. Absent, false or anything else is a decline.
-  if (body?.consent !== true) {
-    return NextResponse.json({ randomized: false, reason: 'no_consent' });
+  // Age, then consent: each an explicit `true`. Absent, false or anything else is a no,
+  // and a no creates nothing.
+  const may = mayBeRandomized({ adult: body?.adult, consent: body?.consent });
+  if (may !== 'ok') {
+    return NextResponse.json({ randomized: false, reason: may });
   }
 
   const admin = createAdminClient();

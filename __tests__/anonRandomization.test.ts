@@ -166,7 +166,7 @@ describe('POST /api/start/randomize', () => {
   beforeEach(() => { store.saved = []; store.saveError = null; store.existing = null; store.admin = true; });
 
   it('does nothing at all while the switch is off', async () => {
-    const res = await call({ answers: ANSWERS, consent: true });
+    const res = await call({ answers: ANSWERS, adult: true, consent: true });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ enabled: false });
     expect(store.saved).toHaveLength(0);
@@ -178,18 +178,32 @@ describe('POST /api/start/randomize', () => {
 
     it('without consent: no assignment, no row, no cookie', async () => {
       for (const consent of [false, undefined, 'true', 1, null]) {
-        const res = await call({ answers: ANSWERS, consent });
+        const res = await call({ answers: ANSWERS, adult: true, consent });
         expect(await res.json()).toEqual({ randomized: false, reason: 'no_consent' });
       }
       expect(store.saved).toHaveLength(0);
     });
 
+    it('age first: a visitor who is not a declared adult is never randomized, even with consent ticked', async () => {
+      for (const adult of [false, undefined, null, 'true', 1]) {
+        const res = await call({ answers: ANSWERS, adult, consent: true });
+        expect(await res.json()).toEqual({ randomized: false, reason: 'ineligible_minor' });
+        expect(res.headers.get('set-cookie')).toBeNull();
+      }
+      expect(store.saved).toHaveLength(0);
+    });
+
+    it('an adult who does not consent is a decline, not an ineligible visitor', async () => {
+      expect(await (await call({ answers: ANSWERS, adult: true, consent: false })).json())
+        .toEqual({ randomized: false, reason: 'no_consent' });
+    });
+
     it('rejects answers that are not a valid quiz', async () => {
-      expect((await call({ answers: { level: 'x' }, consent: true })).status).toBe(400);
+      expect((await call({ answers: { level: 'x' }, adult: true, consent: true })).status).toBe(400);
     });
 
     it('with consent: stores the assignment with the consent version, sets an httpOnly cookie, and never reveals the arm', async () => {
-      const res = await call({ answers: ANSWERS, consent: true });
+      const res = await call({ answers: ANSWERS, adult: true, consent: true });
       expect(res.status).toBe(200);
       const text = await res.text();
       expect(JSON.parse(text)).toEqual({ randomized: true });
@@ -205,27 +219,27 @@ describe('POST /api/start/randomize', () => {
     });
 
     it('reuses the visitor\'s existing anonymous id, so a re-submitted quiz keeps its arm', async () => {
-      await call({ answers: ANSWERS, consent: true }, `${ANON_COOKIE}=${ID_A}`);
-      await call({ answers: { ...ANSWERS, province: 'กรุงเทพมหานคร', income: 6 }, consent: true }, `${ANON_COOKIE}=${ID_A}`);
+      await call({ answers: ANSWERS, adult: true, consent: true }, `${ANON_COOKIE}=${ID_A}`);
+      await call({ answers: { ...ANSWERS, province: 'กรุงเทพมหานคร', income: 6 }, adult: true, consent: true }, `${ANON_COOKIE}=${ID_A}`);
       expect(store.saved.map((s) => s.anon_id)).toEqual([ID_A, ID_A]);
       // Same id, same deterministic arm at any given stratum; the stored row (first write) is what stays.
     });
 
     it('ignores a cookie that is not a UUID and mints its own', async () => {
-      await call({ answers: ANSWERS, consent: true }, `${ANON_COOKIE}=not-a-uuid`);
+      await call({ answers: ANSWERS, adult: true, consent: true }, `${ANON_COOKIE}=not-a-uuid`);
       expect(isAnonId(store.saved[0].anon_id)).toBe(true);
       expect(store.saved[0].anon_id).not.toBe('not-a-uuid');
     });
 
     it('fails loudly, not quietly: no salt → 503, no service role → 503, a failed write → 500', async () => {
       delete process.env.RANDOMIZATION_SALT;
-      expect((await call({ answers: ANSWERS, consent: true })).status).toBe(503);
+      expect((await call({ answers: ANSWERS, adult: true, consent: true })).status).toBe(503);
       process.env.RANDOMIZATION_SALT = SALT;
       store.admin = false;
-      expect((await call({ answers: ANSWERS, consent: true })).status).toBe(503);
+      expect((await call({ answers: ANSWERS, adult: true, consent: true })).status).toBe(503);
       store.admin = true;
       store.saveError = '42P01 relation does not exist';
-      const res = await call({ answers: ANSWERS, consent: true });
+      const res = await call({ answers: ANSWERS, adult: true, consent: true });
       expect(res.status).toBe(500);
       expect(JSON.stringify(await res.json())).not.toContain('42P01');
     });
@@ -263,7 +277,7 @@ describe('everything is inert with the switch off', () => {
     const src = read('app/start/PreviewMatcher.tsx');
     expect(src).toContain('useState(false)');                    // researchConsent default
     expect(src).toMatch(/researchConsentOffered && \(/);
-    expect(src).toContain('researchConsentOffered && researchConsent');
+    expect(src).toContain('researchConsentOffered && adult === true && researchConsent');   // age first (startAgeGate.test.ts)
     expect(read('app/start/page.tsx')).toContain('researchConsentOffered={anonRandomizationEnabled()}');
   });
 
