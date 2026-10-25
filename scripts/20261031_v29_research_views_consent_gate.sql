@@ -151,7 +151,9 @@ WHERE c.relkind = 'm' AND pg_get_viewdef(c.oid, true) ILIKE '%consent_research%'
 --   -- Views you have READ in PART 2 and decided need no gate — for example an admin-only
 --   -- view that merely SHOWS consent_research as a column and exports nothing. Name them
 --   -- here; leave empty if there are none. Anything not named here and not rewritten aborts.
---   exempt   TEXT[] := ARRAY[]::TEXT[];
+--   -- v_admin_outcomes: read in PART 2 on 2026-10-26 — it only SHOWS consent_research as a
+--   -- column (no `= true` test to rewrite), and it is closed to anon/authenticated (401).
+--   exempt   TEXT[] := ARRAY['v_admin_outcomes']::TEXT[];
 -- BEGIN
 --   FOR v IN
 --     SELECT c.oid, c.relname, c.reloptions, pg_get_viewdef(c.oid, true) AS def
@@ -201,10 +203,8 @@ WHERE c.relkind = 'm' AND pg_get_viewdef(c.oid, true) ILIKE '%consent_research%'
 -- ═════════════════════════════════════════════════════════════════════════════
 -- ROLLBACK
 -- ═════════════════════════════════════════════════════════════════════════════
---   Views: re-run the CREATE OR REPLACE VIEW statements for the affected views from
---   scripts/add_research_v2.sql, scripts/20260719_research_tables_v3.sql and
---   scripts/20260828_v17_counterfactual_and_consent.sql (or from PART 2's
---   live_definition column, which you should save before PART 3).
+--   Views: run scripts/20261031_v29_ROLLBACK_live_definitions.sql — the six live
+--   definitions as PART 2 read them on 2026-10-26.
 --   Functions: DROP FUNCTION IF EXISTS public.research_export_allowed(BOOLEAN, TEXT, BOOLEAN, INTEGER);
 --              DROP FUNCTION IF EXISTS public.research_minor_age_threshold();
 --              DROP FUNCTION IF EXISTS public.research_current_consent_version();
