@@ -36,6 +36,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PROVINCES_TH, FIELDS_OF_STUDY } from '@/lib/translations';
 import { logEvent } from '@/lib/research/events';
+import { logFunnelEvent } from '@/lib/research/funnel';
 import { readAdParams } from '@/lib/adTracking';
 import { profileCompleted } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
@@ -820,50 +821,75 @@ export default function ProfileSetupPage() {
       // (2) It worked.
       clientLog({ level: 'info', message: '[setup] saved' });
 
-      // ── Randomize into a ranking arm (PREREG §4) ──────────────────────────
-      // Awaited, unlike the baseline snapshot below: the arm decides which
-      // ranking the user is about to see, so it must be settled before the
-      // redirect. Server-side because RANDOMIZATION_SALT must never reach the
-      // browser. Idempotent — safe if this runs twice.
-      //
-      // utm_campaign is sent raw and validated server-side against the closed
-      // set in §5.4; it is never trusted as a free-text value.
-      try {
-        const armRes = await fetch('/api/experiment/assign', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ utm_campaign: readAdParams().utm_campaign ?? null }),
-        });
-        if (!armRes.ok) {
-          // Non-fatal for the student: they get the product either way. It is a
-          // research defect, so it is logged loudly rather than swallowed.
-          console.error('[TunDee Setup] arm assignment failed:', armRes.status);
-        }
-      } catch (err) {
-        console.error('[TunDee Setup] arm assignment request failed:', err);
-      }
-
       // ── Record the research consent decision where the gate reads it ──────
       // The checkbox above wrote only profiles.research_opt_in. Every research
       // export and isResearchConsented() gate on student_profile.consent_research
       // instead, so a student who ticked the box was still excluded from the
       // dataset. This propagates the decision — including an explicit FALSE,
       // which is a recorded decision and not an absence of one (PREREG §12.4).
-      try {
-        const consentRes = await fetch('/api/profile/student', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            consent_research: researchOptIn,
-            guardian_consent: guardianAcknowledged,
-            consent_method:   'signup_inline',
-          }),
-        });
-        if (!consentRes.ok) {
-          console.error('[TunDee Setup] research consent not recorded:', consentRes.status);
+      //
+      // It runs BEFORE randomization, which reads this row: a student who has
+      // not consented is not randomized (they get the baseline ranking and stay
+      // outside the trial), so the decision has to exist first.
+      //
+      // Retried once, and a failure is recorded in funnel_events rather than
+      // only in a log Vercel keeps for half an hour. 16 students who ticked the
+      // box had no row here at all, and nothing said so.
+      const sendConsent = async (): Promise<boolean> => {
+        try {
+          const res = await fetch('/api/profile/student', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              consent_research: researchOptIn,
+              guardian_consent: guardianAcknowledged,
+              consent_method:   'signup_inline',
+            }),
+          });
+          if (!res.ok) console.error('[TunDee Setup] research consent not recorded:', res.status);
+          return res.ok;
+        } catch (err) {
+          console.error('[TunDee Setup] research consent request failed:', err);
+          return false;
         }
-      } catch (err) {
-        console.error('[TunDee Setup] research consent request failed:', err);
+      };
+      let consentRecorded = await sendConsent();
+      if (!consentRecorded) consentRecorded = await sendConsent();
+      if (!consentRecorded) {
+        clientLog({ level: 'error', message: '[setup] research consent not recorded after retry' });
+        logFunnelEvent({ eventType: 'signup_failed', context: { reason: 'research_consent_not_recorded', research_opt_in: researchOptIn } });
+      }
+
+      // ── Randomize into a ranking arm (PREREG §4) ──────────────────────────
+      // Awaited, unlike the baseline snapshot below: the arm decides which
+      // ranking the user is about to see, so it must be settled before the
+      // redirect. Server-side because RANDOMIZATION_SALT must never reach the
+      // browser. Idempotent — safe if this runs twice.
+      //
+      // Skipped when the consent decision could not be recorded: the route
+      // would read "no consent" and leave the student unrandomized, which is
+      // right for someone who declined and wrong for someone whose answer we
+      // lost. Better to leave the arm empty and say so than to decide for them.
+      //
+      // utm_campaign is sent raw and validated server-side against the closed
+      // set in §5.4; it is never trusted as a free-text value.
+      if (consentRecorded) {
+        try {
+          const armRes = await fetch('/api/experiment/assign', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ utm_campaign: readAdParams().utm_campaign ?? null }),
+          });
+          if (!armRes.ok) {
+            // Non-fatal for the student: they get the product either way. It is a
+            // research defect, so it is recorded where it can be counted.
+            console.error('[TunDee Setup] arm assignment failed:', armRes.status);
+            logFunnelEvent({ eventType: 'signup_failed', context: { reason: `assign_failed:${armRes.status}` } });
+          }
+        } catch (err) {
+          console.error('[TunDee Setup] arm assignment request failed:', err);
+          logFunnelEvent({ eventType: 'signup_failed', context: { reason: 'assign_failed:network' } });
+        }
       }
 
       // ── Write immutable baseline snapshot (fire-and-forget, non-blocking) ──
