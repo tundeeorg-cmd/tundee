@@ -57,7 +57,8 @@ const start = (qs = '') =>
     headers: { cookie: `${CONSENT_COOKIE}=${CONSENT_VERSION}` },
   }));
 
-const callback = (qs: string) => CALLBACK(new NextRequest(`https://www.tundee.org/auth/callback?${qs}`));
+const callback = (qs: string, headers: Record<string, string> = {}) =>
+  CALLBACK(new NextRequest(`https://www.tundee.org/auth/callback?${qs}`, { headers }));
 
 describe('the LINE identity', () => {
   it('reads the LINE id off the custom:line identity', () => {
@@ -239,8 +240,28 @@ describe('/auth/callback for a LINE sign-in', () => {
     expect(new URL(res.headers.get('location')!).pathname).toBe('/api/auth/line/start');
   });
 
+  it('a failed exchange on the retry says whether the verifier cookie was there', async () => {
+    exchangeCodeForSession.mockResolvedValue({ data: {}, error: { status: 400, message: 'code verifier missing' } });
+    const noCookie = await callback('code=c&via_line=1&line_retry=1');
+    expect(noCookie.headers.get('location')).toBe('https://www.tundee.org/auth?error=line_verifier_missing');
+
+    const withCookie = await callback('code=c&via_line=1&line_retry=1', { cookie: 'sb-abc-auth-token-code-verifier=xyz' });
+    expect(withCookie.headers.get('location')).toBe('https://www.tundee.org/auth?error=line_exchange_failed');
+  });
+
   it('a non-LINE OAuth error is not retried as LINE', async () => {
     const res = await callback('error=access_denied');
     expect(res.headers.get('location')).toBe('https://www.tundee.org/auth?error=exchange_failed');
+  });
+});
+
+describe('/auth copy for LINE failures', () => {
+  it('names the two exchange failures and offers a retry button', async () => {
+    const { readFileSync } = await import('node:fs');
+    const form = readFileSync('app/auth/AuthForm.tsx', 'utf8');
+    expect(form).toContain("case 'line_verifier_missing':");
+    expect(form).toContain("case 'line_exchange_failed':");
+    expect(form).toContain('retryLine');
+    expect(form).toContain('ลองอีกครั้ง');
   });
 });
