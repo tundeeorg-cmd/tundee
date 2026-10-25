@@ -136,7 +136,10 @@ export async function POST(request: NextRequest) {
   const carriedAt      = typeof existing?.consent_at      === 'string' ? existing.consent_at      : null;
   const carriedMethod  = typeof existing?.consent_method  === 'string' ? existing.consent_method  : null;
 
-  const mustStamp = consentChanged || (consentResearch && (!carriedVersion || !carriedAt));
+  // Agreeing again to a DIFFERENT wording is a new decision and is stamped as one, with
+  // the current version: leaving the old version in place made a re-consent a no-op
+  // (the student clicked "agree", saw "saved", and stayed excluded from every export).
+  const mustStamp = consentChanged || (consentResearch && (!carriedVersion || !carriedAt || carriedVersion !== CURRENT_CONSENT_VERSION));
 
   const consentColumns = mustStamp
     ? {
@@ -202,5 +205,15 @@ export async function POST(request: NextRequest) {
     console.error('[POST /api/profile/student] Postgres error:', error.code, error.message);
     return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
   }
+
+  // student_profile is the record every export reads. profiles.research_opt_in is a
+  // convenience copy of the same answer; keep it from contradicting the record. A
+  // failure here does not undo the decision, but it is not hidden.
+  const { error: copyErr } = await supabase
+    .from('profiles')
+    .update({ research_opt_in: consentResearch })
+    .eq('id', user.id);
+  if (copyErr) console.error('[POST /api/profile/student] could not update profiles.research_opt_in:', copyErr.message);
+
   return NextResponse.json({ profile: data });
 }
