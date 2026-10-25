@@ -122,7 +122,7 @@ Rule (`lib/research/outcomeBinding.ts`): a click at or after `ranking_assigned_a
 `funnel_events` `click_apply` is written from the browser and carries no server-bound arm; it is **not** the outcome record. Use `apply_click`.
 
 ### 6.3 Other tables
-`user_events` (1,815 rows, legacy event log), `recommendation_request` (417), `profile_baselines` (40), `student_profile` (39), `experiment_assignment` (34, pilot-era and **not** the randomization, DEPRECATED), `platform_rollouts` (5 rows; columns: province, region, feature name and description, rollout date and type, `is_ab_test`, `treatment_group_size`). `comparison_sample`, `foundation_outcomes`, `event`, `outcomes`, `pending_intake` held 0 rows. `platform_rollouts`, `comparison_sample` and `foundation_outcomes` exist in the database but **no migration in the repository creates them**.
+`user_events` (1,815 rows, legacy event log), `recommendation_request` (417), `profile_baselines` (40), `student_profile` (39), `experiment_assignment` (34, pilot-era and **not** the randomization, DEPRECATED), `platform_rollouts` (5 rows; columns: province, region, feature name and description, rollout date and type, `is_ab_test`, `treatment_group_size`). `comparison_sample`, `foundation_outcomes`, `event`, `outcomes`, `pending_intake` held 0 rows. `platform_rollouts`, `comparison_sample` and `foundation_outcomes` exist in the database but **no migration in the repository creates them**. `platform_rollouts` holds a launch log (§10) and is public by design.
 
 ### 6.4 Not yet collected
 `questionnaire_responses`, `randomization_conflicts` and the `research_attrition` view are defined in `scripts/20261026_v24_questionnaire_and_conflicts.sql`, **which had not been run on 2026-10-26**. Until it is, nothing records which question was shown but not answered, nor an answer history. `GET /api/health/research` reports these as unavailable rather than zero.
@@ -147,6 +147,7 @@ Rule (`lib/research/outcomeBinding.ts`): a click at or after `ranking_assigned_a
 | 2026-10-27 (PR #54, `20261027_v25` run) | Prior-knowledge question reworded (v1 → v2): "ก่อนรู้จัก TunDee คุณรู้จักทุนที่ตัวเองมีสิทธิ์สมัครกี่ทุน?" replaces "ก่อนใช้ทุนดี คุณรู้จักทุนการศึกษากี่ทุน?"; "ไม่แน่ใจ" option; `prior_knowledge_unsure`, `prior_knowledge_question_version`, `asked_after_seeing_results` | v1 answers are all rows with a numeric `prior_scholarship_knowledge` before the date this PR is deployed. |
 | *not in effect* | Randomization before sign-in written behind `ANON_RANDOMIZATION` (default off); `anon_assignments`, `randomization_conflicts` (v28, not run) | None until the switch is on. |
 | 2026-10-27 *(export)* | `/api/research/export`: consent must be to the current wording (+ guardian for a known minor); the arm label is `profiles.ranking_variant` as of the event, replacing the legacy `experiment_variant` | Extracts made earlier have the old gate and the wrong arm. |
+| 2026-10-26 *(security)* | Research views and `admin_*` views locked to the service role (v30, v32); `research_export` (v31); `/admin` reads analytics on the server | See §10. |
 | 2026-10-26 | Randomization requires current research consent; consent decision is recorded before the arm; failures recorded in `funnel_events` (#52) | Students who decline are no longer randomized (§9). |
 
 ---
@@ -164,7 +165,7 @@ Rule (`lib/research/outcomeBinding.ts`): a click at or after `ranking_assigned_a
 **8.5 Consent inconsistencies** (§5). 16 students who said yes have no `student_profile` row and are excluded; 8 consented to superseded wording (`2026-01-v1`); 1 student's two stores disagree.
 
 - **`GET /api/research/export` now applies `exportExclusion()`** (`lib/research/consentGate.ts`): a student is exported only with a record, `consent_research = TRUE`, consent to the **current** wording, and — for a minor whose `birth_year` is known — a guardian's consent. Every exclusion is counted by reason in the `X-Excluded-*` response headers. The 8 students on the old wording are therefore **not** exported until they consent again.
-- **⚠ The research views were readable by anyone holding the public anon key** (found 2026-10-26: `v_research_export` 24,690 rows, `v_research_population` 21 rows with raw `user_id` and the real arm, `research_user_outcomes` 40 rows with raw `user_id`, GPA, province, income and click-through, no consent filter; plus funnel and recruitment aggregates), because views created without a `GRANT`/`REVOKE` get Supabase's default grants and run with their owner's rights. `scripts/20261031_v30_lock_research_views.sql` revokes this (**written, not run until the project owner runs it**). Until it is run, treat everything those views ever held as potentially read, and the `sha256` pseudonym in `v_research_export` as reversible (the raw ids are in the other two views). The `admin_*` aggregate views (`admin_summary`, `admin_daily_*`, `admin_top_scholarships`, `admin_province_stats`) were left because `/admin` read them from the browser; it now reads them through `/api/admin/analytics` (server, service role, admin email checked) and `scripts/20261031_v32_lock_admin_views.sql` locks them (**written, not run**). `scripts/20261031_v31_research_export_view.sql` adds `research_export`: the same rule as the export route (current consent, guardian for a known minor, the arm **as of the event**, never the legacy table), service role only.
+- **The research and admin views were publicly readable until 26 Oct 2026, and are now locked.** Full record in §10. Until the lock, treat everything those views ever held as potentially read, and the `sha256` pseudonym in the old `v_research_export` as reversible. That view is deprecated and labels the arm `experiment_variant` from the legacy table; use `public.research_export` (v31), which applies the current-consent and guardian rule and the arm **as of the event**.
 - **The SQL views still gate on `consent_research = TRUE` alone** (`v_event_research_export`, `v_research_export`, `v_research_population`, `v_funnel_*`) until `scripts/20261031_v29_research_views_consent_gate.sql` is run (**written, not run**; it has a read-only preview that must be read before it is applied). **Do not analyse from them before that**; analyse from the export, or add the version and guardian conditions by hand. `v_research_export` also still labels the arm `experiment_variant` from the legacy table, which a view cannot fix by replacement; do not use that column as the arm.
 - **Re-consent.** `/api/profile/student` now re-stamps the **current** wording and a new `consent_at` when a student agrees again to a different wording (it used to keep the old version, so a re-consent was a silent no-op), and keeps `profiles.research_opt_in` in step with `student_profile`. `GET /api/profile/consent-status` and a prompt on `/scholarships` ask the two groups who need it (agreed to the old wording; ticked at sign-up but no record). **The prompt is switched off** (`RECONSENT_PROMPT`, default off) until the study team approves the research wording; the same question remains available on `/profile`. An explicit refusal is never asked again.
 - With no `birth_year` the minor rule cannot fire. The age used is 18 (`MINOR_AGE_THRESHOLD`); whether it should be 20 is an open question (`research/PROPOSAL-2026-10-minors-and-consent.md`).
@@ -185,3 +186,46 @@ Draft amendment: `research/AMENDMENT-2026-10-26-consent-gated-randomization.md`.
 1. **`/start` completions are not randomized** (since 2026-08-30). PREREG §4 specifies assignment at profile completion for everyone. This is an implementation defect, not a decision; the affected students are enumerated in §8.2.
 2. **Non-consenting students are not randomized** (since 2026-10-26). PREREG §9.2 and §12.4 say non-consenting users are excluded from research datasets *at analysis time*, from data recorded for everyone, and that "no user is filtered or excluded in application code." Withholding randomization is exclusion at enrolment. Consequence for the baseline arm: students who decline now always get the baseline ranking; previously a decliner could be assigned the adjusted ranking and be dropped at export.
 3. **No outcome-by-arm interface exists**, consistent with PREREG §12.8. `/api/health/research` reports assignment balance, invariants and answer rate only.
+
+---
+
+## 10. Public-exposure audit, 26 Oct 2026
+
+**What was found.** Views created without a `GRANT`/`REVOKE` get Supabase's default privileges (`anon` and `authenticated` may read them), and a view runs with its **owner's** rights, so row-level security on the tables beneath does not apply to it. The anon key is public (it ships in every page). Before the lock, anyone holding it could read:
+
+| Object | Rows | Content |
+|---|---|---|
+| `v_research_export` | 24,690 | pseudonymised funnel events + each consented student's region, income band, birth year, GPA; arm labelled from the legacy table |
+| `v_research_population` | 21 | **raw `user_id`** and the real `ranking_variant` |
+| `research_user_outcomes` | 40 | **raw `user_id`**, GPA, province, income, welfare card, whether they clicked through, legacy arm; no consent filter |
+| `v_funnel_*`, `v_recruitment_progress`, `research_ctr_by_*` | aggregates | some split by arm |
+| `admin_summary`, `admin_daily_signups`, `admin_daily_active`, `admin_top_scholarships`, `admin_province_stats` | aggregates | totals, new users per day, top scholarships, users per province |
+
+**Consequences.** Personal data of consenting students — and of students who never consented — was readable by the public; the `sha256` pseudonym was reversible by anyone, because the raw ids sat in the other two views; and an outcome-by-arm view was public, which PREREG §8 and §12.8 forbid before the stopping point.
+
+**Whether anyone read it is not known.** The API keeps no request log on this plan. Whether PDPA breach-assessment duties apply is a question for counsel, not for this document.
+
+**What was done** (project owner ran the migrations; each confirmed by an outside re-probe with the anon key, status codes and counts only, no row read):
+
+| Step | Change | Verified |
+|---|---|---|
+| v30 | `REVOKE` from `PUBLIC/anon/authenticated`, `GRANT` to `service_role`, for the 10 research views (and `v_admin_outcomes`) | all `401` |
+| v31 | `public.research_export`: current consent + guardian rule, arm as of the event, service role only, `security_invoker` | `401` to anon; readable by `service_role` |
+| #68 | `/admin` Analytics read on the server (`/api/admin/analytics`, admin email checked) instead of from the browser | route `401` without a session |
+| v32 | the five `admin_*` views locked | all `401` |
+
+**Sweep of everything else** (count-only, anon key, 27 tables named in the scripts): the user and research tables (`student_profile`, `funnel_events`, `profiles`, `apply_click`, `outcomes`, `user_events`, `recommendation_request`, `profile_baselines`, `experiment_assignment`, …) return **0 rows**: protected by row-level security. Readable by design or without personal data:
+
+| Table | Rows | Verdict |
+|---|---|---|
+| `td_scholarships` | 305 | the public catalogue the site shows |
+| `platform_rollouts` | 5 | a launch log (below); policy `rollouts_public_read`, role `public`, `SELECT`, `true`. No personal data; public on purpose. |
+| `scholarships` | 102 | the superseded catalogue (created 2–6 Jun 2026, every row `is_active = false`, nothing reads it). No emails, phone numbers or LINE ids found; `notes_internal` empty. It does hold `historical_bias_score` for every row. **Left readable; closing it is optional.** |
+
+**`platform_rollouts` content** (a record of feature launches, all `full_launch`, `is_ab_test = false`, national): 1 Jun 2026 launch with 34 scholarships; **4 Jun 2026 `fairness_algorithm_v1`: "Equalized odds correction activated on My Matches tab"**; 5 Jun tracker; 6 Jun 99 verified scholarships; 8 Jun checklist.
+
+> **For the team to check, not concluded here.** The 4 June row records the fairness adjustment as live for everyone before the randomization of 29 Aug 2026, which sits uneasily with the statement (PREREG §9.1, §1 above) that pilot-cohort students "receive the baseline ranking". It is not known whether the adjustment was limited by the legacy `ab_arm` at the time. Pilot students are excluded from the primary analysis either way, so the effect on it is probably small, but the codebook and any amendment should not claim more about pilot ranking than the history supports.
+
+**Limits of this audit.** It saw only what the `anon` key sees. The `authenticated` role (any signed-in student) was not probed separately; the views' privileges were revoked from it too, but table-level policies for signed-in users were not reviewed. Storage buckets, Edge Functions and the Auth API were not examined. Counts and status codes only: no row of a locked object was read.
+
+**Standing rule.** A new view or function in `public` is readable by the public by default. Every migration that creates one for research or administration must `REVOKE` it from `PUBLIC, anon, authenticated` and grant what is needed (v31 does). The project-wide default was not changed, because that would alter every table.
