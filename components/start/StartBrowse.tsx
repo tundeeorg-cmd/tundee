@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
 import TrustStrip from '@/components/trust/TrustStrip';
+import { logFunnelEvent } from '@/lib/research/funnel';
 import PreviewMatcher from '@/app/start/PreviewMatcher';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import { START_CARD_SELECT } from '@/lib/tdScholarships/startColumns';
@@ -40,6 +41,39 @@ const LEVEL_CHIPS: { key: LevelChip; label: string }[] = [
 
 type FullState = 'idle' | 'loading' | 'ready' | 'error';
 
+/** The scholarship the visitor must scroll past for the page to count as "browsed". */
+const BROWSED_AFTER_CARDS = 3;
+
+/**
+ * Logs a funnel step at most once per browser session (the session_id the event
+ * carries is per tab). Fire-and-forget like every funnel write: a failure must
+ * never reach the visitor.
+ */
+function logStepOnce(step: 'browsed' | 'personalize_shown', context: Record<string, unknown> = {}) {
+  const key = `tundee_step_${step}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    // sessionStorage unavailable (private mode, some webviews): log once per mount.
+  }
+  logFunnelEvent({ eventType: step, context: { surface: 'start', ...context } });
+}
+
+/** Calls `onSeen` the first time the element is at least a quarter on screen. */
+function useSeenOnce(ref: React.RefObject<Element | null>, onSeen: () => void) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { onSeen(); io.disconnect(); }
+    }, { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref]);
+}
+
 export default function StartBrowse({
   initialCards,
   listOk,
@@ -62,6 +96,13 @@ export default function StartBrowse({
   const [shown, setShown] = useState(PAGE);
   const [matcherOpen, setMatcherOpen] = useState(!listOk);
   const matcherRef = useRef<HTMLDivElement | null>(null);
+  const inviteRef = useRef<HTMLDivElement | null>(null);
+  const thirdCardRef = useRef<HTMLDivElement | null>(null);
+
+  // The invitation to answer the questions has been on screen.
+  useSeenOnce(inviteRef, () => logStepOnce('personalize_shown'));
+  // Scrolled past the first three cards.
+  useSeenOnce(thirdCardRef, () => logStepOnce('browsed', { how: 'scroll' }));
 
   const today = useMemo(() => bangkokToday(), []);
   const filtering = hasActiveFilters(filters);
@@ -92,7 +133,9 @@ export default function StartBrowse({
 
   // A filter or a search needs the whole list; the first paint only carries a page of it.
   useEffect(() => {
-    if (filtering) void loadFull();
+    if (!filtering) return;
+    logStepOnce('browsed', { how: 'filter' });
+    void loadFull();
   }, [filtering, loadFull]);
 
   useEffect(() => { setShown(PAGE); }, [filters]);
@@ -188,7 +231,7 @@ export default function StartBrowse({
         </button>
       </div>
 
-      <div className="mt-3">{invite}</div>
+      <div className="mt-3" ref={inviteRef}>{invite}</div>
 
       {matcherOpen && (
         <div ref={matcherRef} id="tundee-matcher-inline" className="mt-4 scroll-mt-4">
@@ -240,7 +283,7 @@ export default function StartBrowse({
             </p>
             <div className="flex flex-col gap-4">
               {page.map((s, i) => (
-                <div key={s.scholarship_id}>
+                <div key={s.scholarship_id} ref={i === BROWSED_AFTER_CARDS - 1 ? thirdCardRef : undefined}>
                   <TdScholarshipCard scholarship={s} userId={null} variant={null} />
                   {i === INVITE_AFTER - 1 && <div className="mt-4">{invite}</div>}
                 </div>
