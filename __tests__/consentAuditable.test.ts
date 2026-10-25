@@ -72,10 +72,10 @@ describe('the payload always carries the audit columns', () => {
   it('stamps when consent is on but the trail is missing', () => {
     // A legacy row from before v17 can hold consent_research = true with null
     // audit columns. Carrying nulls forward would be both illegal and untrue.
-    expect(ROUTE).toMatch(/mustStamp\s*=\s*consentChanged \|\| \(consentResearch && \(!carriedVersion \|\| !carriedAt\)\)/);
+    expect(ROUTE).toMatch(/mustStamp\s*=\s*consentChanged \|\| \(consentResearch && \(!carriedVersion \|\| !carriedAt \|\| carriedVersion !== CURRENT_CONSENT_VERSION\)\)/);
   });
 
-  it('still only re-stamps a decision that actually changed', () => {
+  it('re-stamps only a decision that changed — and agreeing again to a DIFFERENT wording counts as one', () => {
     expect(ROUTE).toContain('consent_version: CURRENT_CONSENT_VERSION');
     expect(ROUTE).toMatch(/mustStamp[\s\S]{0,200}CURRENT_CONSENT_VERSION/);
   });

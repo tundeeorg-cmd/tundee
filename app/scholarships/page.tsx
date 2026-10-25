@@ -17,6 +17,7 @@ import { logRecommendationRequest } from '@/lib/research/recommendationLog';
 // completion (PREREG §4).
 import type { TdScholarship, TdAwardValueTier } from '@/lib/tdScholarships/types';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
+import ReconsentPrompt from '@/components/ReconsentPrompt';
 import type { TdCardMatchInfo } from '@/components/TdScholarshipCard';
 import { recommend } from '@/lib/recommender';
 import type { RecommenderProfile, FairnessMode } from '@/lib/recommender';
@@ -778,6 +779,9 @@ export default function BrowsePage() {
             </a>
           </div>
         )}
+
+        {/* Research consent asked again — only for the students who need it. */}
+        {user && <ReconsentPrompt lang={lang} />}
 
         {/* ══════════════════════════════════════════════════════════════════
             MY MATCHES TAB
