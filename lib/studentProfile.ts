@@ -8,6 +8,8 @@
  * translated, values are not.
  */
 
+import { requiresGuardianConsent } from '@/lib/research/consentGate';
+
 // ─── Provinces (77) — Thai names match public.derive_region()'s CASE list ────
 // value = canonical Thai province name stored in student_profile.province.
 
@@ -220,9 +222,10 @@ export function computeAge(birthYear: number, now: Date = new Date()): number {
   return now.getFullYear() - birthYear;
 }
 
+/** Must a guardian also consent? One rule, shared with the export (lib/research/consentGate). */
 export function isMinor(birthYear: number | null, now: Date = new Date()): boolean {
   if (birthYear === null || Number.isNaN(birthYear)) return false;
-  return computeAge(birthYear, now) < 18;
+  return requiresGuardianConsent(birthYear, now.getFullYear());
 }
 
 // ─── Validators — return a localized error message, or null if valid ────────

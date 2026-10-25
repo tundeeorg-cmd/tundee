@@ -4,6 +4,7 @@ import { useId, useMemo, useState, useEffect } from 'react';
 import { useLang } from '@/lib/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { MINOR_AGE_THRESHOLD } from '@/lib/research/consentGate';
 import {
   PROVINCES, AREA_TYPES, INCOME_BANDS, SCHOOL_TYPES, PARENT_EDUCATION,
   INTENDED_LEVELS, INTENDED_FIELDS, LANGUAGE_PREFS, SCHOLARSHIP_TYPE_PREFS,
@@ -225,8 +226,8 @@ export default function StudentProfileForm() {
     const next = { ...form, ...overrides };
     if (minor && next.consent_research && !next.guardian_consent) {
       setError(lang === 'th'
-        ? 'ต้องได้รับความยินยอมจากผู้ปกครองก่อนจึงจะเปิดใช้ความยินยอมงานวิจัยได้ (ผู้ที่อายุต่ำกว่า 18 ปี)'
-        : 'Guardian consent is required before research consent can be enabled (users under 18).');
+        ? `ต้องได้รับความยินยอมจากผู้ปกครองก่อนจึงจะเปิดใช้ความยินยอมงานวิจัยได้ (ผู้ที่อายุต่ำกว่า ${MINOR_AGE_THRESHOLD} ปี หรือครบ ${MINOR_AGE_THRESHOLD} ปีในปีนี้)`
+        : `Guardian consent is required before research consent can be enabled (users under ${MINOR_AGE_THRESHOLD}, or turning ${MINOR_AGE_THRESHOLD} this year).`);
       return false;
     }
     setSaving(true);
@@ -365,7 +366,7 @@ export default function StudentProfileForm() {
           {age !== null && (
             <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93] mt-3">
               {lang === 'th' ? `อายุโดยประมาณ: ${age} ปี` : `Estimated age: ${age}`}
-              {minor && (lang === 'th' ? ' · ต่ำกว่า 18 ปี (ต้องได้รับความยินยอมจากผู้ปกครองสำหรับความยินยอมงานวิจัย)' : ' · Under 18 (guardian consent required for research consent)')}
+              {minor && (lang === 'th' ? ` · ต่ำกว่า ${MINOR_AGE_THRESHOLD} ปี หรือครบ ${MINOR_AGE_THRESHOLD} ปีในปีนี้ (ต้องได้รับความยินยอมจากผู้ปกครองสำหรับความยินยอมงานวิจัย)` : ` · Under ${MINOR_AGE_THRESHOLD}, or turning ${MINOR_AGE_THRESHOLD} this year (guardian consent required for research consent)`)}
             </p>
           )}
         </section>
@@ -597,8 +598,8 @@ export default function StudentProfileForm() {
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
               <p className="text-sm text-amber-800 dark:text-amber-300 mb-3">
                 {lang === 'th'
-                  ? 'เนื่องจากคุณมีอายุต่ำกว่า 18 ปี จำเป็นต้องได้รับความยินยอมจากผู้ปกครองก่อนจึงจะเปิดใช้ความยินยอมงานวิจัยได้'
-                  : 'Because you are under 18, guardian consent is required before research consent can be turned on.'}
+                  ? `เนื่องจากคุณมีอายุต่ำกว่า ${MINOR_AGE_THRESHOLD} ปี หรือครบ ${MINOR_AGE_THRESHOLD} ปีในปีนี้ จำเป็นต้องได้รับความยินยอมจากผู้ปกครองก่อนจึงจะเปิดใช้ความยินยอมงานวิจัยได้`
+                  : `Because you are under ${MINOR_AGE_THRESHOLD}, or turning ${MINOR_AGE_THRESHOLD} this year, guardian consent is required before research consent can be turned on.`}
               </p>
               <label className="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.guardian_consent}

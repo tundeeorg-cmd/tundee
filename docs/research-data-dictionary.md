@@ -43,7 +43,7 @@ Columns added in v3 migration are marked **(v3)**.
 | `language_pref` | TEXT | th / en / th\_en | Bilingual analysis |
 | `consent_research` | BOOLEAN | TRUE = may appear in research exports | **Research gate** |
 | `consent_version` | TEXT | Consent form version (must match current) | PDPA audit |
-| `guardian_consent` | BOOLEAN | Required when age < 18 | PDPA minor protection |
+| `guardian_consent` | BOOLEAN | Required when the student is under 20, or turns 20 this year (`year − birth_year <= 20`) | PDPA minor protection |
 
 **Consent model:**
 - `consent_research = TRUE AND consent_version = '2026-07-v1'` is the gate
