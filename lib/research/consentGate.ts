@@ -65,3 +65,34 @@ export function filterConsented<T extends Pick<StudentProfileRow, 'consent_resea
 ): T[] {
   return profiles.filter(isResearchConsented);
 }
+
+/** Why a student's data may not be exported; null means it may. */
+export type ExportExclusion =
+  | 'no_student_profile'
+  | 'no_research_consent'
+  | 'stale_consent_version'
+  | 'minor_without_guardian';
+
+/**
+ * The ONE test an export applies to a student, in the order a person would ask it:
+ * is there a record, did they say yes, was it to the CURRENT wording, and — if they
+ * are a minor — did a guardian say yes too.
+ *
+ * The stale-version rule is the point of this function. Before it, the export route
+ * and the SQL views checked `consent_research = TRUE` alone, so a student who agreed
+ * to superseded wording (`2026-01-v1`) was exported although isResearchConsented()
+ * said their consent had lapsed. Consent given to different words is not consent to
+ * these.
+ *
+ * Age comes from birth_year only when the student gave it; with none, the minor rule
+ * cannot fire (requiresGuardianConsent says so), and that is a known limit.
+ */
+export function exportExclusion(
+  sp: Pick<StudentProfileRow, 'consent_research' | 'consent_version' | 'guardian_consent' | 'birth_year'> | null | undefined,
+): ExportExclusion | null {
+  if (!sp) return 'no_student_profile';
+  if (sp.consent_research !== true) return 'no_research_consent';
+  if (!isResearchConsented(sp)) return 'stale_consent_version';
+  if (!isMinorFullyConsented(sp)) return 'minor_without_guardian';
+  return null;
+}

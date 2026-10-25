@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isResearchConsented } from '@/lib/research/consentGate';
+import { CURRENT_CONSENT_VERSION, isResearchConsented } from '@/lib/research/consentGate';
 
 const PAGE = 1000;
 const IN_CHUNK = 100;
@@ -54,6 +54,7 @@ interface ProfileRow {
   assignment_algorithm_version: string | null;
   province: string | null;
   income_bracket: number | null;
+  research_opt_in: boolean | null;
 }
 
 // Typed loosely: the admin client is untyped here and every row is narrowed below.
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
   // ── Profiles ───────────────────────────────────────────────────────────────
   const profilesRes = await selectAll<ProfileRow>(
     admin, 'profiles',
-    'id, cohort, region_group, ranking_variant, ranking_assigned_at, assignment_algorithm_version, province, income_bracket',
+    'id, cohort, region_group, ranking_variant, ranking_assigned_at, assignment_algorithm_version, province, income_bracket, research_opt_in',
   );
   if ('error' in profilesRes) return fail('profiles read', profilesRes.error);
   const profiles = profilesRes.rows;
@@ -131,6 +132,18 @@ export async function GET(request: NextRequest) {
       .filter(r => isResearchConsented({ consent_research: r.consent_research ?? false, consent_version: r.consent_version ?? '' }))
       .map(r => r.user_id),
   );
+
+  // Where re-consent stands. Informational, not an alert: until students re-consent
+  // these are expected to be non-zero, and the export excludes them meanwhile.
+  const hasStudentProfile = new Set(spRes.rows.map(r => r.user_id));
+  const consentStatus = {
+    current_version: CURRENT_CONSENT_VERSION,
+    consent_to_current_wording: consented.size,
+    consent_to_superseded_wording: spRes.rows.filter(
+      r => r.consent_research === true && !isResearchConsented({ consent_research: true, consent_version: r.consent_version ?? '' }),
+    ).length,
+    ticked_but_no_student_profile_row: profiles.filter(p => p.research_opt_in === true && !hasStudentProfile.has(p.id)).length,
+  };
 
   const mainUnrandomized = profiles.filter(p => p.cohort === 'main' && complete(p) && !p.ranking_variant);
   const consentedUnrandomized = mainUnrandomized.filter(p => consented.has(p.id)).length;
@@ -210,6 +223,7 @@ export async function GET(request: NextRequest) {
       with_current_research_consent: consentedUnrandomized,
       note: 'total includes students who skipped the wizard before 26 Oct 2026 and are never randomized retroactively; the consented count is the one that should fall to 0',
     },
+    research_consent: consentStatus,
     randomization_conflicts: conflicts,
     answer_rate_by_arm: answerRate,
     alerts,

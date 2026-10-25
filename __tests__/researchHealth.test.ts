@@ -132,6 +132,23 @@ describe('/api/health/research', () => {
     expect((await (await get()).json()).alerts).not.toContain('arm_imbalance:northeast');
   });
 
+  it('reports where re-consent stands: current wording, superseded wording, ticked with no record', async () => {
+    world.profiles.push(profile({ id: 'ticked-no-row', research_opt_in: true }));
+    world.student_profile = [
+      { user_id: 'a', consent_research: true, consent_version: CURRENT_CONSENT_VERSION },
+      { user_id: 'b', consent_research: true, consent_version: '2026-01-v1' },
+      { user_id: 'c', consent_research: false, consent_version: CURRENT_CONSENT_VERSION },
+    ];
+    const body = await (await get()).json();
+    expect(body.research_consent).toEqual({
+      current_version: CURRENT_CONSENT_VERSION,
+      consent_to_current_wording: 1,
+      consent_to_superseded_wording: 1,
+      ticked_but_no_student_profile_row: 1,
+    });
+    expect(body.alerts).not.toContain('research_consent');   // informational, never an alert
+  });
+
   it('returns counts only: no ids or provinces', async () => {
     const text = await (await get()).text();
     expect(text).not.toContain('u-');
