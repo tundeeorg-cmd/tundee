@@ -1,7 +1,8 @@
 -- ═════════════════════════════════════════════════════════════════════════════
 -- v34 — funnel events for sign-in inside in-app browsers
 --
--- NOT RUN YET.
+-- RUN: its six values were present in funnel_event_type when checked on 2026-11-04
+-- (enum listing pasted by the owner). The exact run date is not recorded.
 --
 -- WHAT   Six new funnel_event_type values, written by the browser from /start and /auth:
 --          login_method_shown          which sign-in methods the visitor was shown
