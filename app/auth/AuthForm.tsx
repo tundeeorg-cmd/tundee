@@ -315,6 +315,12 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   /** Spec: both entry points are disabled until the box is ticked. */
   const blocked = !consent;
 
+  /** A tap while the box is unticked: say why, and move focus to the box. */
+  function needConsent() {
+    setMessage({ tone: 'error', text: otpMessage('consent_required', lang) });
+    consentRef.current?.focus();
+  }
+
   function fail(codeOrText: OtpErrorCode | string, raw = false) {
     setMessage({
       tone: 'error',
@@ -435,7 +441,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   // ── Email: send the code ────────────────────────────────────────────────────
 
   async function sendCode(isResend = false) {
-    if (blocked) { setMessage({ tone: 'error', text: otpMessage('consent_required', lang) }); return; }
+    if (blocked) { needConsent(); return; }
 
     const address = normalizeEmail(email);
     // Checked here so a typo costs nothing. A bad address that reaches Supabase
@@ -575,7 +581,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
 
   /** Where the tap goes — same rules as /start's button; see lib/line/launch. */
   function signInWithLine() {
-    if (blocked) { setMessage({ tone: 'error', text: otpMessage('consent_required', lang) }); return; }
+    if (blocked) { needConsent(); return; }
     setMessage(null);
     recordConsent();
 
@@ -624,7 +630,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   // rendered inside a webview: Google rejects those with disallowed_useragent on
   // its own domain, so the student never comes back and no error can be shown.
   async function signInWithGoogle() {
-    if (blocked) { setMessage({ tone: 'error', text: otpMessage('consent_required', lang) }); return; }
+    if (blocked) { needConsent(); return; }
     setGoogleLoading(true);
     setMessage(null);
     recordConsent();
@@ -775,6 +781,26 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   // ══════════════════════════════════════════════════════════════════════════
   const emailFirst = emailFirstLogin(iab);
 
+  // 5 ── Consent. Gates every method, so it sits directly under the primary
+  //      button (LINE; email inside an in-app browser), never at the bottom of
+  //      the card: a student who taps a greyed-out LINE button must see why
+  //      without scrolling. The standing hint beneath it is what makes
+  //      disabling the buttons acceptable — nothing ever goes dead silently.
+  const consentBlock = (
+    <div className="mt-3">
+      <ConsentCheckbox
+        inputRef={consentRef}
+        checked={consent}
+        onChange={(checked) => { setConsent(checked); setMessage(null); }}
+      />
+      {blocked && (
+        <p className="mt-2 text-xs text-[#C2410C] dark:text-[#FDBA74] text-center" style={THAI}>
+          {th ? 'กรุณายอมรับเงื่อนไขก่อน' : 'Please accept the terms first.'}
+        </p>
+      )}
+    </div>
+  );
+
   // The LINE button and what it says. Rendered first or second, see emailFirst.
   const lineBlock = (
     <>
@@ -807,6 +833,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           : (th ? 'เข้าสู่ระบบด้วย LINE' : 'Sign in with LINE')}
       </a>
       )}
+      {!emailFirst && consentBlock}
       <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={{ ...THAI, lineHeight: 1.8 }}>
         {emailFirst
           ? IN_APP_COPY.lineNote
@@ -872,6 +899,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           {th ? 'ส่งรหัสเข้าอีเมล' : 'Email me a code'}
         </button>
       </form>
+      {emailFirst && <div className="mb-5">{consentBlock}</div>}
     </>
   );
 
@@ -926,24 +954,6 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         ? <>{emailBlock}{methodDivider}{lineBlock}</>
         : <>{lineBlock}{methodDivider}{emailBlock}</>}
 
-
-      {/* 5 ── Consent. Gates both methods, per the brief.
-              The reason this control is allowed to disable buttons — which is
-              normally the wrong call, because a dead button reads as a broken
-              page — is the standing hint directly beneath it. The student is
-              never left guessing why nothing happened. */}
-      <ConsentCheckbox
-        className="mt-5"
-        inputRef={consentRef}
-        checked={consent}
-        onChange={(checked) => { setConsent(checked); setMessage(null); }}
-      />
-
-      {blocked && (
-        <p className="mt-2 text-xs text-[#C2410C] dark:text-[#FDBA74] text-center" style={THAI}>
-          {th ? 'กรุณายอมรับเงื่อนไขก่อน' : 'Please accept the terms first.'}
-        </p>
-      )}
 
       {/* Below everything the brief specifies, and absent inside a webview
           where Google rejects the user agent on its own domain. */}
