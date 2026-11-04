@@ -49,7 +49,11 @@ export type FunnelEventType =
   | 'otp_verified'
   | 'otp_failed'
   | 'open_in_chrome_clicked'
-  | 'line_login_clicked_in_app';
+  | 'line_login_clicked_in_app'
+  // /scholarships guidance (scripts/20261104_v35_scholarships_guidance_events.sql adds these)
+  | 'guide_dismissed'
+  | 'profile_nudge_clicked'
+  | 'guest_start_cta_clicked';
 
 export interface FunnelEventPayload {
   eventType: FunnelEventType;

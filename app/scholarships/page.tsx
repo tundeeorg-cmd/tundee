@@ -22,6 +22,8 @@ import type { TdCardMatchInfo } from '@/components/TdScholarshipCard';
 import { recommend } from '@/lib/recommender';
 import type { RecommenderProfile, FairnessMode } from '@/lib/recommender';
 import { groupMatches } from '@/lib/recommender/matchGroups';
+import { matchProfileGaps, MATCH_GAP_LABEL, type MatchGaps } from '@/lib/profile/matchGaps';
+import { matchCountLine } from '@/lib/scholarships/matchCountLine';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,18 +123,16 @@ function ScoreTooltip({ lang }: { lang: string }) {
         aria-label="Score info"
       >i</button>
       {open && (
-        <div className="absolute bottom-6 left-0 z-30 w-52 bg-[#1D1D1F] text-white text-xs leading-relaxed rounded-lg p-3 shadow-xl pointer-events-none">
+        <div className="absolute bottom-6 left-0 z-30 w-60 bg-[#1D1D1F] text-white text-xs leading-relaxed rounded-lg p-3 shadow-xl pointer-events-none">
           {lang === 'th' ? (
             <>
-              <p className="font-semibold mb-1">คะแนนความเหมาะสมคำนวณจาก:</p>
-              <p className="text-[#aeaeb2]">เกรด • รายได้ • สาขาวิชา • จังหวัด • บัตรสวัสดิการ</p>
-              <p className="text-[#aeaeb2] mt-1">ยิ่งตรงกับคุณมาก คะแนนยิ่งสูง</p>
+              <p className="font-semibold mb-1">{translations.browse.scoreExplain.th}</p>
+              <p className="text-[#aeaeb2]">คิดจาก: เกรด • รายได้ • สาขาวิชา • จังหวัด • บัตรสวัสดิการ</p>
             </>
           ) : (
             <>
-              <p className="font-semibold mb-1">Match score is calculated from:</p>
-              <p className="text-[#aeaeb2]">GPA • Income • Field • Province • Welfare card</p>
-              <p className="text-[#aeaeb2] mt-1">The more it fits your profile, the higher the score.</p>
+              <p className="font-semibold mb-1">{translations.browse.scoreExplain.en}</p>
+              <p className="text-[#aeaeb2]">Based on: GPA • Income • Field • Province • Welfare card</p>
             </>
           )}
         </div>
@@ -144,7 +144,8 @@ function ScoreTooltip({ lang }: { lang: string }) {
 // ── Match controls ─────────────────────────────────────────────────────────────
 
 interface MatchControlsProps {
-  total: number; visibleCount: number;
+  /** All matches; after the % filter; actually painted. */
+  total: number; filteredCount: number; visibleCount: number;
   sortBy: MatchSortKey; setSortBy: (v: MatchSortKey) => void;
   minScore: MinScore; setMinScore: (v: MinScore) => void;
   lang: string;
@@ -170,7 +171,7 @@ const MATCH_PAGE = 20;
  */
 const BROWSE_PAGE = 24;
 
-function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
+function MatchControls({ total, filteredCount, visibleCount, sortBy, setSortBy, minScore, setMinScore, lang }: MatchControlsProps) {
   const lo = lang as 'th' | 'en';
   const font = lo === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif';
 
@@ -189,11 +190,7 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
   return (
     <div className="mb-6 space-y-4 bg-[#F5F7FA] dark:bg-[#0A1628] rounded-xl p-4 border border-[#E5E5EA] dark:border-[#1A2E4A]">
       <p className="text-sm text-[#6E6E73] dark:text-[#8E8E93]" style={{ fontFamily: font }}>
-        {visibleCount === total
-          ? (lo === 'th' ? `พบ ${total} ทุนที่ตรงกับคุณ` : `Found ${total} scholarships matching your profile`)
-          : (lo === 'th'
-              ? `แสดง ${visibleCount} ทุน (คะแนน ${Math.round(minScore * 100)}%+) จากทั้งหมด ${total} ทุน`
-              : `Showing ${visibleCount} of ${total} (score ${Math.round(minScore * 100)}%+)`)}
+        {matchCountLine({ total, filteredCount, visibleCount, minScore, lang: lo })}
         <ScoreTooltip lang={lang} />
       </p>
 
@@ -232,6 +229,12 @@ function MatchControls({ total, visibleCount, sortBy, setSortBy, minScore, setMi
     </div>
   );
 }
+
+/** localStorage key: the student closed the "how this page works" guide. */
+const GUIDE_DISMISSED_KEY = 'tundee_matches_guide_dismissed';
+
+/** A search is logged once it has settled, not on every keystroke. */
+const SEARCH_LOG_DELAY_MS = 600;
 
 // ── Skeleton card ─────────────────────────────────────────────────────────────
 
@@ -382,6 +385,12 @@ export default function BrowsePage() {
   const [matchMinScore, setMatchMinScore]           = useState<MinScore>(0);
   const [matchesLoading, setMatchesLoading]         = useState(false);
   const [userProfile, setUserProfile]               = useState<StudentProfile | null>(null);
+  /** Which answers the matcher reads are missing — drives the "complete your profile" card. */
+  const [profileGaps, setProfileGaps]               = useState<MatchGaps | null>(null);
+  /** Starts hidden so it cannot flash for a student who already closed it. */
+  const [guideDismissed, setGuideDismissed]         = useState(true);
+  /** The tab a search was typed from, for the `search` event's context.from_tab. */
+  const searchFromTab                               = useRef<Tab>('browse');
 
   // Scholarship data (single source for both tabs)
   const [tdScholarships, setTdScholarships]         = useState<TdScholarship[]>([]);
@@ -473,6 +482,17 @@ export default function BrowsePage() {
           // with delivered treatment. funnel_events.ranking_variant is the
           // research record of truth (v17).
           setUserResearchContext(null, incomeBracket);
+          // From the stored row, not from userProfile below: that fills a
+          // missing income with 4 and a missing GPA with 3.0, which is exactly
+          // the gap this needs to see.
+          setProfileGaps(matchProfileGaps({
+            grade_level:        profile.grade_level,
+            grade_year:         profile.grade_year,
+            gpa:                profile.gpa,
+            province:           profile.province,
+            income_bracket:     profile.income_bracket,
+            fields_of_interest: profile.fields_of_interest,
+          }));
           setRankingVariant(variant);
           setFairnessEligible(eligible);
           setUserProfile({
@@ -692,7 +712,61 @@ export default function BrowsePage() {
     setTdTargetsLowIncome(false); setTdWelfareCard(false); setTdRenewable(false); setTdBondObligation(false);
   }
 
+  // ── Guidance ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    try { setGuideDismissed(localStorage.getItem(GUIDE_DISMISSED_KEY) === '1'); }
+    catch { setGuideDismissed(false); }
+  }, []);
+
+  function dismissGuide() {
+    setGuideDismissed(true);
+    try { localStorage.setItem(GUIDE_DISMISSED_KEY, '1'); } catch { /* private mode: closes for this visit only */ }
+    logFunnelEvent({ eventType: 'guide_dismissed', userId: user?.id ?? null, context: { variant: rankingVariant } });
+  }
+
+  /**
+   * The search box sits above both tabs. Searching always searches EVERY
+   * scholarship: a student who types the name of a real scholarship that did
+   * not match them must still find it, or they conclude TunDee does not have
+   * it. So a search typed on the matches tab moves to the browse tab.
+   */
+  function onSearchChange(value: string) {
+    if (!tdSearch && value) searchFromTab.current = activeTab;
+    setTdSearch(value);
+    if (value.trim() && activeTab === 'matches') setActiveTab('browse');
+  }
+
+  /**
+   * The match % for a scholarship that is also in this student's matches, so a
+   * search result can carry the same badge the matches tab shows. Read from
+   * allMatches — the recommender output already on the page — so this is a
+   * lookup, not a second ranking.
+   */
+  const matchById = useMemo(() => {
+    const m = new Map<string, TdCardMatchInfo>();
+    for (const s of allMatches) m.set(s.scholarship_id, { score: s.fairnessScore, reasons: s.reasons, reasons_en: s.reasons_en });
+    return m;
+  }, [allMatches]);
+
   // ── Research events ────────────────────────────────────────────────────────
+
+  // One `search` event per settled query. It used to fire on every keystroke
+  // past the second, which wrote "ทุ", "ทุน", "ทุนพ"… as separate searches.
+  useEffect(() => {
+    const q = tdSearch.trim();
+    if (q.length < 2) return;
+    const t = setTimeout(() => {
+      logFunnelEvent({
+        eventType: 'search', userId: user?.id ?? null,
+        context: { query: q, tab: 'browse', from_tab: searchFromTab.current, variant: rankingVariant },
+      });
+      logSearchPerformed(q, tdScholarships.length);
+    }, SEARCH_LOG_DELAY_MS);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tdSearch]);
+
 
   useEffect(() => {
     if (allMatches.length > 0) logMatchingResultsViewed(allMatches.length, allMatches[0]?.scholarship_id);
@@ -737,21 +811,45 @@ export default function BrowsePage() {
 
       {/* ── Page header ── */}
       <div className="bg-[#F5F7FA] dark:bg-[#0A1628] border-b border-[#E5E5EA] dark:border-[#1A2E4A]">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-10">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-10">
           <h1
             className="text-3xl md:text-4xl text-[#1D1D1F] dark:text-white mb-2"
             style={{ fontFamily: font, fontWeight: 300 }}
           >
             {b.title[lang]}
           </h1>
-          <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm" style={{ fontFamily: font }}>{b.subtitle[lang]}</p>
+          <p className="text-[#6E6E73] dark:text-[#8E8E93] text-sm" style={{ fontFamily: font }}>
+            {activeTab === 'matches' ? b.subtitleMatches[lang] : b.subtitle[lang]}
+          </p>
+
+          {/* Search — above the tabs, on both, for guests too. It always
+              searches every scholarship (see onSearchChange). */}
+          <div className="relative mt-4 max-w-[640px]">
+            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="search"
+              value={tdSearch}
+              onChange={e => onSearchChange(e.target.value)}
+              placeholder={b.searchPlaceholder[lang]}
+              aria-label={b.searchAria[lang]}
+              enterKeyHint="search"
+              className="w-full pl-11 pr-4 py-3 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-xl bg-white dark:bg-[#07111F] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] focus:ring-2 focus:ring-[#2E6BE6]/20 transition-colors"
+              // 16px or iOS zooms the page when the field is focused.
+              style={{ fontFamily: font, fontSize: '16px' }}
+            />
+          </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-5 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
+          <div className="flex gap-1 mt-4 bg-[#EAEAEC] dark:bg-[#232B3E] rounded-[10px] p-1 w-fit">
             {(user ? ['matches', 'browse'] as Tab[] : ['browse'] as Tab[]).map(t => (
               <button
                 key={t}
-                onClick={() => setActiveTab(t)}
+                // Back to matches clears the search: it searches all
+                // scholarships, so leaving text in the box over an unfiltered
+                // matches list would look like a search that did nothing.
+                onClick={() => { setActiveTab(t); if (t === 'matches') setTdSearch(''); }}
                 className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
                   activeTab === t
                     ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
@@ -768,15 +866,35 @@ export default function BrowsePage() {
 
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
 
-        {/* Login banner (browse only, unauthenticated) */}
-        {!user && !tdLoading && tdScholarships.length > 0 && (
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#EFF4FF] dark:bg-[#162552] border border-[#2E6BE6]/30 rounded-xl px-5 py-4">
-            <p className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7]" style={{ fontFamily: font }}>
-              {b.loginBanner[lang]}
-            </p>
-            <a href="/auth?from=signup" className="text-sm font-semibold text-[#1B3A6B] dark:text-[#4A7FD4] hover:underline shrink-0" style={{ fontFamily: font }}>
-              {b.loginBannerCta[lang]}
-            </a>
+        {/* Guests: the quiz is the way in. /start matches without an account,
+            so this is the step that shows them value before asking them to
+            sign up. Browsing and search stay open below it. */}
+        {!user && !tdLoading && tdScholarships.length > 0 && !tdSearch && (
+          <div className="mb-8 rounded-2xl border border-[#2E6BE6]/30 bg-[#EFF4FF] dark:bg-[#162552] px-5 py-5 sm:px-6 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div>
+              <h2 className="text-lg font-bold text-[#0A2342] dark:text-white" style={{ fontFamily: font }}>
+                {b.guestTitle[lang]}
+              </h2>
+              <p className="mt-1 text-sm text-[#1D1D1F] dark:text-[#E8EDF5]" style={{ fontFamily: font, lineHeight: 1.7 }}>
+                {b.guestBody[lang]}
+              </p>
+              <p className="mt-1 text-xs text-[#6E6E73] dark:text-[#8E8E93]" style={{ fontFamily: font }}>
+                {b.guestBrowseHint[lang]}
+              </p>
+            </div>
+            <div className="mt-4 sm:mt-0 flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+              <a
+                href="/start"
+                onClick={() => logFunnelEvent({ eventType: 'guest_start_cta_clicked', context: { from: 'scholarships' } })}
+                className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-full bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white text-base font-bold transition-colors"
+                style={{ fontFamily: font }}
+              >
+                {b.guestCta[lang]} →
+              </a>
+              <a href="/auth?from=scholarships" className="text-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline" style={{ fontFamily: font }}>
+                {b.guestSignIn[lang]}
+              </a>
+            </div>
           </div>
         )}
 
@@ -803,9 +921,10 @@ export default function BrowsePage() {
                   {b.completeProfileSub[lang]}
                 </p>
                 <Link href="/profile/setup"
-                  className="bg-[#1B3A6B] text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-[#2E5FA3] transition-colors"
+                  onClick={() => logFunnelEvent({ eventType: 'profile_nudge_clicked', userId: user?.id ?? null, context: { completeness: 0, surface: 'no_profile' } })}
+                  className="inline-flex items-center justify-center min-h-[52px] bg-[#1B3A6B] text-white text-base font-bold px-7 rounded-full hover:bg-[#2E5FA3] transition-colors"
                   style={{ fontFamily: font }}>
-                  {lo === 'th' ? 'กรอกโปรไฟล์' : 'Set up profile'}
+                  {b.completeProfileCta[lang]}
                 </Link>
               </div>
 
@@ -834,8 +953,57 @@ export default function BrowsePage() {
 
             ) : (
               <>
+                {/* Incomplete profile: the most useful thing on the page, so first. */}
+                {profileGaps && profileGaps.missing.length > 0 && (
+                  <div className="mb-4 rounded-2xl border border-[#F5C26B] dark:border-[#6B5420] bg-[#FFF8EB] dark:bg-[#2A2210] px-5 py-4">
+                    <p className="text-sm font-semibold text-[#5C3D00] dark:text-[#F5D58A]" style={{ fontFamily: font, lineHeight: 1.7 }}>
+                      {b.profileNudge[lang](profileGaps.percent)}
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-[#F5E3BF] dark:bg-[#4A3B18] overflow-hidden" aria-hidden="true">
+                      <div className="h-full rounded-full bg-[#E39A0B]" style={{ width: `${profileGaps.percent}%` }} />
+                    </div>
+                    <p className="mt-2 text-xs text-[#7A5A1A] dark:text-[#D9C08A]" style={{ fontFamily: font }}>
+                      {b.profileNudgeMissing[lang]}{' '}
+                      {profileGaps.missing.slice(0, 2).map(f => MATCH_GAP_LABEL[f][lo]).join(lo === 'th' ? ', ' : ', ')}
+                    </p>
+                    <Link href="/profile/setup"
+                      onClick={() => logFunnelEvent({ eventType: 'profile_nudge_clicked', userId: user?.id ?? null, context: { completeness: profileGaps.percent, missing: profileGaps.missing, surface: 'matches' } })}
+                      className="mt-3 inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white text-sm font-bold transition-colors"
+                      style={{ fontFamily: font }}>
+                      {b.profileNudgeCta[lang]} →
+                    </Link>
+                  </div>
+                )}
+
+                {/* How this page works — three lines, closable, remembered. */}
+                {!guideDismissed && (
+                  <div className="mb-4 relative rounded-2xl border border-[#E5E5EA] dark:border-[#1A2E4A] bg-[#F5F7FA] dark:bg-[#0A1628] px-5 py-4 pr-12">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#8A96A8] mb-2" style={{ fontFamily: font }}>
+                      {b.guideTitle[lang]}
+                    </p>
+                    <ol className="grid gap-2 sm:grid-cols-3 sm:gap-4">
+                      {[b.guideStep1, b.guideStep2, b.guideStep3].map((step, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-[#1D1D1F] dark:text-[#E8EDF5]" style={{ fontFamily: font, lineHeight: 1.6 }}>
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-[#1B3A6B] text-white text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                          <span>{step[lang]}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <button
+                      type="button"
+                      onClick={dismissGuide}
+                      aria-label={b.guideClose[lang]}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-[#8A96A8] hover:bg-[#E5E5EA] dark:hover:bg-[#1A2E4A] hover:text-[#1D1D1F] dark:hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
                 <MatchControls
-                  total={allMatches.length} visibleCount={matchesToRender.length}
+                  total={allMatches.length} filteredCount={visibleMatches.length} visibleCount={matchesToRender.length}
                   sortBy={matchSortBy} setSortBy={setMatchSortBy}
                   minScore={matchMinScore} setMinScore={setMatchMinScore}
                   lang={lang}
@@ -936,28 +1104,16 @@ export default function BrowsePage() {
         ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'browse' && (
           <div>
-            {/* Search + filter toggle row */}
+            {/* A search started on the matches tab lands here: say where the
+                results come from, and what the badge on some of them means. */}
+            {tdSearch.trim() && user && allMatches.length > 0 && (
+              <p className="mb-3 text-sm text-[#1B3A6B] dark:text-[#8FB4FF]" style={{ fontFamily: font, lineHeight: 1.7 }}>
+                {b.searchAllNote[lang]}
+              </p>
+            )}
+
+            {/* Filter toggle. The search box is in the header, above the tabs. */}
             <div className="flex gap-2 mb-2">
-              <div className="relative flex-1">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={tdSearch}
-                  onChange={e => {
-                    setTdSearch(e.target.value);
-                    if (e.target.value.length >= 2) {
-                      logFunnelEvent({ eventType: 'search', userId: user?.id ?? null, context: { query: e.target.value, tab: 'browse', variant: rankingVariant } });
-                      logSearchPerformed(e.target.value, tdScholarships.length);
-                    }
-                  }}
-                  placeholder={lo === 'th' ? 'ค้นหาชื่อทุน หรือผู้ให้ทุน...' : 'Search scholarships or funder...'}
-                  aria-label={lo === 'th' ? 'ค้นหาทุน' : 'Search scholarships'}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-xl bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white placeholder-[#ADADB8] focus:outline-none focus:border-[#2E6BE6] transition-colors"
-                  style={{ fontFamily: font }}
-                />
-              </div>
               <button
                 onClick={() => setFiltersOpen(v => !v)}
                 aria-expanded={filtersOpen}
@@ -1082,6 +1238,9 @@ export default function BrowsePage() {
                     <TdScholarshipCard
                       key={s.scholarship_id}
                       scholarship={s}
+                      // Only for scholarships in this student's matches; the
+                      // rest carry no badge rather than a misleading low one.
+                      matchInfo={matchById.get(s.scholarship_id)}
                       userId={user?.id ?? null}
                       variant={rankingVariant}
                     />

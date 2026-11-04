@@ -50,6 +50,7 @@ import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext } from '@/lib/auth/inAppLogin';
 import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
 import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
+import LanguageToggle from '@/components/LanguageToggle';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
 import {
   isPlausibleEmail,
@@ -672,7 +673,17 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       <div className="w-full max-w-[420px]">
         <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
           <div className="h-1 bg-[#1B3A6B]" />
-          <div className="px-6 sm:px-8 pt-7 pb-7">{children}</div>
+          <div className="px-6 sm:px-8 pt-4 pb-7">
+            {/* TH / EN on the card itself. Thai is the default, but a choice of
+                English is remembered site-wide, and on a phone the navbar's
+                switch is buried in the menu — so without this, a visitor who
+                once tapped EN had no way back to Thai from the sign-in page.
+                AuthShell reserves the same height so nothing moves on hydration. */}
+            <div className="flex justify-end h-6 mb-1">
+              <LanguageToggle />
+            </div>
+            {children}
+          </div>
         </div>
         <p className="text-center mt-4">
           <a href="/" className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={THAI}>
