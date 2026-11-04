@@ -1,7 +1,7 @@
 -- ═════════════════════════════════════════════════════════════════════════════
 -- v35 — funnel events for the guidance on /scholarships
 --
--- NOT RUN YET.
+-- RUN on 2026-11-04 in the Supabase SQL editor (before the page code was deployed).
 --
 -- WHAT   Three new funnel_event_type values, written by the browser from /scholarships:
 --          guide_dismissed           the student closed the "how this page works" guide
