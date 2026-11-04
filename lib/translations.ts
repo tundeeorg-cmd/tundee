@@ -80,6 +80,53 @@ export const translations = {
     noMatchesHeading: { th: 'ยังไม่มีทุนที่ตรงกับโปรไฟล์ของคุณ', en: 'No matches for your profile yet' },
     noMatchesSub: { th: 'ลองค้นหาเองโดยใช้แท็บ "ค้นหาเอง"', en: 'Try browsing all scholarships in the Browse All tab' },
     tierFilterLabel: { th: 'ระดับความยากในการสมัคร', en: 'Difficulty / Tier' },
+    // ── Guidance on /scholarships (search above the tabs, guide, nudges) ──
+    subtitleMatches: {
+      th: 'ทุนที่คัดมาให้คุณจากโปรไฟล์ — ค้นหาชื่อทุนได้ที่ช่องค้นหา',
+      en: 'Scholarships picked for you from your profile — search any scholarship by name below',
+    },
+    searchPlaceholder: {
+      th: 'ค้นหาชื่อทุน หรือผู้ให้ทุน เช่น ทุนพระราชทาน, มูลนิธิ...',
+      en: 'Search a scholarship or funder, e.g. royal, foundation...',
+    },
+    searchAria: { th: 'ค้นหาทุน', en: 'Search scholarships' },
+    searchAllNote: {
+      th: 'ผลการค้นหาจากทุนทั้งหมด — ทุนที่ตรงกับคุณจะมีป้าย % ตรงกับคุณ',
+      en: 'Searching all scholarships — the ones that match you show a "% match" badge',
+    },
+    guideTitle: { th: 'หน้านี้ใช้อย่างไร', en: 'How this page works' },
+    guideStep1: {
+      th: 'ทุนเหล่านี้คัดมาจากข้อมูลในโปรไฟล์ของคุณ (เกรด ชั้นปี จังหวัด รายได้ครอบครัว)',
+      en: 'These are picked from your profile (GPA, year, province, family income)',
+    },
+    guideStep2: {
+      th: '% ตรงกับคุณ = คุณมีคุณสมบัติตรงกับเงื่อนไขของทุนมากแค่ไหน ยิ่งสูงยิ่งมีโอกาส',
+      en: '"% match" = how well you meet the scholarship\'s conditions. Higher means a better chance',
+    },
+    guideStep3: {
+      th: 'กด "ติดตาม" ที่ทุนที่สนใจ แล้วเราจะเตือนก่อนหมดเขต',
+      en: 'Tap "Track" on the ones you like and we\'ll remind you before the deadline',
+    },
+    guideClose: { th: 'ปิดคำแนะนำ', en: 'Close guide' },
+    profileNudge: {
+      th: (n: number) => `ข้อมูลสำหรับจับคู่ทุนของคุณครบ ${n}% — กรอกเพิ่มอีกนิด ทุนดีจะหาทุนที่ตรงกับคุณได้แม่นขึ้น`,
+      en: (n: number) => `Your matching details are ${n}% complete — add a little more and TunDee can match you more accurately`,
+    },
+    profileNudgeMissing: { th: 'ยังไม่ได้กรอก:', en: 'Missing:' },
+    profileNudgeCta: { th: 'กรอกโปรไฟล์ให้ครบ', en: 'Complete my profile' },
+    completeProfileCta: { th: 'กรอกโปรไฟล์ 2 นาที เพื่อให้ทุนดีจับคู่ทุนให้คุณ', en: 'Take 2 minutes to fill in your profile and get matched' },
+    guestTitle: { th: 'ไม่รู้จะเริ่มจากทุนไหน?', en: 'Not sure where to start?' },
+    guestBody: {
+      th: 'ตอบคำถาม 1 นาที ทุนดีจะคัดทุนที่ตรงกับคุณให้ ไม่ต้องสมัครสมาชิก',
+      en: 'Answer a 1-minute quiz and TunDee will pick the scholarships that fit you. No account needed.',
+    },
+    guestCta: { th: 'หาทุนที่ตรงกับฉัน', en: 'Find my matches' },
+    guestSignIn: { th: 'มีบัญชีแล้ว? เข้าสู่ระบบ', en: 'Have an account? Sign in' },
+    guestBrowseHint: { th: 'หรือค้นหาและดูทุนทั้งหมดด้านล่างได้เลย', en: 'Or search and browse every scholarship below' },
+    scoreExplain: {
+      th: '% ตรงกับคุณ = คุณมีคุณสมบัติตรงกับเงื่อนไขของทุนมากแค่ไหน ยิ่งสูงยิ่งมีโอกาส',
+      en: '"% match" = how well you meet the scholarship\'s conditions. Higher means a better chance.',
+    },
   },
   card: {
     viewDetail: { th: 'ดูรายละเอียด →', en: 'View Details →' },

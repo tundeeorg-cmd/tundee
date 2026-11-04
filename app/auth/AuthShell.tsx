@@ -62,7 +62,9 @@ export default function AuthShell({
         <div className="w-full max-w-[420px]">
           <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
             <div className="h-1 bg-[#1B3A6B]" />
-            <div className="px-6 sm:px-8 pt-7 pb-7">
+            <div className="px-6 sm:px-8 pt-4 pb-7">
+              {/* Same height as AuthForm's TH / EN row; the switch needs JavaScript. */}
+              <div className="h-6 mb-1" aria-hidden="true" />
               <h1 className="text-lg font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-1" style={THAI}>
                 ส่งรหัสไปที่
               </h1>
@@ -124,7 +126,9 @@ export default function AuthShell({
       <div className="w-full max-w-[420px]">
         <div className="bg-white dark:bg-[#0A1628] rounded-2xl border border-[#e0e0e0] dark:border-[#3a3a3c] overflow-hidden shadow-sm">
           <div className="h-1 bg-[#1B3A6B]" />
-          <div className="px-6 sm:px-8 pt-7 pb-7">
+          <div className="px-6 sm:px-8 pt-4 pb-7">
+            {/* Same height as AuthForm's TH / EN row; the switch needs JavaScript. */}
+            <div className="h-6 mb-1" aria-hidden="true" />
 
             {/* 1 ── Heading */}
             <h1 className="text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-6 leading-snug" style={THAI}>
