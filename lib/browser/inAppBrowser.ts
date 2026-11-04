@@ -30,6 +30,7 @@ export type InAppBrowserApp =
   | 'line'
   | 'tiktok'
   | 'twitter'
+  | 'wechat'
   | 'unknown';
 
 export interface InAppBrowserInfo {
@@ -114,8 +115,11 @@ const IOS_OTHER_BROWSER = /CriOS\/|FxiOS\/|EdgiOS\/|OPiOS\/|OPT\/|DuckDuckGo\/|G
  *   Line/                — LINE. The trailing slash matters: "Line" alone
  *                          appears in unrelated UAs (e.g. "Streamline").
  *   musical_ly / BytedanceWebview — TikTok
+ *   MicroMessenger       — WeChat (checked first of all: it contains "Messenger")
  */
 function detectApp(ua: string): InAppBrowserApp | null {
+  // WeChat first: "MicroMessenger" would otherwise match Messenger's /MESSENGER/i.
+  if (/MicroMessenger\//i.test(ua)) return 'wechat';
   if (/MessengerForiOS|MessengerLiteForiOS|Orca-Android|MESSENGER/i.test(ua)) return 'messenger';
   if (/FBAN|FBAV|FB_IAB|FB4A|FBIOS/i.test(ua)) return 'facebook';
   if (/Instagram/i.test(ua)) return 'instagram';

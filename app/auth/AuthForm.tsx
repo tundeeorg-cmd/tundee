@@ -48,7 +48,7 @@ import { logFunnelEvent } from '@/lib/research/funnel';
 import { trackAuthPageView } from '@/lib/adTracking';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext } from '@/lib/auth/inAppLogin';
-import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
+import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch, copiedNextSteps } from '@/lib/line/launch';
 import ConsentNotice from '@/components/auth/ConsentNotice';
 import LanguageToggle from '@/components/LanguageToggle';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password';
@@ -610,8 +610,9 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     if (intake) url.searchParams.set(INTAKE_PARAM, intake);
     try {
       await navigator.clipboard.writeText(url.toString());
+      // Stays set: the next steps below must still be on screen when they come
+      // back to this tab after looking for the Safari / Chrome icon.
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
     } catch {
       // Clipboard is permission-gated in some webviews. Select-and-copy is the
       // only remaining route, so surface the URL rather than failing silently.
@@ -892,6 +893,13 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           {sending && <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
           {th ? 'ส่งรหัสเข้าอีเมล' : 'Email me a code'}
         </button>
+        {/* Inside an in-app browser this is the method that works without leaving
+            the app — say so, since LINE and Google there need a browser switch. */}
+        {emailFirst && (
+          <p className="mt-2 text-center text-xs text-[#06A04A] dark:text-[#4ADE80]" style={{ ...THAI, lineHeight: 1.7 }}>
+            {th ? IN_APP_COPY.emailHint : 'Works right here — no app switch. The code goes to your email.'}
+          </p>
+        )}
       </form>
       {emailFirst && <ConsentNotice className="mt-3 mb-5" />}
     </>
@@ -968,11 +976,18 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="mt-2 text-xs font-semibold text-white bg-[#1B3A6B] rounded-lg px-3 py-2"
+            className="mt-2 min-h-[44px] text-sm font-semibold text-white bg-[#1B3A6B] rounded-lg px-4 py-2"
             style={THAI}
           >
-            {copied ? (th ? 'คัดลอกแล้ว ✓' : 'Copied ✓') : (th ? 'คัดลอกลิงก์' : 'Copy link')}
+            {copied ? (th ? 'คัดลอกอีกครั้ง' : 'Copy again') : (th ? 'คัดลอกลิงก์' : 'Copy link')}
           </button>
+          {copied && (
+            <ol role="status" className="mt-2 rounded-lg bg-white dark:bg-[#07111F] border border-[#06C755]/50 px-3 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] space-y-1" style={{ ...THAI, lineHeight: 1.7 }}>
+              {copiedNextSteps(iab.platform, th).map((line, i) => (
+                <li key={i} className={i === 0 ? 'font-bold text-[#06A04A] dark:text-[#4ADE80]' : ''}>{line}</li>
+              ))}
+            </ol>
+          )}
           <p className="mt-2 text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ ...THAI, lineHeight: 1.8 }}>
             {th
               ? 'หรือใช้อีเมลด้านล่างก็ได้ ใช้ได้เลยในหน้านี้ ไม่ต้องเปลี่ยนเบราว์เซอร์'

@@ -39,6 +39,8 @@ export function inAppNotice(iab: InAppBrowserInfo): string {
 /** Thai copy for the in-app sign-in, verbatim from the product brief. */
 export const IN_APP_COPY = {
   emailButton: 'เข้าสู่ระบบด้วยอีเมล (รับรหัส 6 หลัก)',
+  /** Under the email button inside an in-app browser: why this is the easy one here. */
+  emailHint: 'ใช้ได้เลยในหน้านี้ ไม่ต้องเปลี่ยนแอป — รหัสจะส่งไปที่อีเมลของคุณ',
   codeSent: (email: string) =>
     `ส่งรหัส 6 หลักไปที่ ${email} แล้ว กรอกรหัสด้านล่างเพื่อเข้าสู่ระบบ คำตอบของคุณยังอยู่ครบ`,
   resend: 'ส่งรหัสอีกครั้ง',
