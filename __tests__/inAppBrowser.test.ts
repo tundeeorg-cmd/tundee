@@ -199,3 +199,26 @@ describe('buildEscapeUrl carries the guest session across browsers', () => {
     expect(buildEscapeUrl(CURRENT, 'ios', { p: 'X' })).toBeNull();
   });
 });
+
+describe('WeChat and the Google app (2026-11-04)', () => {
+  it('detects WeChat as an in-app browser where Google and LINE one-tap fail', () => {
+    const info = inspectUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.44(0x18002c2f) NetType/WIFI Language/zh_CN',
+    );
+    expect(info).toMatchObject({ isInApp: true, app: 'wechat', googleBlocked: true, lineAppToAppBlocked: true, platform: 'ios' });
+  });
+
+  it('the Google app on iPhone is not a webview: Google works, LINE one-tap does not', () => {
+    const info = inspectUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/290.0.588043940 Mobile/15E148 Safari/604.1',
+    );
+    expect(info).toMatchObject({ isInApp: false, googleBlocked: false, lineAppToAppBlocked: true, iosOtherBrowser: true });
+  });
+
+  it('the Google app on Android is caught as a generic webview', () => {
+    const info = inspectUserAgent(
+      'Mozilla/5.0 (Linux; Android 13; SM-A135F Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/119.0.6045.163 Mobile Safari/537.36 GSA/14.47.23.29.arm64',
+    );
+    expect(info).toMatchObject({ isInApp: true, app: 'unknown', googleBlocked: true });
+  });
+});

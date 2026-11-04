@@ -36,7 +36,7 @@ import { detectInAppBrowser, inspectUserAgent, type InAppBrowserInfo } from '@/l
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext } from '@/lib/auth/inAppLogin';
 import EmailCodeStart from '@/components/start/EmailCodeStart';
-import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch } from '@/lib/line/launch';
+import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch, copiedNextSteps } from '@/lib/line/launch';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
 
 const TH = { fontFamily: 'Sarabun, sans-serif' } as const;
@@ -138,11 +138,18 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
       <button
         type="button"
         onClick={() => void copyLink()}
-        className="mt-2 text-xs font-semibold text-white bg-[#1B3A6B] rounded-lg px-3 py-2"
+        className="mt-2 min-h-[44px] text-sm font-semibold text-white bg-[#1B3A6B] rounded-lg px-4 py-2"
         style={TH}
       >
-        {copied === 'yes' ? 'คัดลอกแล้ว ✓' : 'คัดลอกลิงก์'}
+        {copied === 'yes' ? 'คัดลอกอีกครั้ง' : 'คัดลอกลิงก์'}
       </button>
+      {copied === 'yes' && (
+        <ol role="status" className="mt-2 rounded-lg bg-white dark:bg-[#07111F] border border-[#06C755]/50 px-3 py-2 text-sm text-left text-[#1D1D1F] dark:text-[#F5F5F7] space-y-1" style={{ ...TH, lineHeight: 1.7 }}>
+          {copiedNextSteps(iosHelp ? iosHelp.platform : 'other', true).map((line, i) => (
+            <li key={i} className={i === 0 ? 'font-bold text-[#06A04A] dark:text-[#4ADE80]' : ''}>{line}</li>
+          ))}
+        </ol>
+      )}
       {copied === 'failed' && (
         <p className="mt-2 text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={TH}>
           คัดลอกไม่ได้ กรุณากดค้างที่แถบที่อยู่เพื่อคัดลอก

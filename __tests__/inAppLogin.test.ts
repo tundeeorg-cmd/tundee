@@ -119,3 +119,25 @@ describe('nothing leaves the page without a tap', () => {
     expect(src).toContain('inputMode="numeric"');
   });
 });
+
+describe('after "คัดลอกลิงก์", and the email hint (2026-11-04)', () => {
+  it('names the browser to open and the two actions, in Thai', async () => {
+    const { copiedNextSteps } = await import('@/lib/line/launch');
+    const ios = copiedNextSteps('ios', true);
+    expect(ios[0]).toBe('✓ คัดลอกลิงก์แล้ว');
+    expect(ios[1]).toContain('Safari');
+    expect(ios[1]).toContain('"วาง"');
+    expect(copiedNextSteps('android', true)[1]).toContain('Chrome');
+  });
+
+  it('the copied state stays on screen on /auth (no timeout)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const form = readFileSync(new URL('../app/auth/AuthForm.tsx', import.meta.url), 'utf8');
+    expect(form).not.toContain('setTimeout(() => setCopied(false)');
+    expect(form).toContain('copiedNextSteps(iab.platform, th)');
+  });
+
+  it('tells in-app visitors the email path works without switching apps', () => {
+    expect(IN_APP_COPY.emailHint).toContain('ไม่ต้องเปลี่ยนแอป');
+  });
+});

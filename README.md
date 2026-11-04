@@ -158,6 +158,17 @@ continuing is agreement to the terms, privacy policy and data use
 the servers still refuse a sign-in without it. On `/auth` the order is LINE, Google, then
 email folded behind "ใช้อีเมลแทน"; inside Facebook/Instagram/TikTok email comes first.
 
+**In-app browsers** (Facebook, Messenger, Instagram, TikTok, WeChat, Android webviews;
+`lib/browser/inAppBrowser.ts`, decided from the user agent on the server): Google refuses
+them and LINE's one tap cannot reach the LINE app, so `/auth` and `/start` put the **email
+code first and open** — it completes without leaving the app (`lib/auth/inAppLogin.ts`).
+LINE stays below it: on Android as "เปิดใน Chrome เพื่อเข้าสู่ระบบด้วย LINE" (an intent hand-off,
+`lib/line/launch.ts`), on iPhone as an instruction to use ••• → "เปิดในเบราว์เซอร์", with a
+copy-link button whose next steps stay on screen. iOS cannot be escaped programmatically,
+and the clipboard cannot be written without a tap. The email keeps a code rather than a
+magic link because a link in an email always opens in another browser, outside the app.
+LINE's own in-app browser is not treated as blocked: LINE one-tap works there.
+
 Required dashboard settings, each explained in
 [docs/setup/supabase-auth-settings.md](docs/setup/supabase-auth-settings.md):
 

@@ -122,6 +122,26 @@ export function followLineLaunch(url: string, onSettled: (stuck: boolean) => voi
   window.setTimeout(() => onSettled(document.visibilityState === 'visible'), CHROME_HANDOFF_WAIT_MS);
 }
 
+/**
+ * What to do once the link is on the clipboard. "คัดลอกแล้ว ✓" alone left people
+ * holding a copied link and no idea that the next step is in a DIFFERENT app —
+ * so this names the app and the two actions, and stays on screen.
+ */
+export function copiedNextSteps(platform: 'ios' | 'android' | 'other', th: boolean): string[] {
+  const browser = platform === 'android' ? 'Chrome' : 'Safari';
+  return th
+    ? [
+        '✓ คัดลอกลิงก์แล้ว',
+        `ขั้นต่อไป: เปิดแอป ${browser} แล้วกดค้างที่ช่องที่อยู่ด้านบน เลือก "วาง" แล้วกดไป`,
+        'จากนั้นกด "เข้าสู่ระบบด้วย LINE" อีกครั้งในหน้านั้น',
+      ]
+    : [
+        '✓ Link copied',
+        `Next: open the ${browser} app, press and hold the address bar, choose "Paste", then go`,
+        'Then tap "Sign in with LINE" again on that page',
+      ];
+}
+
 /** Shown on Android when the hand-off to Chrome did not happen. */
 export function androidLineHelp(th: boolean): string {
   return th

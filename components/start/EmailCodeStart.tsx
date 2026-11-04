@@ -275,6 +275,9 @@ export default function EmailCodeStart({
         {sending && <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden />}
         {IN_APP_COPY.emailButton}
       </button>
+      <p className="mt-2 text-center text-xs text-[#06A04A] dark:text-[#4ADE80]" style={{ ...TH, lineHeight: 1.7 }}>
+        {IN_APP_COPY.emailHint}
+      </p>
     </form>
   );
 }
