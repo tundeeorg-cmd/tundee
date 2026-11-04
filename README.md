@@ -147,6 +147,24 @@ NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
 RESEND_API_KEY=re_...
 ```
 
+### Sign-in (Supabase Auth)
+
+Students sign in with **LINE** (Supabase provider `custom:line`), a **six-digit
+email code** (`signInWithOtp` + `verifyOtp`, typed into the same page so it works
+inside the Facebook in-app browser), or **Google**. No passwords, no magic-link-only
+flow. Every method passes the PDPA consent checkbox, which sits directly under the
+first sign-in button on `/auth` and is re-checked server-side.
+
+Required dashboard settings, each explained in
+[docs/setup/supabase-auth-settings.md](docs/setup/supabase-auth-settings.md):
+
+- **Confirm email: OFF**, **Email OTP length: 6**, and `{{ .Token }}` in the Magic Link template
+- **Site URL** `https://www.tundee.org`; **Redirect URLs** `https://www.tundee.org/**`, `https://tundee.org/**`, `http://localhost:3000/**`
+- LINE channel **Callback URL** `https://<project>.supabase.co/auth/v1/callback` — see [docs/setup/line-login-checklist.md](docs/setup/line-login-checklist.md)
+
+LINE accounts have no email, so Supabase lists them as "Waiting for verification".
+That label is cosmetic; they sign in normally. Do not confirm them or add placeholder emails.
+
 ### Database setup
 
 In the Supabase SQL editor, run the files in order:

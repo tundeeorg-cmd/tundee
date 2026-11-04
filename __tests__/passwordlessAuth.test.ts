@@ -103,29 +103,31 @@ describe('the screen is in the order the brief specifies', () => {
   const order = [
     'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',  // 1 heading
     'เข้าสู่ระบบด้วย LINE',                // 2 LINE
+    'ฉันยอมรับ',                            // 5 consent, directly under LINE
     'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',        // 2 sub-line
     'หรือ',                                 // 3 divider
     'ส่งรหัสเข้าอีเมล',                    // 4 email
-    'ฉันยอมรับ',                            // 5 consent
   ];
 
   for (const src of [['AuthForm', FORM], ['AuthShell', SHELL]] as const) {
     it(`${src[0]} renders them top to bottom`, () => {
       // AuthForm renders the consent through the shared component (also used by
-      // /start's LINE button), so in its source the 5th item is the component.
+      // /start's LINE button) as `consentBlock`, placed directly under the primary
+      // button: under LINE normally, under the email button inside an in-app browser.
       // AuthForm builds the LINE button, the divider and the email form as three constants and
       // lays them out in one ternary (email first only inside an in-app browser, see
       // lib/auth/inAppLogin). So in its source the constants come in the brief's order and the
       // ordinary layout, LINE first, is the second arm; the in-app arm is the one before it.
       const needles = src[0] === 'AuthForm'
         ? [
-            'const lineBlock', 'เข้าสู่ระบบด้วย LINE', 'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',
+            'const consentBlock', '<ConsentCheckbox',
+            'const lineBlock', 'เข้าสู่ระบบด้วย LINE', '{!emailFirst && consentBlock}',
+            'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',
             'const methodDivider', 'หรือ',
-            'const emailBlock', 'ส่งรหัสเข้าอีเมล',
+            'const emailBlock', 'ส่งรหัสเข้าอีเมล', '{emailFirst && <div className="mb-5">{consentBlock}</div>}',
             'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',
             '? <>{emailBlock}{methodDivider}{lineBlock}</>',
             ': <>{lineBlock}{methodDivider}{emailBlock}</>',
-            '<ConsentCheckbox',
           ]
         : order;
       let cursor = -1;
