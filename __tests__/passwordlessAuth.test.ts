@@ -100,34 +100,33 @@ describe('the six-digit code', () => {
 // ─── The order on screen ─────────────────────────────────────────────────────
 
 describe('the screen is in the order the brief specifies', () => {
+  // LINE → consent line → "หรือ" → Google → email folded behind "ใช้อีเมลแทน".
   const order = [
     'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',  // 1 heading
     'เข้าสู่ระบบด้วย LINE',                // 2 LINE
-    'ฉันยอมรับ',                            // 5 consent, directly under LINE
+    '<ConsentNotice',                       // 5 consent line, directly under LINE
     'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',        // 2 sub-line
     'หรือ',                                 // 3 divider
-    'ส่งรหัสเข้าอีเมล',                    // 4 email
+    'ใช้อีเมลแทน',                          // 4 email, folded
+    'ส่งรหัสเข้าอีเมล',
   ];
 
   for (const src of [['AuthForm', FORM], ['AuthShell', SHELL]] as const) {
     it(`${src[0]} renders them top to bottom`, () => {
-      // AuthForm renders the consent through the shared component (also used by
-      // /start's LINE button) as `consentBlock`, placed directly under the primary
-      // button: under LINE normally, under the email button inside an in-app browser.
-      // AuthForm builds the LINE button, the divider and the email form as three constants and
-      // lays them out in one ternary (email first only inside an in-app browser, see
-      // lib/auth/inAppLogin). So in its source the constants come in the brief's order and the
-      // ordinary layout, LINE first, is the second arm; the in-app arm is the one before it.
+      // AuthForm builds each block as a constant and lays them out in one ternary:
+      // the in-app arm first (email open, then LINE), then the ordinary arm (LINE,
+      // Google, email folded). So in its source the constants come in definition
+      // order and the layouts are checked as the two arms of that ternary.
       const needles = src[0] === 'AuthForm'
         ? [
-            'const consentBlock', '<ConsentCheckbox',
-            'const lineBlock', 'เข้าสู่ระบบด้วย LINE', '{!emailFirst && consentBlock}',
+            'const lineBlock', 'เข้าสู่ระบบด้วย LINE', '{!emailFirst && <ConsentNotice',
             'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',
             'const methodDivider', 'หรือ',
-            'const emailBlock', 'ส่งรหัสเข้าอีเมล', '{emailFirst && <div className="mb-5">{consentBlock}</div>}',
+            'const emailBlock', 'ส่งรหัสเข้าอีเมล', '{emailFirst && <ConsentNotice',
+            'const googleButton', 'const emailFolded', 'ใช้อีเมลแทน',
             'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',
-            '? <>{emailBlock}{methodDivider}{lineBlock}</>',
-            ': <>{lineBlock}{methodDivider}{emailBlock}</>',
+            '? <>{emailBlock}{methodDivider}{lineBlock}{googleButton}</>',
+            ': <>{lineBlock}{methodDivider}{googleButton}{emailFolded}</>',
           ]
         : order;
       let cursor = -1;
@@ -139,8 +138,13 @@ describe('the screen is in the order the brief specifies', () => {
     });
   }
 
-  it('the shared consent component carries the consent wording', () => {
-    expect(read('components/auth/ConsentCheckbox.tsx')).toContain('ฉันยอมรับ');
+  it('the shared consent line carries the full consent wording, data clause included', () => {
+    const notice = read('components/auth/ConsentNotice.tsx');
+    expect(notice).toContain('เมื่อดำเนินการต่อ ถือว่าคุณยอมรับ');
+    expect(notice).toContain('href="/terms"');
+    expect(notice).toContain('href="/privacy"');
+    expect(notice).toContain('ยินยอมให้ TunDee เก็บข้อมูลการศึกษาของคุณเพื่อแนะนำทุนที่ตรงกับคุณ');
+    expect(existsSync(join(ROOT, 'components/auth/ConsentCheckbox.tsx'))).toBe(false);
   });
 
   it('uses LINE green, filled, on the primary button', () => {
@@ -156,12 +160,26 @@ describe('the screen is in the order the brief specifies', () => {
     }
   });
 
-  it('gates both methods on consent, and says so rather than going dead', () => {
-    // A disabled button with no explanation reads as a broken page. The brief
-    // asks for disabled; the standing hint is what makes that safe.
-    expect(FORM).toContain('const blocked = !consent');
-    expect(FORM).toContain('disabled={blocked || busy}');
-    expect(FORM).toContain('กรุณายอมรับเงื่อนไขก่อน');
+  it('never disables a sign-in button for consent: continuing is the agreement', () => {
+    // The tick box sat below the fold on phones; parents tapped LINE, got
+    // "กรุณายอมรับเงื่อนไขก่อน", and could not see what to tick.
+    for (const [name, src] of [
+      ['form', FORM], ['shell', SHELL],
+      ['start LINE', read('components/start/LineQuickStart.tsx')],
+      ['start email', read('components/start/EmailCodeStart.tsx')],
+    ] as const) {
+      expect(src, name).not.toContain('ConsentCheckbox');
+      expect(src, name).not.toContain('กรุณายอมรับเงื่อนไขก่อน');
+      expect(src, name).not.toMatch(/\bblocked \|\| busy|!consent \|\||onNeedConsent/);
+    }
+  });
+
+  it('still records consent on every method, so the servers still see it', () => {
+    // sendCode, signInWithLine, signInWithGoogle each set the consent cookie.
+    expect(FORM.match(/\n\s+recordConsent\(\);/g)?.length).toBe(3);
+    // The callback URL and the LINE link both carry the version.
+    expect(FORM).toContain('qs.set(CONSENT_PARAM, CONSENT_VERSION)');
+    expect(FORM).toContain('[CONSENT_PARAM]: CONSENT_VERSION');
   });
 });
 
@@ -337,8 +355,12 @@ describe('the no-JavaScript page is a real page', () => {
     expect(SHELL).toContain("stage === 'code'");
   });
 
-  it('enforces consent without JavaScript', () => {
-    expect(SHELL).toMatch(/name=\{CONSENT_PARAM\}[\s\S]{0,200}required/);
+  it('sends consent without JavaScript, and the server still enforces it', () => {
+    // No box to tick: the email form posts the version as a hidden field ({hidden})
+    // and the LINE link carries it in the URL.
+    expect(SHELL).toMatch(/<input type="hidden" name=\{CONSENT_PARAM\} value=\{CONSENT_VERSION\} \/>/);
+    expect(SHELL).toMatch(/<form id="shell-otp"[^>]*>\s*\{hidden\}/);
+    expect(SHELL).toContain('${CONSENT_PARAM}=${CONSENT_VERSION}');
     expect(read('app/api/auth/otp/send/route.ts')).toContain('isValidConsent');
   });
 
