@@ -18,6 +18,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseDeadline } from '@/lib/tdScholarships/deadlineParser';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
+import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 export async function PATCH(
   request: NextRequest,
@@ -125,5 +126,7 @@ export async function PATCH(
     .eq('scholarship_id', id)
     .single();
 
+  // The public /scholarships list is cached; show this change there now.
+  revalidateBrowseList();
   return NextResponse.json({ scholarship: updated });
 }

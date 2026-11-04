@@ -201,7 +201,7 @@ describe('the prompt', () => {
   const src = read('components/ReconsentPrompt.tsx');
 
   it('is mounted on /scholarships for a signed-in student only', () => {
-    expect(read('app/scholarships/page.tsx')).toContain('{user && <ReconsentPrompt lang={lang} />}');
+    expect(read('app/scholarships/ScholarshipsClient.tsx')).toContain('{user && <ReconsentPrompt lang={lang} />}');
   });
 
   it('reuses the real consent question: neither option pre-selected, and equal weight', () => {

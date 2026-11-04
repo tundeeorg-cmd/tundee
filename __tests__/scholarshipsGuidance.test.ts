@@ -14,7 +14,7 @@ import { translations } from '@/lib/translations';
 
 const ROOT = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
-const PAGE = read('app/scholarships/page.tsx');
+const PAGE = read('app/scholarships/ScholarshipsClient.tsx');
 const THAI = /[฀-๿]/;
 
 describe('matchProfileGaps — only the answers the matcher reads', () => {

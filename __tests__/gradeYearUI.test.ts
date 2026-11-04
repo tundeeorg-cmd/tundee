@@ -28,7 +28,7 @@ const WIZARD      = read('app/profile/setup/page.tsx');
 const WIZARD_CODE = code('app/profile/setup/page.tsx');
 const PROFILE      = read('app/profile/page.tsx');
 const PROFILE_CODE = code('app/profile/page.tsx');
-const SCHOLARSHIPS = read('app/scholarships/page.tsx');
+const SCHOLARSHIPS = read('app/scholarships/ScholarshipsClient.tsx');
 
 // ─── The wizard ──────────────────────────────────────────────────────────────
 
