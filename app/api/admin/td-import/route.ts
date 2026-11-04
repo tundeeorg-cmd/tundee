@@ -26,6 +26,7 @@ import type { TdImportRow } from '@/lib/tdScholarships/types';
 import { parseDeadline, isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 import { chunk } from '@/lib/supabase/fetchAll';
+import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 function fmtErr(err: unknown): string {
   if (!err) return 'Unknown error';
@@ -268,6 +269,8 @@ export async function POST(request: NextRequest) {
       '[td-import] inserted:', inserted, 'updated:', updated,
       'skipped:', skipped, 'protected:', protectedCount, 'errors:', errors.length,
     );
+    // The public /scholarships list is cached; show this change there now.
+    revalidateBrowseList();
     return NextResponse.json({ inserted, updated, skipped, protected: protectedCount, errors });
 
   } catch (err) {

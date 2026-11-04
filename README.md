@@ -106,6 +106,18 @@ subgroup analysis).
 
 ---
 
+### Scholarship list: server-rendered and cached
+
+`/scholarships` is a server page (`app/scholarships/page.tsx`) that fetches every displayed
+scholarship with the anon key (`lib/tdScholarships/browseList.ts`, cached for an hour) and
+passes it to the interactive half (`ScholarshipsClient.tsx`), so the first paint already has
+cards and nothing waits on sign-in. The list is **not paginated on purpose**: it is ~240 rows /
+37 KB gzipped, and search, filters, sorting and the recommender all run over the full list in
+the browser. The cache is cleared early by the nightly status cron and by the admin
+edit/bulk/import routes (`revalidateBrowseList()`). If the server fetch ever fails, the browser
+fetches the list itself with an 8-second timeout and shows "โหลดรายการทุนไม่สำเร็จ" with a retry
+button rather than an endless skeleton.
+
 ## Getting Started
 
 ### Prerequisites

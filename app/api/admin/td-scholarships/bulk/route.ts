@@ -14,6 +14,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
+import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 function makeAdminClient() {
   return createClient(
@@ -131,5 +132,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const displayedNow = updates.filter(u => u.is_displayed).length;
+  // The public /scholarships list is cached; show this change there now.
+  revalidateBrowseList();
   return NextResponse.json({ updated: rows.length, displayedNow });
 }

@@ -16,7 +16,7 @@ import { classifyProtectedGroup, rerank } from '@/lib/recommender/reranker';
 import type { RecommenderProfile } from '@/lib/recommender/types';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 
-/** Built exactly as app/scholarships/page.tsx builds it. */
+/** Built exactly as app/scholarships/ScholarshipsClient.tsx builds it. */
 function liveProfile(over: Partial<RecommenderProfile> = {}): RecommenderProfile {
   return {
     user_id: 'u1',

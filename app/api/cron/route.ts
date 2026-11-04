@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
 import { isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { fetchAllRows } from '@/lib/supabase/fetchAll';
+import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 /** Exactly the columns the status recompute reads. */
 interface TdStatusRow {
@@ -127,6 +128,11 @@ export async function GET(request: NextRequest) {
   }
 
   console.log(`[CRON] Done — legacy hidden: ${legacyCount}, td_scholarships updated: ${tdChanged}`);
+
+  // /scholarships serves a cached list (lib/tdScholarships/browseList): rebuild
+  // it now rather than up to an hour later, so a scholarship that closed tonight
+  // leaves the public page tonight.
+  if (tdChanged > 0) revalidateBrowseList();
 
   return Response.json({
     ok: true,
