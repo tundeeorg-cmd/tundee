@@ -66,3 +66,30 @@ The auth flow after this setup:
 4. `/auth/callback/route.ts` calls `exchangeCodeForSession()`
 5. New user → redirected to `/profile/setup`
 6. Returning user → redirected to `/scholarships`
+
+---
+
+## Troubleshooting: Google shows "400. That's an error … malformed"
+
+Checked on 2026-11-04, against production, without signing in:
+
+- Supabase's `/auth/v1/authorize?provider=google` returns a well-formed Google URL:
+  `client_id` set, `redirect_uri=https://<project>.supabase.co/auth/v1/callback`,
+  `scope=email profile`, `response_type=code`.
+- Google **accepts** it (302 to its normal "choose an account" page), both with a plain
+  `redirect_to` and with the full return URL the app sends (next, consent, `/start`
+  answers, parked-answers id, campaign) and PKCE. So the client ID, the authorized
+  redirect URI and Supabase's provider settings are correct.
+
+The app does not build the Google URL itself; `AuthForm` calls
+`supabase.auth.signInWithOAuth({ provider: 'google' })`. If a student still sees the 400:
+
+1. **Get the address** from that error page (or a screenshot of it) and which app they
+   were in. A 400 on a URL Google otherwise accepts usually means the URL was cut or
+   altered on the way — copied by hand, or reopened from history — not a settings error.
+2. **In-app browsers:** Google refuses them (that shows as `403 disallowed_useragent`).
+   `/auth` hides the Google button in the in-app browsers it recognises
+   (`lib/browser/inAppBrowser.ts`); a browser it does not recognise would still show it.
+3. **OAuth consent screen:** if it is in *Testing*, anyone not on the test-user list gets
+   "Access blocked" (403). Publish it.
+

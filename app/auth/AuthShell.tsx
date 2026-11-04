@@ -2,6 +2,7 @@ import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { OTP_LENGTH } from '@/lib/auth/otp';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
+import ConsentNotice from '@/components/auth/ConsentNotice';
 
 /**
  * Server-rendered shell for /auth — a working page, not a spinner.
@@ -149,26 +150,9 @@ export default function AuthShell({
               เข้าสู่ระบบด้วย LINE
             </a>
 
-            {/* 5 ── Consent, directly under LINE as in AuthForm. It still belongs
-                    to the email POST below through form="shell-otp", so
-                    `required` keeps enforcing it without JavaScript. */}
-            <label className="flex items-start gap-3 mt-3 cursor-pointer select-none" style={THAI}>
-              <input
-                type="checkbox"
-                name={CONSENT_PARAM}
-                value={CONSENT_VERSION}
-                required
-                form="shell-otp"
-                className="mt-0.5 w-5 h-5 shrink-0 accent-[#1B3A6B] rounded"
-              />
-              <span className="text-xs leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0]">
-                ฉันยอมรับ{' '}
-                <a href="/terms" className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">ข้อกำหนดการใช้งาน</a>
-                {' '}และ{' '}
-                <a href="/privacy" className="text-[#1B3A6B] dark:text-[#8FB4FF] underline">นโยบายความเป็นส่วนตัว</a>
-                {' '}และยินยอมให้ TunDee เก็บข้อมูลการศึกษาของฉันเพื่อแนะนำทุนที่ตรงกับฉัน
-              </span>
-            </label>
+            {/* 5 ── Consent: continuing is the agreement (ConsentNotice). The
+                    LINE link above carries consent=; the email form posts it. */}
+            <ConsentNotice className="mt-3" />
             <p className="text-center text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-2 mb-5" style={THAI}>
               เร็วที่สุด ไม่ต้องจำรหัสผ่าน
             </p>
@@ -190,10 +174,20 @@ export default function AuthShell({
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
             </div>
 
-            {/* 4 ── Email, a real POST. The consent box above is part of it
-                    (form="shell-otp"); the route re-checks it regardless. */}
+            {/* 4 ── Email, folded behind "ใช้อีเมลแทน" as in AuthForm. A native
+                    <details>, so it opens without JavaScript; open from the
+                    start inside a webview, where it is the way that works.
+                    A real POST that carries the consent version
+                    (/api/auth/otp/send re-checks it). */}
+            <details open={webview || !!email} className="group">
+              <summary
+                className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-[#6e6e73] group-open:mb-3"
+                style={THAI}
+              >
+                ใช้อีเมลแทน
+              </summary>
             <form id="shell-otp" method="POST" action="/api/auth/otp/send">
-              <input type="hidden" name="next" value={next} />
+              {hidden}
 
               <label htmlFor="shell-email" className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1.5" style={THAI}>
                 อีเมล
@@ -219,6 +213,7 @@ export default function AuthShell({
               </button>
 
             </form>
+            </details>
 
             <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={THAI}>
               ฟรีตลอด ไม่มีค่าใช้จ่าย

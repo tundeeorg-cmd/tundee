@@ -16,8 +16,11 @@ student is signed out and their `/start` answers are gone. That round trip
 turned 79 Lead events into 10 accounts, which is why the link-only flow was
 removed on 30 Aug 2026. A code never leaves the page (`lib/auth/otp.ts`).
 
-All three go through the PDPA consent checkbox, which sits directly under the
-first sign-in button on `/auth` and is re-checked on the server.
+None of them is behind a tick box. A line directly under the first sign-in button
+says continuing is agreement (`components/auth/ConsentNotice.tsx`); every method
+still sends the consent version, and `/api/auth/line/start` and `/api/auth/otp/send`
+still refuse a request without it. On `/auth` the order is LINE, Google, then email
+folded behind "ใช้อีเมลแทน" (inside an in-app browser: email first and open).
 
 ---
 
@@ -139,14 +142,14 @@ where no error of ours can be shown.
 
 ## 7. Test it end to end
 
-1. Open `https://www.tundee.org/auth` on a phone. The consent box sits directly
-   under the green LINE button. Tick it, tap LINE, approve in the LINE app:
+1. Open `https://www.tundee.org/auth` on a phone. The consent line sits directly
+   under the green LINE button as a line of text, not a box. Tap LINE, approve in the LINE app:
    you land signed in.
 2. Sign out. Enter a new email address and tap ส่งรหัสเข้าอีเมล. An email with
    a six-digit code arrives; type or paste it and the page signs you in on its
    own, with no confirmation email.
 3. Repeat step 2 inside the Facebook app's browser. Email is the first option
-   there, the consent box sits under its button, and you stay in the same page.
+   there, the consent line sits under its button, and you stay in the same page.
 4. Sign in with an old password account's address: the code signs it in.
 5. On `/tracker`, switch on email reminders. One verification email should
    arrive. Tap it and the page should confirm.

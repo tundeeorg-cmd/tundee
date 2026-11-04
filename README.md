@@ -152,14 +152,18 @@ RESEND_API_KEY=re_...
 Students sign in with **LINE** (Supabase provider `custom:line`), a **six-digit
 email code** (`signInWithOtp` + `verifyOtp`, typed into the same page so it works
 inside the Facebook in-app browser), or **Google**. No passwords, no magic-link-only
-flow. Every method passes the PDPA consent checkbox, which sits directly under the
-first sign-in button on `/auth` and is re-checked server-side.
+flow. There is no consent tick box: a line under the first sign-in button says that
+continuing is agreement to the terms, privacy policy and data use
+(`components/auth/ConsentNotice.tsx`). Every method still sends the consent version, and
+the servers still refuse a sign-in without it. On `/auth` the order is LINE, Google, then
+email folded behind "ใช้อีเมลแทน"; inside Facebook/Instagram/TikTok email comes first.
 
 Required dashboard settings, each explained in
 [docs/setup/supabase-auth-settings.md](docs/setup/supabase-auth-settings.md):
 
 - **Confirm email: OFF**, **Email OTP length: 6**, and `{{ .Token }}` in the Magic Link template
 - **Site URL** `https://www.tundee.org`; **Redirect URLs** `https://www.tundee.org/**`, `https://tundee.org/**`, `http://localhost:3000/**`
+- Google Cloud OAuth client: **Authorized redirect URI** `https://<project>.supabase.co/auth/v1/callback`, and the same Client ID/secret in Supabase → Providers → Google — see [docs/setup/setup-google-oauth.md](docs/setup/setup-google-oauth.md)
 - LINE channel **Callback URL** `https://<project>.supabase.co/auth/v1/callback` — see [docs/setup/line-login-checklist.md](docs/setup/line-login-checklist.md)
 
 LINE accounts have no email, so Supabase lists them as "Waiting for verification".

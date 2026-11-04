@@ -9,8 +9,9 @@
  * a webview, before the LINE button even appeared.
  *
  * Same rules as the LINE button on /auth, from the same shared pieces:
- *   • ConsentCheckbox — the identical PDPA wording; the button does nothing
- *     until it is ticked, and /api/auth/line/start refuses without it anyway.
+ *   • ConsentNotice — the identical PDPA wording, as a "continuing is the agreement"
+ *     line under the first button; every tap records it, and
+ *     /api/auth/line/start refuses a request that does not carry it.
  *   • lib/line/launch — the same URL (guest session, parked answers, campaign)
  *     and the same webview escape: Chrome on Android, Safari instructions on iOS.
  *
@@ -27,7 +28,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
-import ConsentCheckbox from '@/components/auth/ConsentCheckbox';
+import ConsentNotice from '@/components/auth/ConsentNotice';
 import { CONSENT_COOKIE, CONSENT_COOKIE_MAX_AGE, CONSENT_VERSION } from '@/lib/consent';
 import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
 import { INTAKE_PARAM, readStoredIntakeId } from '@/lib/intake/pendingIntake';
@@ -47,8 +48,6 @@ function readCookie(name: string): string | null {
 }
 
 export default function LineQuickStart({ signupHref, fallback }: { signupHref: string; fallback?: ReactNode }) {
-  const [consent, setConsent] = useState(false);
-  const [nudge,   setNudge]   = useState(false);
   const [iosHelp, setIosHelp] = useState<InAppBrowserInfo | null>(null);
   const [copied,  setCopied]  = useState<'yes' | 'failed' | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -88,8 +87,6 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
   }
 
   function start() {
-    if (!consent) { setNudge(true); return; }
-
     // The same cookie /auth writes, so /auth/callback sees a consented signup.
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
     document.cookie =
@@ -157,12 +154,6 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
     </div>
   );
 
-  const nudgeBox = nudge && (
-    <p role="alert" className="mt-2 text-xs text-[#C2410C] dark:text-[#FDBA74] text-center" style={TH}>
-      กรุณายอมรับเงื่อนไขก่อน
-    </p>
-  );
-
   // ── In an in-app browser: email first, on this page ────────────────────────
   if (emailFirst) {
     return (
@@ -171,20 +162,14 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
           {inAppNotice(iab)}
         </p>
 
-        <ConsentCheckbox
-          checked={consent}
-          onChange={(checked) => { setConsent(checked); setNudge(false); }}
-        />
-        <div className="mt-4">
+        <div>
           <EmailCodeStart
-            consent={consent}
-            onNeedConsent={() => setNudge(true)}
             next={from.get('next') ?? '/scholarships'}
             utmCampaign={from.get('utm_campaign')}
             iab={iab}
           />
         </div>
-        {nudgeBox}
+        <ConsentNotice className="mt-3" />
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
           <div className="flex-1 h-px bg-[#E8ECF2] dark:bg-[#1A2E4A]" />
@@ -197,9 +182,9 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
           <button
             type="button"
             onClick={start}
-            aria-disabled={!consent || leaving}
+            aria-disabled={leaving}
             className={`w-full flex items-center justify-center gap-3 rounded-2xl min-h-[52px] px-4 text-sm font-bold border-2 border-[#06C755] transition-colors ${
-              consent && !leaving ? 'text-[#06A04A] dark:text-[#4ADE80] active:opacity-90' : 'text-[#06C755]/50 border-[#06C755]/40'
+              !leaving ? 'text-[#06A04A] dark:text-[#4ADE80] active:opacity-90' : 'text-[#06C755]/50 border-[#06C755]/40'
             }`}
             style={TH}
           >
@@ -231,17 +216,12 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
   return (
     <>
       <div className="mb-4 rounded-2xl border border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] p-4">
-        <ConsentCheckbox
-          checked={consent}
-          onChange={(checked) => { setConsent(checked); setNudge(false); }}
-        />
-
         <button
           type="button"
           onClick={start}
-          aria-disabled={!consent || leaving}
-          className={`mt-4 w-full flex items-center justify-center gap-3 rounded-2xl min-h-[56px] px-4 text-base font-bold text-white transition-colors ${
-            consent && !leaving ? 'bg-[#06C755] active:opacity-90' : 'bg-[#06C755]/40'
+          aria-disabled={leaving}
+          className={`w-full flex items-center justify-center gap-3 rounded-2xl min-h-[56px] px-4 text-base font-bold text-white transition-colors ${
+            !leaving ? 'bg-[#06C755] active:opacity-90' : 'bg-[#06C755]/40'
           }`}
           style={TH}
         >
@@ -249,7 +229,7 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
           สมัครด้วย LINE — ดูทุนทั้งหมด
         </button>
 
-        {nudgeBox}
+        <ConsentNotice className="mt-3" />
 
         {/* iPhone, where LINE cannot open its app from this browser (Chrome and the
             other non-Safari browsers) — or Android, when the hand-off did not happen. */}

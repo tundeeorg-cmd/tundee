@@ -17,8 +17,8 @@
  *     attaching answers, consent, randomization — is exactly what /auth does. Nothing
  *     here touches randomization, consent logic or ANON_RANDOMIZATION.
  *
- * The consent tick belongs to the parent (one box for the whole gate); this component
- * does nothing until it is ticked and asks the parent to show its reminder otherwise.
+ * Consent is the parent's ConsentNotice line ("continuing is the agreement"): sending a
+ * code records it (recordConsent) and the callback URL carries it, as /auth does.
  * No funnel event carries the email address or the code.
  */
 
@@ -50,15 +50,10 @@ function readCookie(name: string): string | null {
 }
 
 export default function EmailCodeStart({
-  consent,
-  onNeedConsent,
   next,
   utmCampaign,
   iab,
 }: {
-  consent: boolean;
-  /** Called when a tap happens before the consent box is ticked. */
-  onNeedConsent: () => void;
   next: string;
   utmCampaign: string | null;
   iab: InAppBrowserInfo;
@@ -104,7 +99,6 @@ export default function EmailCodeStart({
   }
 
   async function sendCode(isResend = false) {
-    if (!consent) { onNeedConsent(); return; }
     const address = normalizeEmail(email);
     if (!isPlausibleEmail(address)) { setError(otpMessage('invalid_email', 'th')); return; }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) { setError(otpMessage('network', 'th')); return; }
@@ -272,9 +266,9 @@ export default function EmailCodeStart({
       />
       <button
         type="submit"
-        aria-disabled={!consent || sending}
+        aria-disabled={sending}
         className={`w-full flex items-center justify-center gap-2 text-white font-bold rounded-2xl min-h-[56px] px-4 transition-colors ${
-          consent && !sending ? 'bg-[#1B3A6B] hover:bg-[#15305A]' : 'bg-[#1B3A6B]/40'
+          !sending ? 'bg-[#1B3A6B] hover:bg-[#15305A]' : 'bg-[#1B3A6B]/40'
         }`}
         style={TH}
       >
