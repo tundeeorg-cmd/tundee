@@ -31,6 +31,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { authHeading, authEntryFrom } from '@/lib/auth/authHeading';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
@@ -423,7 +424,12 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     setHydrated(true);
     const info = detectInAppBrowser();
     setIab(info);
-    logFunnelEvent({ eventType: 'signup_started', context: inAppContext(info) });
+    // `from`: which link brought them (Save, the /start results, …), so a drop-off
+    // here can be traced to its cause without inferring it from earlier events.
+    logFunnelEvent({
+      eventType: 'signup_started',
+      context: { ...inAppContext(info), from: authEntryFrom(searchParams.get('from')) },
+    });
     logFunnelEvent({ eventType: 'login_method_shown', context: loginEventContext(info, 'auth') });
     trackAuthPageView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -974,7 +980,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         className="text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-6 leading-snug"
         style={THAI}
       >
-        {th ? 'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ' : 'Sign in to see your matched scholarships'}
+        {authHeading(searchParams.get('from'), th)}
       </h1>
 
       {banner}

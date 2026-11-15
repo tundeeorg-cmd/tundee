@@ -122,7 +122,7 @@ describe('the six-digit code', () => {
 describe('the screen is in the order the brief specifies', () => {
   // LINE → consent line → "หรือ" → Google → email folded behind "ใช้อีเมลแทน".
   const order = [
-    'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',  // 1 heading
+    '{authHeading(from, true)}',          // 1 heading (text: lib/auth/authHeading)
     'เข้าสู่ระบบด้วย LINE',                // 2 LINE
     '<ConsentNotice',                       // 5 consent line, directly under LINE
     'เร็วที่สุด ไม่ต้องจำรหัสผ่าน',        // 2 sub-line
@@ -144,7 +144,7 @@ describe('the screen is in the order the brief specifies', () => {
             'const methodDivider', 'หรือ',
             'const emailBlock', 'ส่งรหัสเข้าอีเมล', '{emailFirst && <ConsentNotice',
             'const googleButton', 'const emailFolded', 'ใช้อีเมลแทน',
-            'เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ',
+            "{authHeading(searchParams.get('from'), th)}",
             '? <>{emailBlock}{methodDivider}{lineBlock}{googleButton}</>',
             ': <>{lineBlock}{methodDivider}{googleButton}{emailFolded}</>',
           ]

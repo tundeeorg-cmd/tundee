@@ -1,0 +1,149 @@
+/**
+ * A guest's "🔖 บันทึก" tap: ask on the page, remember the scholarship, save it
+ * after sign-in.
+ *
+ * 6–15 Nov 2026: half of all /auth visits came from this button. It jumped to a
+ * generic /auth that never mentioned the scholarship, remembered nothing, and
+ * 16 of 28 such visits ended with a tap back within seconds.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  SAVE_PARAM, PENDING_SAVE_TTL_MS, isScholarshipId, nextWithSave, saveSignupHref,
+  rememberPendingSave, readStoredPendingSave, clearPendingSave, pendingSaveFrom,
+} from '@/lib/tracker/pendingSave';
+import { authHeading, authEntryFrom } from '@/lib/auth/authHeading';
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+
+// The node test environment has no localStorage; a Map-backed one is enough.
+const store = new Map<string, string>();
+(globalThis as unknown as { localStorage: Storage }).localStorage = {
+  getItem:    (k: string) => store.get(k) ?? null,
+  setItem:    (k: string, v: string) => { store.set(k, String(v)); },
+  removeItem: (k: string) => { store.delete(k); },
+  clear:      () => store.clear(),
+  key:        (i: number) => [...store.keys()][i] ?? null,
+  get length() { return store.size; },
+} as Storage;
+
+describe('pendingSave', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('accepts real ids and refuses anything that could be a payload', () => {
+    expect(isScholarshipId('TD-0037')).toBe(true);
+    for (const bad of ['', 'TD 1', '../x', '<script>', 'a'.repeat(65), null, 7]) {
+      expect(isScholarshipId(bad), String(bad)).toBe(false);
+    }
+  });
+
+  it('returns to the same page with the scholarship, keeping its own query', () => {
+    expect(nextWithSave('/start?utm_campaign=parents_aug', 'TD-0037'))
+      .toBe('/start?utm_campaign=parents_aug&save=TD-0037');
+    expect(nextWithSave('/scholarships/td/TD-0001?save=TD-9', 'TD-0037'))
+      .toBe('/scholarships/td/TD-0001?save=TD-0037');
+  });
+
+  it('never builds an off-site return path', () => {
+    expect(nextWithSave('//evil.example/x', 'TD-1')).toBe('/scholarships?save=TD-1');
+    expect(nextWithSave('https://evil.example', 'TD-1')).toBe('/scholarships?save=TD-1');
+  });
+
+  it('the /auth link says why, and where to come back to', () => {
+    const url = new URL(saveSignupHref('/start', 'TD-0037'), 'https://www.tundee.org');
+    expect(url.pathname).toBe('/auth');
+    expect(url.searchParams.get('from')).toBe('track');
+    expect(url.searchParams.get('next')).toBe('/start?save=TD-0037');
+  });
+
+  it('prefers the URL (it survives LINE handing off to Chrome), then storage', () => {
+    rememberPendingSave('TD-0002');
+    expect(pendingSaveFrom(`?${SAVE_PARAM}=TD-0001`)).toBe('TD-0001');
+    expect(pendingSaveFrom('')).toBe('TD-0002');
+    expect(pendingSaveFrom(`?${SAVE_PARAM}=<bad>`)).toBe('TD-0002');
+  });
+
+  it('forgets a tap older than a day, and on clear', () => {
+    const t0 = 1_000_000;
+    rememberPendingSave('TD-0003', t0);
+    expect(readStoredPendingSave(t0 + PENDING_SAVE_TTL_MS)).toBe('TD-0003');
+    expect(readStoredPendingSave(t0 + PENDING_SAVE_TTL_MS + 1)).toBeNull();
+    clearPendingSave();
+    expect(readStoredPendingSave(t0)).toBeNull();
+  });
+
+  it('ignores corrupt storage instead of throwing', () => {
+    localStorage.setItem('tundee_pending_save', '{not json');
+    expect(readStoredPendingSave()).toBeNull();
+  });
+});
+
+describe('/auth says why the student is there', () => {
+  it('after a Save tap, the heading is about saving', () => {
+    expect(authHeading('track', true)).toContain('บันทึกทุนนี้');
+    expect(authHeading('track', false)).toMatch(/save this scholarship/i);
+  });
+
+  it('otherwise it is unchanged', () => {
+    expect(authHeading(null, true)).toBe('เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ');
+    expect(authHeading('signup', true)).toBe('เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ');
+  });
+
+  it('records which link brought them, never raw text', () => {
+    expect(authEntryFrom('track')).toBe('track');
+    expect(authEntryFrom(null)).toBe('direct');
+    expect(authEntryFrom('<anything>')).toBe('other');
+  });
+
+  it('both the no-JS shell and the form use the shared heading, and the form logs `from`', () => {
+    expect(read('app/auth/AuthShell.tsx')).toContain('{authHeading(from, true)}');
+    expect(read('app/auth/page.tsx')).toContain("from={one('from')}");
+    const form = read('app/auth/AuthForm.tsx');
+    expect(form).toContain("authHeading(searchParams.get('from'), th)");
+    expect(form).toMatch(/eventType: 'signup_started',\s*context: \{ \.\.\.inAppContext\(info\), from: authEntryFrom\(searchParams\.get\('from'\)\) \}/);
+  });
+});
+
+describe('the Save button and what follows', () => {
+  const BUTTON   = read('components/TrackButton.tsx');
+  const SHEET    = read('components/tracker/GuestSaveSheet.tsx');
+  const RESOLVER = read('components/tracker/PendingSaveResolver.tsx');
+
+  it('a guest tap remembers the scholarship and opens the sheet, not /auth', () => {
+    expect(BUTTON).not.toMatch(/router\.push\(['"`]\/auth/);
+    const guest = BUTTON.slice(BUTTON.indexOf('if (!user) {'), BUTTON.indexOf('if (tracked && trackId)'));
+    expect(guest.indexOf('rememberPendingSave(scholarshipId)')).toBeGreaterThan(-1);
+    expect(guest.indexOf('rememberPendingSave(scholarshipId)')).toBeLessThan(guest.indexOf('setGuestSheet(true)'));
+  });
+
+  it('the sheet signs in on the page, tagged as the Save surface, with a way out', () => {
+    expect(SHEET).toMatch(/<LineQuickStart[\s\S]*signupHref=\{href\}[\s\S]*surface="save"/);
+    expect(SHEET).toContain('saveSignupHref(here, scholarshipId)');
+    expect(SHEET).toContain('createPortal(');
+    expect(SHEET).toContain('GUEST_SAVE_COPY.later');
+  });
+
+  it('the shared sign-in pieces keep /start as their default surface', () => {
+    expect(read('components/start/LineQuickStart.tsx')).toContain("surface = 'start',");
+    expect(read('components/start/EmailCodeStart.tsx')).toContain("surface = 'start',");
+    expect(read('components/start/LineQuickStart.tsx')).toContain('surface={surface}');
+  });
+
+  it('the resolver is mounted for every page, chromeless /start included', () => {
+    expect(read('app/layout.tsx')).toContain('<PendingSaveResolver />');
+  });
+
+  it('saves only with a session, idempotently, and forgets only after success', () => {
+    expect(RESOLVER).toContain("onConflict: 'user_id,scholarship_id'");
+    const afterWrite = RESOLVER.slice(RESOLVER.indexOf('.upsert('));
+    expect(afterWrite.indexOf('if (error)')).toBeLessThan(afterWrite.indexOf('clearPendingSave()'));
+    expect(RESOLVER).toMatch(/if \(!user\) \{\s*rememberPendingSave\(id\);\s*return;/);
+  });
+
+  it('a Save button already on screen re-checks when the resolver saves', () => {
+    expect(BUTTON).toContain('onTrackedCountChanged(');
+    expect(BUTTON).toContain('[scholarshipId, refresh]');
+  });
+});

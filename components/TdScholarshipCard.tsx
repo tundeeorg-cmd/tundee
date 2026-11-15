@@ -324,7 +324,7 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
         {isOpeningSoon && (
           <span className="sr-only">{lo === 'th' ? 'ยังไม่เปิดรับสมัคร — บันทึกเพื่อรับการแจ้งเตือน' : 'Not open yet — save to get reminded'}</span>
         )}
-        <TrackButton scholarshipId={s.scholarship_id} size="md" />
+        <TrackButton scholarshipId={s.scholarship_id} scholarshipName={resolveName(s, 'th')} size="md" />
         <Link
           href={`/scholarships/td/${s.scholarship_id}`}
           onClick={() => {

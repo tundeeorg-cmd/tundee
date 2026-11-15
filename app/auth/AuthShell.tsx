@@ -1,4 +1,5 @@
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
+import { authHeading } from '@/lib/auth/authHeading';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { OTP_LENGTH } from '@/lib/auth/otp';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
@@ -40,7 +41,10 @@ export default function AuthShell({
   iab = NOT_IN_APP,
   stage = 'choose',
   email = '',
+  from = '',
 }: {
+  /** Why the student is here (`?from=`); changes the heading. */
+  from?: string;
   next?: string;
   iab?: InAppBrowserInfo;
   /** 'code' once /api/auth/otp/send has redirected back. */
@@ -133,7 +137,7 @@ export default function AuthShell({
 
             {/* 1 ── Heading */}
             <h1 className="text-xl font-bold text-[#0A2342] dark:text-[#E8EDF5] text-center mb-6 leading-snug" style={THAI}>
-              เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ
+              {authHeading(from, true)}
             </h1>
 
             {/* 2 ── LINE. A plain link: without JavaScript there is nothing to

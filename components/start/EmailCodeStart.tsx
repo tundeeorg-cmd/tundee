@@ -29,7 +29,7 @@ import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview
 import { INTAKE_PARAM, clearStoredIntakeId, readStoredIntakeId } from '@/lib/intake/pendingIntake';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import { IN_APP_COPY, loginEventContext } from '@/lib/auth/inAppLogin';
+import { IN_APP_COPY, loginEventContext, type LoginSurface } from '@/lib/auth/inAppLogin';
 import {
   OTP_LENGTH,
   OTP_RESEND_COOLDOWN_SECONDS,
@@ -53,10 +53,12 @@ export default function EmailCodeStart({
   next,
   utmCampaign,
   iab,
+  surface = 'start',
 }: {
   next: string;
   utmCampaign: string | null;
   iab: InAppBrowserInfo;
+  surface?: LoginSurface;
 }) {
   const supabase = createClient();
   const [stage, setStage]       = useState<'email' | 'code'>('email');
@@ -119,18 +121,18 @@ export default function EmailCodeStart({
       if (err) {
         const kind = classifyOtpError(err);
         setError(otpMessage(kind, 'th'));
-        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'start', { step: 'send', reason: kind }) });
+        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, surface, { step: 'send', reason: kind }) });
         return;
       }
       sentAtRef.current = Date.now();
       setCooldown(OTP_RESEND_COOLDOWN_SECONDS);
       setStage('code');
       setCode('');
-      logFunnelEvent({ eventType: 'otp_sent', context: loginEventContext(iab, 'start', { resend: isResend }) });
+      logFunnelEvent({ eventType: 'otp_sent', context: loginEventContext(iab, surface, { resend: isResend }) });
       setTimeout(() => codeRef.current?.focus(), 60);
     } catch {
       setError(otpMessage('network', 'th'));
-      logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'start', { step: 'send', reason: 'network' }) });
+      logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, surface, { step: 'send', reason: 'network' }) });
     } finally {
       setSending(false);
     }
@@ -161,11 +163,11 @@ export default function EmailCodeStart({
         setError(IN_APP_COPY.wrongCode);
         setCode('');
         codeRef.current?.focus();
-        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, 'start', { step: 'verify', reason }) });
+        logFunnelEvent({ eventType: 'otp_failed', context: loginEventContext(iab, surface, { step: 'verify', reason }) });
         return;
       }
-      logFunnelEvent({ eventType: 'otp_verified', context: loginEventContext(iab, 'start') });
-      logFunnelEvent({ eventType: 'signup_completed', context: { method: 'email_otp', ...loginEventContext(iab, 'start') } });
+      logFunnelEvent({ eventType: 'otp_verified', context: loginEventContext(iab, surface) });
+      logFunnelEvent({ eventType: 'signup_completed', context: { method: 'email_otp', ...loginEventContext(iab, surface) } });
       signedIn = true;
       clearStoredIntakeId();
       // A full navigation: the session cookies were just written and the destination's

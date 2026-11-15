@@ -46,7 +46,7 @@ export default async function AuthPage({
     // JavaScript the whole passwordless flow still completes, because both its
     // steps are plain <form method="POST"> to /api/auth/otp/*. On a stalled 3G
     // connection that is the difference between a signup and a blank screen.
-    <Suspense fallback={<AuthShell iab={iab} stage={stage} email={one('email')} next={safeNextParam} />}>
+    <Suspense fallback={<AuthShell iab={iab} stage={stage} email={one('email')} next={safeNextParam} from={one('from')} />}>
       <AuthForm initialIab={iab} />
     </Suspense>
   );

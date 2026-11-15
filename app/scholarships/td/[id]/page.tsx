@@ -638,7 +638,7 @@ export default function TdScholarshipDetailPage() {
           {/* Apply + Track (desktop) */}
           <div className="hidden md:flex gap-3 pt-4">
             <ApplyButton full={false} />
-            <TrackButton scholarshipId={s.scholarship_id} size="md" />
+            <TrackButton scholarshipId={s.scholarship_id} scholarshipName={s.scholarship_name_th ?? s.scholarship_name_en ?? s.scholarship_name} size="md" />
           </div>
 
         </CardSection>
@@ -676,7 +676,7 @@ export default function TdScholarshipDetailPage() {
         aria-label={lang === 'th' ? 'ปุ่มสมัครทุน' : 'Apply CTA'}
       >
         <ApplyButton full={false} />
-        <TrackButton scholarshipId={s.scholarship_id} size="sm" />
+        <TrackButton scholarshipId={s.scholarship_id} scholarshipName={s.scholarship_name_th ?? s.scholarship_name_en ?? s.scholarship_name} size="sm" />
       </div>
 
     </div>
