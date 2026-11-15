@@ -56,8 +56,11 @@ export const IN_APP_COPY = {
  * What every sign-in funnel event says about the browser, and nothing about the
  * person: no email, no code, no id. `surface` is where on the site it happened.
  */
-/** Where a sign-in funnel event happened. 'save': the sheet a guest's Save tap opens. */
-export type LoginSurface = 'start' | 'auth' | 'save';
+/**
+ * Where a sign-in funnel event happened. 'save': the sheet a guest's Save tap
+ * opens; 'start_sticky': the sheet the sticky button on the /start results opens.
+ */
+export type LoginSurface = 'start' | 'auth' | 'save' | 'start_sticky';
 
 export function loginEventContext(
   iab: InAppBrowserInfo,

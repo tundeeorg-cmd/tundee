@@ -119,10 +119,25 @@ describe('the Save button and what follows', () => {
   });
 
   it('the sheet signs in on the page, tagged as the Save surface, with a way out', () => {
-    expect(SHEET).toMatch(/<LineQuickStart[\s\S]*signupHref=\{href\}[\s\S]*surface="save"/);
-    expect(SHEET).toContain('saveSignupHref(here, scholarshipId)');
-    expect(SHEET).toContain('createPortal(');
-    expect(SHEET).toContain('GUEST_SAVE_COPY.later');
+    expect(SHEET).toMatch(/<SignInSheet[\s\S]*signupHref=\{saveSignupHref\(here, scholarshipId\)\}[\s\S]*surface="save"/);
+    const shared = read('components/auth/SignInSheet.tsx');
+    expect(shared).toMatch(/<LineQuickStart[\s\S]*signupHref=\{signupHref\}[\s\S]*surface=\{surface\}/);
+    expect(shared).toContain('createPortal(');
+    expect(shared).toContain('SIGN_IN_SHEET_LATER');
+  });
+
+  it('the sticky button on the /start results opens the same sheet instead of leaving for /auth', () => {
+    const results = read('app/start/PreviewResults.tsx');
+    const sticky = results.slice(results.indexOf('Sticky CTA'), results.indexOf('Clears the sticky bar'));
+    expect(sticky).not.toMatch(/<Link\s+href=\{signupHref\}/);
+    expect(sticky).toContain('onClick={() => setSheetOpen(true)}');
+    expect(sticky).toMatch(/<SignInSheet[\s\S]*signupHref=\{signupHref\}[\s\S]*surface="start_sticky"/);
+  });
+
+  it('/auth on the browser side also asks Supabase before sending a student away', () => {
+    const form = read('app/auth/AuthForm.tsx');
+    expect(form).toContain('supabase.auth.getUser().then(({ data: { user } }) => {\n      if (user) router.replace(next);');
+    expect(form).not.toMatch(/getSession\(\)\.then\(\(\{ data: \{ session \} \}\) => \{\s*if \(session\) router\.replace/);
   });
 
   it('the shared sign-in pieces keep /start as their default surface', () => {

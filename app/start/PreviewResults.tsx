@@ -24,6 +24,14 @@ import TrustStrip from '@/components/trust/TrustStrip';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 import LineQuickStart from '@/components/start/LineQuickStart';
+import SignInSheet from '@/components/auth/SignInSheet';
+
+/** The sticky phone button and the sheet it opens. */
+export const STICKY_SHEET_COPY = {
+  title: 'สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ',
+  sub:   'ฟรี 100% · ไม่มีโฆษณา · ใช้เวลา 10 วินาที',
+  email: 'สมัครด้วยอีเมล',
+} as const;
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -167,6 +175,7 @@ export default function PreviewResults({
   // The portal below needs document.body, which does not exist during SSR.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   /** An anonymous visitor clicking through to a funder. Logged, never blocked. */
   function handleApply(card: PreviewMatchCard) {
@@ -232,15 +241,29 @@ export default function PreviewResults({
           meant to replace. The portal is immune to whatever the wrapper does next. */}
       {mounted && createPortal(
         <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-[#F5F7FA] via-[#F5F7FA] to-transparent dark:from-[#07111F] dark:via-[#07111F]">
-          <Link
-            href={signupHref}
+          {/* Opens the sign-in sheet rather than navigating to /auth: until 15 Nov
+              2026 this button left the page while the box below signed in on it, so
+              the same screen asked two different ways. */}
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
             style={th}
             className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
           >
-            สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
-          </Link>
+            {STICKY_SHEET_COPY.title}
+          </button>
         </div>,
         document.body,
+      )}
+      {sheetOpen && (
+        <SignInSheet
+          title={STICKY_SHEET_COPY.title}
+          sub={STICKY_SHEET_COPY.sub}
+          signupHref={signupHref}
+          surface="start_sticky"
+          emailLabel={STICKY_SHEET_COPY.email}
+          onClose={() => setSheetOpen(false)}
+        />
       )}
 
       {/* Clears the sticky bar so it never covers the last card or the reset link. */}
