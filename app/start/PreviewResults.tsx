@@ -310,7 +310,10 @@ export default function PreviewResults({
             reframed around the reminder rather than around locked cards. This block used
             to be hidden entirely when nothing was locked, so those visitors reached the
             end of their results and were never asked to sign up at all. */}
-        {signedIn ? (
+        {/* Waits for the answer: mounting the guest block logs login_method_shown, so
+            showing it to a signed-in student for a moment counted them as a sign-in
+            prompt view. It is ten cards down, so nobody waits on it. */}
+        {signedIn === true ? (
           <div className="rounded-2xl border border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] p-4 text-center">
             <p className="text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={{ ...th, lineHeight: 1.8 }}>
               {SIGNED_IN_COPY.note}
@@ -319,7 +322,7 @@ export default function PreviewResults({
               {SIGNED_IN_COPY.sticky}
             </Link>
           </div>
-        ) : (
+        ) : signedIn === false ? (
           <>
           <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
             รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
@@ -368,7 +371,7 @@ export default function PreviewResults({
             </p>
           )}
           </>
-        )}
+        ) : null}
         {/* The scam question, answered where it is actually being asked.
             A visitor at this point has seen real matched scholarships and is deciding
             whether to hand over their details; "free" is the part that reads as a

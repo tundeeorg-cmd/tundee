@@ -150,9 +150,11 @@ describe('the Save button and what follows', () => {
     expect(sticky).toMatch(/\{signedIn \? \(\s*<Link\s+href="\/tracker"[\s\S]*SIGNED_IN_COPY\.sticky[\s\S]*\) : \([\s\S]*setSheetOpen\(true\)/);
     // The inline sign-up block sits in the guest branch only.
     const gate = results.slice(results.indexOf('Clears the sticky bar'));
-    expect(gate.indexOf('{signedIn ? (')).toBeGreaterThan(-1);
-    expect(gate.indexOf('{signedIn ? (')).toBeLessThan(gate.indexOf('<LineQuickStart'));
+    expect(gate.indexOf('{signedIn === true ? (')).toBeGreaterThan(-1);
     expect(gate.indexOf('SIGNED_IN_COPY.note')).toBeLessThan(gate.indexOf('<LineQuickStart'));
+    // The guest block (which logs login_method_shown on mount) waits for a definite "guest".
+    expect(gate.indexOf(') : signedIn === false ? (')).toBeLessThan(gate.indexOf('<LineQuickStart'));
+    expect(gate).toContain(') : null}');
   });
 
   it('inside Facebook the tracker leads with email reminders and offers no dead-end LINE button', () => {

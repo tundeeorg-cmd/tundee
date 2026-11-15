@@ -347,10 +347,21 @@ interface TrackedCardProps {
   onUntrack: (id: string) => void;
   onApplyClick: (row: TrackedRow) => void;
   onReportOutcome: (scholarshipId: string, name: string) => void;
+  /** What will actually remind this student; decides what the reminder line says. */
+  reminders: ReminderChannels;
 }
 
+/**
+ * Which reminders this student will really get. The per-card checkbox only
+ * controls LINE pushes (cron/line-reminders); email covers every saved
+ * scholarship once switched on and verified (send-reminders). Until 15 Nov
+ * 2026 every card showed a ticked "แจ้งเตือน LINE ก่อนหมดเขต" to students with
+ * no LINE connected, who would therefore get nothing from it.
+ */
+interface ReminderChannels { lineLinked: boolean; email: 'on' | 'pending' | 'off' }
+
 function TrackedCard({
-  row, lang,
+  row, lang, reminders,
   onStatusChange, onNotesChange, onReminderToggle, onUntrack, onApplyClick, onReportOutcome,
 }: TrackedCardProps) {
   const [editingNotes, setEditingNotes] = useState(false);
@@ -457,18 +468,30 @@ function TrackedCard({
         </button>
       )}
 
-      {/* Reminder toggle */}
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={row.reminder_opt_in}
-          onChange={e => onReminderToggle(row.id, e.target.checked)}
-          className="rounded focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
-        />
-        <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
-          {lang === 'th' ? 'แจ้งเตือน LINE ก่อนหมดเขต' : 'LINE deadline reminder'}
-        </span>
-      </label>
+      {/* Reminders: the LINE checkbox only when LINE is connected (it controls
+          nothing otherwise); and a line saying whether email will remind them. */}
+      {reminders.lineLinked && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={row.reminder_opt_in}
+            onChange={e => onReminderToggle(row.id, e.target.checked)}
+            className="rounded focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+          />
+          <span className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+            {lang === 'th' ? 'แจ้งเตือน LINE ก่อนหมดเขต' : 'LINE deadline reminder'}
+          </span>
+        </label>
+      )}
+      {(!reminders.lineLinked || reminders.email === 'on') && (
+        <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
+          {reminders.email === 'on'
+            ? (lang === 'th' ? '✉️ จะส่งอีเมลเตือน 7 วันก่อนหมดเขต' : '✉️ Email reminder 7 days before the deadline')
+            : reminders.email === 'pending'
+              ? (lang === 'th' ? '✉️ ยืนยันอีเมลด้านบนเพื่อรับแจ้งเตือน' : '✉️ Confirm your email above to get reminders')
+              : (lang === 'th' ? 'ยังไม่ได้เปิดการแจ้งเตือน — เปิดได้ด้านบน' : 'Reminders are off — turn them on above')}
+        </p>
+      )}
 
       {/* Details link */}
       <Link
@@ -528,6 +551,10 @@ export default function TrackerPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [rows,     setRows]     = useState<TrackedRow[]>([]);
   const [profile,  setProfile]  = useState<Profile | null>(null);
+  const reminderChannels: ReminderChannels = {
+    lineLinked: !!profile?.line_user_id,
+    email: !profile?.email_reminders_opt_in ? 'off' : profile.email_verified_at ? 'on' : 'pending',
+  };
   const [toast,    setToast]    = useState<string | null>(null);
   const [emailAsk, setEmailAsk] = useState<EmailAsk | null>(null);
   const [lineMsg,  setLineMsg]  = useState<string | null>(null);
@@ -581,7 +608,13 @@ export default function TrackerPage() {
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? 'save_failed');
 
-      if (optIn && body?.verificationSent) {
+      if (optIn && body?.verified) {
+        // Already proven (a code sign-in, or verified before): reminders are on now.
+        setProfile(p => p ? { ...p, email_verified_at: p.email_verified_at ?? new Date().toISOString() } : p);
+        setToast(lang === 'th'
+          ? 'เปิดแจ้งเตือนทางอีเมลแล้ว เราจะเตือนก่อนทุนหมดเขต 7 วัน'
+          : 'Email reminders are on — we will email you 7 days before a deadline');
+      } else if (optIn && body?.verificationSent) {
         setToast(lang === 'th'
           ? 'ส่งอีเมลยืนยันแล้ว กดลิงก์ในอีเมลเพื่อเริ่มรับแจ้งเตือน'
           : 'Verification email sent — tap the link to start receiving reminders');
@@ -917,6 +950,7 @@ export default function TrackerPage() {
                   onStatusChange={handleStatusChange}
                   onNotesChange={handleNotesChange}
                   onReminderToggle={handleReminderToggle}
+                  reminders={reminderChannels}
                   onUntrack={handleUntrack}
                   onApplyClick={handleApplyClick}
                   onReportOutcome={(sid, name) => { setSelfReport({ scholarshipId: sid, name }); setSrOutcome(''); setSrDate(''); setSrNotes(''); }}

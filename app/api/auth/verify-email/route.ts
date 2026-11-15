@@ -28,6 +28,7 @@ import {
 import { verifyEmailEmail, claimEmailEmail, AUTH_EMAIL_FROM } from '@/lib/email/authEmails';
 import { isPlausibleEmail, normalizeEmail } from '@/lib/auth/otp';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sessionProvedEmail } from '@/lib/auth/provedEmail';
 import { sendEmail } from '@/lib/email/send';
 import { isSyntheticEmail } from '@/lib/line/syntheticEmail';
 
@@ -75,6 +76,22 @@ export async function POST(request: NextRequest) {
 
   if (profile?.email_verified_at) {
     return NextResponse.json({ ok: true, optIn: true, verificationSent: false, verified: true });
+  }
+
+  // Signed in with the emailed code: the inbox is already proven, so mark it
+  // verified rather than mail a link (lib/auth/provedEmail). getClaims()
+  // verifies the token, so the `amr` it returns can be trusted.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  if (sessionProvedEmail(claimsData?.claims?.amr)) {
+    const now = new Date().toISOString();
+    const { error: verifiedError } = await supabase
+      .from('profiles')
+      .upsert({ id: user.id, email_verified_at: now, updated_at: now }, { onConflict: 'id' });
+    if (!verifiedError) {
+      return NextResponse.json({ ok: true, optIn: true, verificationSent: false, verified: true });
+    }
+    // Fall through to the link: a failed write must not leave reminders silently off.
+    console.error('[auth/verify-email] proved-by-sign-in write failed:', verifiedError.message);
   }
 
   const token = createVerificationToken(user.id, user.email);
