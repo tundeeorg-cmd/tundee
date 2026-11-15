@@ -2,27 +2,34 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import GuestSaveSheet from '@/components/tracker/GuestSaveSheet';
+import { rememberPendingSave } from '@/lib/tracker/pendingSave';
 import { logFunnelEvent } from '@/lib/research/funnel';
 import { useLang } from '@/lib/LanguageContext';
-import { notifyTrackedCountChanged } from '@/lib/tracker/countBus';
+import { notifyTrackedCountChanged, onTrackedCountChanged } from '@/lib/tracker/countBus';
 import { addToWishlist } from '@/lib/analytics';
 
 interface Props {
   scholarshipId: string;
+  /** Shown in the sign-in sheet a guest's tap opens, so they see what they are saving. */
+  scholarshipName?: string | null;
   size?: 'sm' | 'md';
   className?: string;
 }
 
-export default function TrackButton({ scholarshipId, size = 'md', className = '' }: Props) {
+export default function TrackButton({ scholarshipId, scholarshipName, size = 'md', className = '' }: Props) {
   const supabase = createClient();
-  const router   = useRouter();
   const { lang } = useLang();
 
   const [tracked, setTracked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [trackId, setTrackId] = useState<string | null>(null);
+  const [guestSheet, setGuestSheet] = useState(false);
+  // Bumped when saved scholarships change elsewhere, e.g. PendingSaveResolver
+  // saving a guest's tap after sign-in while this button is already on screen.
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => onTrackedCountChanged(() => setRefresh((n) => n + 1)), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,13 +50,16 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scholarshipId]);
+  }, [scholarshipId, refresh]);
 
   async function toggle() {
     setWorking(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      router.push('/auth?from=track');
+      // Not a jump to /auth: that lost half the students who reached it
+      // (lib/tracker/pendingSave). Remember the scholarship, then ask here.
+      rememberPendingSave(scholarshipId);
+      setGuestSheet(true);
       setWorking(false);
       return;
     }
@@ -99,6 +109,7 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
   }
 
   return (
+    <>
     <button
       onClick={toggle}
       disabled={working}
@@ -119,5 +130,13 @@ export default function TrackButton({ scholarshipId, size = 'md', className = ''
         </svg>
       ) : label}
     </button>
+    {guestSheet && (
+      <GuestSaveSheet
+        scholarshipId={scholarshipId}
+        scholarshipName={scholarshipName}
+        onClose={() => setGuestSheet(false)}
+      />
+    )}
+    </>
   );
 }

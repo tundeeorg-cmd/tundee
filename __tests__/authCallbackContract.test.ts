@@ -183,7 +183,9 @@ describe('user-facing copy tells the truth', () => {
   });
 
   it('says what the two ways in actually cost the student', () => {
-    expect(authForm).toContain('เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ');
+    // The heading lives in lib/auth/authHeading, shared with the no-JS shell.
+    expect(readFileSync(join(process.cwd(), 'lib/auth/authHeading.ts'), 'utf8')).toContain('เข้าสู่ระบบเพื่อดูทุนที่ตรงกับคุณ');
+    expect(authForm).toContain('authHeading(');
     expect(authForm).toContain('เร็วที่สุด ไม่ต้องจำรหัสผ่าน');
     expect(authForm).toContain('ส่งรหัสเข้าอีเมล');
     expect(authForm).toContain('หรือกดลิงก์ในอีเมลก็ได้');

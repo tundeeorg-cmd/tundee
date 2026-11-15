@@ -3,6 +3,7 @@ import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { Lato } from 'next/font/google';
 import './globals.css';
 import ChromeGate from '@/components/ChromeGate';
+import PendingSaveResolver from '@/components/tracker/PendingSaveResolver';
 import AdPixels from '@/components/AdPixels';
 import GoogleAnalytics from '@/components/GoogleAnalytics';
 import MetaPixel from '@/components/MetaPixel';
@@ -122,6 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LanguageProvider>
             <UserProvider>
               <SessionStartLogger />
+              <PendingSaveResolver />
               <ChromeGate>{children}</ChromeGate>
             </UserProvider>
           </LanguageProvider>

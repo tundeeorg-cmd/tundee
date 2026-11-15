@@ -34,7 +34,7 @@ import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview
 import { INTAKE_PARAM, readStoredIntakeId } from '@/lib/intake/pendingIntake';
 import { detectInAppBrowser, inspectUserAgent, type InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext } from '@/lib/auth/inAppLogin';
+import { IN_APP_COPY, emailFirstLogin, inAppNotice, loginEventContext, type LoginSurface } from '@/lib/auth/inAppLogin';
 import EmailCodeStart from '@/components/start/EmailCodeStart';
 import { lineStartUrl, lineLaunch, iosLineHelp, androidLineHelp, followLineLaunch, copiedNextSteps } from '@/lib/line/launch';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
@@ -47,7 +47,19 @@ function readCookie(name: string): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-export default function LineQuickStart({ signupHref, fallback }: { signupHref: string; fallback?: ReactNode }) {
+export default function LineQuickStart({
+  signupHref,
+  fallback,
+  surface = 'start',
+  lineLabel = 'สมัครด้วย LINE — ดูทุนทั้งหมด',
+}: {
+  signupHref: string;
+  /** The LINE button's text; the Save sheet says what tapping it does there. */
+  lineLabel?: string;
+  fallback?: ReactNode;
+  /** Where the funnel events say this happened: the /start results, or a guest's Save tap. */
+  surface?: LoginSurface;
+}) {
   const [iosHelp, setIosHelp] = useState<InAppBrowserInfo | null>(null);
   const [copied,  setCopied]  = useState<'yes' | 'failed' | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -58,7 +70,7 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
   useEffect(() => {
     const info = detectInAppBrowser();
     setIab(info);
-    logFunnelEvent({ eventType: 'login_method_shown', context: loginEventContext(info, 'start') });
+    logFunnelEvent({ eventType: 'login_method_shown', context: loginEventContext(info, surface) });
   }, []);
 
   const from = new URL(signupHref, typeof window === 'undefined' ? 'https://www.tundee.org' : window.location.origin).searchParams;
@@ -106,9 +118,9 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
     // Measured so the in-app fix can be judged: every LINE tap made inside a webview, and
     // the ones that actually try the Chrome hand-off (Android only; a tap, never a load).
     if (iab.isInApp) {
-      logFunnelEvent({ eventType: 'line_login_clicked_in_app', context: loginEventContext(iab, 'start') });
+      logFunnelEvent({ eventType: 'line_login_clicked_in_app', context: loginEventContext(iab, surface) });
       if (launch.kind === 'navigate' && !/^https?:/i.test(launch.url)) {
-        logFunnelEvent({ eventType: 'open_in_chrome_clicked', context: loginEventContext(iab, 'start') });
+        logFunnelEvent({ eventType: 'open_in_chrome_clicked', context: loginEventContext(iab, surface) });
       }
     }
 
@@ -174,6 +186,7 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
             next={from.get('next') ?? '/scholarships'}
             utmCampaign={from.get('utm_campaign')}
             iab={iab}
+            surface={surface}
           />
         </div>
         <ConsentNotice className="mt-3" />
@@ -233,7 +246,7 @@ export default function LineQuickStart({ signupHref, fallback }: { signupHref: s
           style={TH}
         >
           {leaving ? spinner : lineIcon}
-          สมัครด้วย LINE — ดูทุนทั้งหมด
+          {lineLabel}
         </button>
 
         <ConsentNotice className="mt-3" />
