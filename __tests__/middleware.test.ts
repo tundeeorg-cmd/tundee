@@ -13,11 +13,29 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 let sessionValue: { user: { id: string } } | null = null;
+/** What Supabase says when asked (getUser). undefined = agrees with the cookie. */
+let liveUser: { id: string } | null | undefined = undefined;
+/** Cookies the client "refreshes" during getSession, as the real one does on renewal. */
+let refreshCookies: { name: string; value: string }[] = [];
+let signOutCalls: unknown[] = [];
+
+type CookieAdapter = { setAll: (c: { name: string; value: string; options?: object }[]) => void };
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => ({
+  createServerClient: (_u: string, _k: string, opts: { cookies: CookieAdapter }) => ({
     auth: {
-      getSession: async () => ({ data: { session: sessionValue } }),
+      getSession: async () => {
+        if (refreshCookies.length) opts.cookies.setAll(refreshCookies);
+        return { data: { session: sessionValue } };
+      },
+      getUser: async () => ({
+        data: { user: liveUser === undefined ? (sessionValue?.user ?? null) : liveUser },
+      }),
+      signOut: async (o: unknown) => {
+        signOutCalls.push(o);
+        opts.cookies.setAll([{ name: 'sb-test-auth-token', value: '', options: { maxAge: 0 } }]);
+        return { error: null };
+      },
     },
   }),
 }));
@@ -30,6 +48,9 @@ function req(url: string) {
 
 beforeEach(() => {
   sessionValue = null;
+  liveUser = undefined;
+  refreshCookies = [];
+  signOutCalls = [];
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
 });
@@ -119,5 +140,49 @@ describe('unaffected requests pass through untouched', () => {
     const res = await middleware(req('https://www.tundee.org/scholarships'));
     expect(res.headers.get('location')).toBeNull();
     expect(res.cookies.get('_fbc')).toBeUndefined();
+  });
+});
+
+
+describe('/auth trusts Supabase, not the cookie (15 Nov 2026)', () => {
+  // On a phone: a sign-in cookie whose session was dead sent /auth straight on to
+  // /scholarships, which (asking Supabase) showed the student signed out with a
+  // link back to /auth. A loop with no way to sign in.
+  it('a dead session on /auth is not redirected, and its cookie is cleared', async () => {
+    sessionValue = { user: { id: 'u1' } };
+    liveUser = null;
+    const res = await middleware(req('https://www.tundee.org/auth?from=signup&next=%2Fscholarships%3Ffrom%3Dpreview'));
+    expect(res.headers.get('location')).toBeNull();
+    expect(signOutCalls).toEqual([{ scope: 'local' }]);
+    expect(res.cookies.get('sb-test-auth-token')?.value).toBe('');
+  });
+
+  it('a live session on /auth is still sent to next', async () => {
+    sessionValue = { user: { id: 'u1' } };
+    const res = await middleware(req('https://www.tundee.org/auth?next=%2Ftracker'));
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/tracker');
+    expect(signOutCalls).toEqual([]);
+  });
+
+  it('other routes do not pay for the extra check', async () => {
+    sessionValue = { user: { id: 'u1' } };
+    liveUser = null;
+    await middleware(req('https://www.tundee.org/start'));
+    expect(signOutCalls).toEqual([]);
+  });
+
+  it('a redirect keeps the session cookies refreshed on the way', async () => {
+    sessionValue = { user: { id: 'u1' } };
+    refreshCookies = [{ name: 'sb-test-auth-token', value: 'renewed' }];
+    const res = await middleware(req('https://www.tundee.org/auth?next=%2Ftracker'));
+    expect(res.headers.get('location')).not.toBeNull();
+    expect(res.cookies.get('sb-test-auth-token')?.value).toBe('renewed');
+  });
+
+  it('the guard redirects keep them too', async () => {
+    refreshCookies = [{ name: 'sb-test-auth-token', value: 'renewed' }];
+    const res = await middleware(req('https://www.tundee.org/tracker'));
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/auth');
+    expect(res.cookies.get('sb-test-auth-token')?.value).toBe('renewed');
   });
 });

@@ -369,8 +369,10 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   // ── Mount ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace(next);
+    // getUser, not getSession: a dead cookie must not send the student away
+    // from the only page that can sign them in (see middleware.ts).
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) router.replace(next);
     });
 
     const emailParam = searchParams.get('email');
