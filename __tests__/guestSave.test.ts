@@ -134,6 +134,14 @@ describe('the Save button and what follows', () => {
     expect(sticky).toMatch(/<SignInSheet[\s\S]*signupHref=\{signupHref\}[\s\S]*surface="start_sticky"/);
   });
 
+  it('every quiz result card has Save, so the best matches can be saved from the results', () => {
+    const results = read('app/start/PreviewResults.tsx');
+    const card = results.slice(results.indexOf('function MatchCard'), results.indexOf('export default function PreviewResults'));
+    expect(card).toContain('<TrackButton scholarshipId={card.scholarship_id} scholarshipName={card.name}');
+    // Outside the apply_url condition: a card with no funder link can still be saved.
+    expect(card.indexOf('<TrackButton')).toBeLessThan(card.indexOf('{card.apply_url && ('));
+  });
+
   it('/auth on the browser side also asks Supabase before sending a student away', () => {
     const form = read('app/auth/AuthForm.tsx');
     expect(form).toContain('supabase.auth.getUser().then(({ data: { user } }) => {\n      if (user) router.replace(next);');

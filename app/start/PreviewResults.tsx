@@ -25,6 +25,7 @@ import { logFunnelEvent } from '@/lib/research/funnel';
 import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 import LineQuickStart from '@/components/start/LineQuickStart';
 import SignInSheet from '@/components/auth/SignInSheet';
+import TrackButton from '@/components/TrackButton';
 
 /** The sticky phone button and the sheet it opens. */
 export const STICKY_SHEET_COPY = {
@@ -101,22 +102,28 @@ function MatchCard({ card, onApply }: { card: PreviewMatchCard; onApply: (c: Pre
       {/* The card is only a real card if it can be acted on. Anonymous visitors get the
           working link — the proof that these scholarships exist is the point of the
           whole preview, and a dead card proves nothing. */}
-      {card.apply_url && (
-        <a
-          href={card.apply_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => onApply(card)}
-          style={th}
-          className="mt-3 flex items-center justify-center gap-1.5 w-full min-h-[48px] rounded-xl border-2 border-[#1B3A6B] dark:border-[#8FB4FF] text-[#1B3A6B] dark:text-[#8FB4FF] font-bold text-sm active:opacity-90"
-        >
-          ไปที่เว็บไซต์ทุน
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-        </a>
-      )}
+      {/* Save next to the funder link: the results are a student's best matches, and
+          saving one is the most natural reason to sign up. A guest's tap opens the
+          sign-in sheet and the scholarship is saved after sign-in (TrackButton). */}
+      <div className="mt-3 flex items-stretch gap-2">
+        <TrackButton scholarshipId={card.scholarship_id} scholarshipName={card.name} size="md" className="min-h-[48px]" />
+        {card.apply_url && (
+          <a
+            href={card.apply_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onApply(card)}
+            style={th}
+            className="flex-[1.4] flex items-center justify-center gap-1.5 min-h-[48px] rounded-xl border-2 border-[#1B3A6B] dark:border-[#8FB4FF] text-[#1B3A6B] dark:text-[#8FB4FF] font-bold text-sm active:opacity-90"
+          >
+            ไปที่เว็บไซต์ทุน
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        )}
+      </div>
     </div>
   );
 }
