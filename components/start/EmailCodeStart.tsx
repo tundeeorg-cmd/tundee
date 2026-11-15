@@ -67,6 +67,7 @@ export default function EmailCodeStart({
   const [error, setError]       = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const sentAtRef  = useRef(0);
+  const verifyLockRef = useRef(false);
   const codeRef    = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -136,10 +137,15 @@ export default function EmailCodeStart({
   }
 
   async function verifyCode(submitted?: string) {
+    // One check at a time, and none after a success — a second submit spends the
+    // used code and shows an error mid-sign-in. Same guard as /auth (AuthForm).
+    if (verifyLockRef.current) return;
     const token = normalizeOtpCode(submitted ?? code);
     if (token.length !== OTP_LENGTH) { setError(IN_APP_COPY.wrongCode); return; }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) { setError(otpMessage('network', 'th')); return; }
 
+    verifyLockRef.current = true;
+    let signedIn = false;
     setVerifying(true);
     setError(null);
     try {
@@ -160,6 +166,7 @@ export default function EmailCodeStart({
       }
       logFunnelEvent({ eventType: 'otp_verified', context: loginEventContext(iab, 'start') });
       logFunnelEvent({ eventType: 'signup_completed', context: { method: 'email_otp', ...loginEventContext(iab, 'start') } });
+      signedIn = true;
       clearStoredIntakeId();
       // A full navigation: the session cookies were just written and the destination's
       // server components must render with them (same as /auth).
@@ -167,7 +174,11 @@ export default function EmailCodeStart({
     } catch {
       setError(otpMessage('network', 'th'));
     } finally {
-      setVerifying(false);
+      // After a success the page is leaving: stay locked and spinning.
+      if (!signedIn) {
+        verifyLockRef.current = false;
+        setVerifying(false);
+      }
     }
   }
 
