@@ -26,6 +26,13 @@ import type { PreviewMatchCard, PreviewResponse } from '@/lib/preview/types';
 import LineQuickStart from '@/components/start/LineQuickStart';
 import SignInSheet from '@/components/auth/SignInSheet';
 import TrackButton from '@/components/TrackButton';
+import { createClient } from '@/lib/supabase/client';
+
+/** What a signed-in student sees instead of the sign-up prompts. */
+export const SIGNED_IN_COPY = {
+  sticky: 'ดูทุนที่บันทึกไว้ →',
+  note:   'คุณเข้าสู่ระบบแล้ว กด 🔖 บันทึก บนทุนที่สนใจ แล้วเราจะเตือนก่อนปิดรับ',
+} as const;
 
 /** The sticky phone button and the sheet it opens. */
 export const STICKY_SHEET_COPY = {
@@ -184,6 +191,18 @@ export default function PreviewResults({
   useEffect(() => { setMounted(true); }, []);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // A signed-in student was still asked to sign up here (seen on a phone, 15 Nov
+  // 2026) and signed in a second time. Asked once; until the answer arrives the
+  // guest prompts show, because nearly everyone on these results is a guest.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    createClient().auth.getUser()
+      .then(({ data }) => { if (!cancelled) setSignedIn(!!data.user); })
+      .catch(() => { if (!cancelled) setSignedIn(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   /** An anonymous visitor clicking through to a funder. Logged, never blocked. */
   function handleApply(card: PreviewMatchCard) {
     logFunnelEvent({
@@ -251,14 +270,24 @@ export default function PreviewResults({
           {/* Opens the sign-in sheet rather than navigating to /auth: until 15 Nov
               2026 this button left the page while the box below signed in on it, so
               the same screen asked two different ways. */}
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            style={th}
-            className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
-          >
-            {STICKY_SHEET_COPY.title}
-          </button>
+          {signedIn ? (
+            <Link
+              href="/tracker"
+              style={th}
+              className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
+            >
+              {SIGNED_IN_COPY.sticky}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              style={th}
+              className="block w-full text-center bg-[#1B3A6B] text-white py-3.5 px-6 rounded-2xl font-bold text-base active:opacity-90 shadow-lg shadow-[#0A2342]/15"
+            >
+              {STICKY_SHEET_COPY.title}
+            </button>
+          )}
         </div>,
         document.body,
       )}
@@ -281,51 +310,64 @@ export default function PreviewResults({
             reframed around the reminder rather than around locked cards. This block used
             to be hidden entirely when nothing was locked, so those visitors reached the
             end of their results and were never asked to sign up at all. */}
-        <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
-          รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
-        </p>
-
-        <ul className="flex flex-col gap-2 mb-4">
-          {GATE_BULLETS.map((bullet) => (
-            <li key={bullet} className="flex items-start gap-2.5 text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   className="mt-0.5 shrink-0 text-[#1B3A6B] dark:text-[#8FB4FF]" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-              {bullet}
-            </li>
-          ))}
-        </ul>
-
-        {/* LINE first, right here: no /auth page load in between, which inside
-            a webview is a step people drop at. Email stays one tap below.
-            Inside Facebook / Instagram the order flips and the email code is typed
-            on this page (LineQuickStart renders it and drops the link below). */}
-        <LineQuickStart
-          signupHref={signupHref}
-          fallback={
-            <>
-              <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
-                หรือสมัครด้วยอีเมล
-              </p>
-
-              <Link
-                href={signupHref}
-                style={th}
-                className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
-              >
-                สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
-              </Link>
-            </>
-          }
-        />
-        <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
-          ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา
-        </p>
-        {registeredCount !== null && (
-          <p className="mt-2 text-center text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
-            นักเรียน {registeredCount.toLocaleString('th-TH')}+ คนใช้ TunDee หาทุนแล้ว
+        {signedIn ? (
+          <div className="rounded-2xl border border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] p-4 text-center">
+            <p className="text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={{ ...th, lineHeight: 1.8 }}>
+              {SIGNED_IN_COPY.note}
+            </p>
+            <Link href="/tracker" className="mt-2 inline-block font-bold text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline" style={th}>
+              {SIGNED_IN_COPY.sticky}
+            </Link>
+          </div>
+        ) : (
+          <>
+          <p className="text-center font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3" style={{ ...th, fontSize: '1rem' }}>
+            รับแจ้งเตือนก่อนวันปิดรับ — ฟรี
           </p>
+
+          <ul className="flex flex-col gap-2 mb-4">
+            {GATE_BULLETS.map((bullet) => (
+              <li key={bullet} className="flex items-start gap-2.5 text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     className="mt-0.5 shrink-0 text-[#1B3A6B] dark:text-[#8FB4FF]" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+                {bullet}
+              </li>
+            ))}
+          </ul>
+
+          {/* LINE first, right here: no /auth page load in between, which inside
+              a webview is a step people drop at. Email stays one tap below.
+              Inside Facebook / Instagram the order flips and the email code is typed
+              on this page (LineQuickStart renders it and drops the link below). */}
+          <LineQuickStart
+            signupHref={signupHref}
+            fallback={
+              <>
+                <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
+                  หรือสมัครด้วยอีเมล
+                </p>
+
+                <Link
+                  href={signupHref}
+                  style={th}
+                  className="block w-full text-center bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white py-4 px-8 rounded-2xl font-bold text-base transition-colors active:opacity-90"
+                >
+                  สมัครเพื่อรับแจ้งเตือนก่อนปิดรับ
+                </Link>
+              </>
+            }
+          />
+          <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
+            ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา
+          </p>
+          {registeredCount !== null && (
+            <p className="mt-2 text-center text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+              นักเรียน {registeredCount.toLocaleString('th-TH')}+ คนใช้ TunDee หาทุนแล้ว
+            </p>
+          )}
+          </>
         )}
         {/* The scam question, answered where it is actually being asked.
             A visitor at this point has seen real matched scholarships and is deciding

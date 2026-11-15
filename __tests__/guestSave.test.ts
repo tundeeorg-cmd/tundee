@@ -142,6 +142,33 @@ describe('the Save button and what follows', () => {
     expect(card.indexOf('<TrackButton')).toBeLessThan(card.indexOf('{card.apply_url && ('));
   });
 
+  it('a signed-in student is not asked to sign up on the results (15 Nov 2026)', () => {
+    const results = read('app/start/PreviewResults.tsx');
+    expect(results).toContain('createClient().auth.getUser()');
+    const sticky = results.slice(results.indexOf('Sticky CTA'), results.indexOf('Clears the sticky bar'));
+    // Signed in: a link to the saved list; otherwise the sign-in sheet.
+    expect(sticky).toMatch(/\{signedIn \? \(\s*<Link\s+href="\/tracker"[\s\S]*SIGNED_IN_COPY\.sticky[\s\S]*\) : \([\s\S]*setSheetOpen\(true\)/);
+    // The inline sign-up block sits in the guest branch only.
+    const gate = results.slice(results.indexOf('Clears the sticky bar'));
+    expect(gate.indexOf('{signedIn ? (')).toBeGreaterThan(-1);
+    expect(gate.indexOf('{signedIn ? (')).toBeLessThan(gate.indexOf('<LineQuickStart'));
+    expect(gate.indexOf('SIGNED_IN_COPY.note')).toBeLessThan(gate.indexOf('<LineQuickStart'));
+  });
+
+  it('inside Facebook the tracker leads with email reminders and offers no dead-end LINE button', () => {
+    const tracker = read('app/tracker/page.tsx');
+    expect(tracker).toContain('setInApp(emailFirstLogin(detectInAppBrowser()))');
+    const order = tracker.slice(tracker.indexOf('{inApp ? ('));
+    expect(order.indexOf('<EmailReminderSection')).toBeLessThan(order.indexOf('<LineSection'));
+    expect(order).toMatch(/<LineSection[^>]*inApp \/>/);
+    const line = tracker.slice(tracker.indexOf('function LineSection'), tracker.indexOf('function EmailReminderSection'));
+    expect(line).toContain('const blocked = inApp && !linked;');
+    expect(line).toMatch(/\) : blocked \? null : \(\s*<a\s+href="\/api\/line\/connect"/);
+    expect(line).toContain('LINE_BLOCKED_COPY');
+    // A Next.js page file may only export what Next allows.
+    expect(tracker).not.toMatch(/^export const LINE_BLOCKED_COPY/m);
+  });
+
   it('/auth on the browser side also asks Supabase before sending a student away', () => {
     const form = read('app/auth/AuthForm.tsx');
     expect(form).toContain('supabase.auth.getUser().then(({ data: { user } }) => {\n      if (user) router.replace(next);');

@@ -17,6 +17,8 @@ import {
   DEADLINE_COLOR_CLASS, DEADLINE_BADGE_CLASS,
 } from '@/lib/tracker/display';
 import { isSyntheticEmail } from '@/lib/line/syntheticEmail';
+import { detectInAppBrowser } from '@/lib/browser/inAppBrowser';
+import { emailFirstLogin } from '@/lib/auth/inAppLogin';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,8 +147,20 @@ function ApplyPrompt({ name, lang, onYes, onNo }: { name: string; lang: string; 
 
 // ─── LINE Connect Section ─────────────────────────────────────────────────────
 
-function LineSection({ profile, lang, onUnlink }: { profile: Profile | null; lang: string; onUnlink: () => void }) {
+/** The LINE card's text inside Facebook / Instagram, where LINE cannot be connected. */
+const LINE_BLOCKED_COPY = {
+  th: 'ในแอป Facebook / Instagram เชื่อมต่อ LINE ไม่ได้ ใช้การแจ้งเตือนทางอีเมลด้านบนแทน หรือเปิด tundee.org ในแอป LINE หรือ Chrome แล้วเข้าสู่ระบบด้วยอีเมลเดิม',
+  en: "LINE can't be connected inside Facebook / Instagram. Use email reminders above, or open tundee.org in LINE or Chrome and sign in with the same email.",
+} as const;
+
+function LineSection({ profile, lang, onUnlink, inApp = false }: { profile: Profile | null; lang: string; onUnlink: () => void; inApp?: boolean }) {
   const linked = !!profile?.line_user_id;
+  // Inside Facebook / Instagram the LINE app cannot be opened, so "เชื่อมต่อ LINE"
+  // landed on LINE's web login asking for a LINE email and password, which most
+  // students who signed up to LINE by phone do not have (seen on a phone, 15 Nov
+  // 2026). Chrome is no way out either: it is not signed in to TunDee. So here the
+  // card says why and points to email reminders, which the page shows first.
+  const blocked = inApp && !linked;
 
   return (
     <div className="bg-white dark:bg-[#0A1628] border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-[12px] p-5 mb-6">
@@ -165,7 +179,9 @@ function LineSection({ profile, lang, onUnlink }: { profile: Profile | null; lan
             <p className="text-xs text-[#6E6E73] dark:text-[#8E8E93]">
               {linked
                 ? (lang === 'th' ? 'เชื่อมต่อแล้ว — จะส่งแจ้งเตือน 14 และ 1 วันก่อนหมดเขต' : 'Connected — reminders sent 14 and 1 day before deadline')
-                : (lang === 'th' ? 'เชื่อมต่อ LINE เพื่อรับแจ้งเตือนก่อนหมดเขตสมัคร' : 'Connect LINE to receive deadline reminders')}
+                : blocked
+                  ? (lang === 'th' ? LINE_BLOCKED_COPY.th : LINE_BLOCKED_COPY.en)
+                  : (lang === 'th' ? 'เชื่อมต่อ LINE เพื่อรับแจ้งเตือนก่อนหมดเขตสมัคร' : 'Connect LINE to receive deadline reminders')}
             </p>
           </div>
         </div>
@@ -176,7 +192,7 @@ function LineSection({ profile, lang, onUnlink }: { profile: Profile | null; lan
           >
             {lang === 'th' ? 'ยกเลิกการเชื่อมต่อ' : 'Disconnect'}
           </button>
-        ) : (
+        ) : blocked ? null : (
           <a
             href="/api/line/connect"
             className="text-xs font-semibold text-white bg-[#00B900] hover:bg-[#009900] rounded-lg px-3 py-1.5 transition-colors"
@@ -502,6 +518,9 @@ function TrackedCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TrackerPage() {
+  // Facebook / Instagram in-app browser: LINE cannot be connected there.
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => { setInApp(emailFirstLogin(detectInAppBrowser())); }, []);
   const { lang } = useLang();
   const supabase = createClient();
 
@@ -835,17 +854,34 @@ export default function TrackerPage() {
           </div>
         )}
 
-        {/* LINE connect */}
-        <LineSection profile={profile} lang={lang} onUnlink={handleUnlink} />
+        {/* Inside Facebook / Instagram email reminders come first: they are the
+            one kind that can be switched on from here (see LineSection). */}
+        {inApp ? (
+          <>
+            <EmailReminderSection
+              profile={profile}
+              lang={lang}
+              onChange={handleEmailReminders}
+              ask={emailAsk}
+              onClaim={handleClaimEmail}
+            />
+            <LineSection profile={profile} lang={lang} onUnlink={handleUnlink} inApp />
+          </>
+        ) : (
+          <>
+            {/* LINE connect */}
+            <LineSection profile={profile} lang={lang} onUnlink={handleUnlink} />
 
-        {/* Email reminders — the one place verification mail originates */}
-        <EmailReminderSection
-          profile={profile}
-          lang={lang}
-          onChange={handleEmailReminders}
-          ask={emailAsk}
-          onClaim={handleClaimEmail}
-        />
+            {/* Email reminders — the one place verification mail originates */}
+            <EmailReminderSection
+              profile={profile}
+              lang={lang}
+              onChange={handleEmailReminders}
+              ask={emailAsk}
+              onClaim={handleClaimEmail}
+            />
+          </>
+        )}
 
         {/* Empty state */}
         {rows.length === 0 && (
