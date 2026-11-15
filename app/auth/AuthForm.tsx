@@ -299,6 +299,8 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   const [cooldown, setCooldown] = useState(0);
   /** When the current code was issued — lets a rejection be read as expiry. */
   const sentAtRef = useRef<number>(0);
+  /** Held while a code is being checked and after it succeeds; see verifyCode. */
+  const verifyLockRef = useRef(false);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   const [iab, setIab] = useState<InAppBrowserInfo>(initialIab);
@@ -504,10 +506,18 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   // ── Email: verify the code ──────────────────────────────────────────────────
 
   async function verifyCode(submitted?: string) {
+    // One check at a time, and none after a success. The sixth digit submits by
+    // itself, and a second submit (keyboard autofill firing twice, or a tap on
+    // the button while the page navigates away) spends the already-used code:
+    // Supabase rejects it, the student sees "code expired" while being signed
+    // in, and the funnel logs a failure for a signup that worked (15 Nov 2026).
+    if (verifyLockRef.current) return;
     const token = normalizeOtpCode(submitted ?? code);
     if (token.length !== OTP_LENGTH) { fail('code_invalid'); return; }
     if (isDefinitelyOffline()) { fail('network'); return; }
 
+    verifyLockRef.current = true;
+    let signedIn = false;
     setVerifying(true);
     setMessage(null);
 
@@ -541,6 +551,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         context: { method: 'email_otp', ...inAppContext(iab) },
       });
       logFunnelEvent({ eventType: 'otp_verified', context: loginEventContext(iab, 'auth') });
+      signedIn = true;
       clearStoredIntakeId();
 
       // A full navigation, not router.push: the session cookies were just
@@ -556,7 +567,11 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
     } catch {
       fail('network');
     } finally {
-      setVerifying(false);
+      // After a success the page is leaving: stay locked and spinning.
+      if (!signedIn) {
+        verifyLockRef.current = false;
+        setVerifying(false);
+      }
     }
   }
 

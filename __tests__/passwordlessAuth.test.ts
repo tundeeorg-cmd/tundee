@@ -95,6 +95,26 @@ describe('the six-digit code', () => {
   it('submits by itself when the sixth digit lands, including iOS autofill', () => {
     expect(FORM).toMatch(/v\.length === OTP_LENGTH\) void verifyCode\(v\)/);
   });
+
+  it('checks a code once — a second submit cannot spend the used code (15 Nov 2026)', () => {
+    // Live test inside Facebook: sign-in succeeded, and one second later a second
+    // check of the same code failed as "code expired" on screen and in the funnel.
+    for (const [name, src] of [
+      ['AuthForm', FORM],
+      ['EmailCodeStart', read('components/start/EmailCodeStart.tsx')],
+    ] as const) {
+      const fn = src.slice(src.indexOf('async function verifyCode'));
+      const body = fn.slice(0, fn.indexOf('\n  }\n'));
+      // Bails before anything else when a check is running or has succeeded…
+      expect(body, name).toMatch(/^\s*async function verifyCode[^{]*\{(\s*\/\/[^\n]*\n)*\s*if \(verifyLockRef\.current\) return;/);
+      // …takes the lock before the network call…
+      expect(body.indexOf('verifyLockRef.current = true'), name)
+        .toBeLessThan(body.indexOf('verifyOtp('));
+      // …and releases it only when the student is still on the page.
+      expect(body, name).toMatch(/if \(!signedIn\) \{\s*verifyLockRef\.current = false;\s*setVerifying\(false\);/);
+      expect(body.indexOf('signedIn = true'), name).toBeGreaterThan(body.indexOf("'otp_verified'"));
+    }
+  });
 });
 
 // ─── The order on screen ─────────────────────────────────────────────────────
