@@ -1,4 +1,4 @@
--- v29 — lock down views that Supabase flags as UNRESTRICTED
+-- v36 — lock down views that Supabase flags as UNRESTRICTED
 --
 -- WHY
 -- These ten views run with their owner's rights (no security_invoker), so row

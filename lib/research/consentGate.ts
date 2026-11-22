@@ -17,15 +17,17 @@ import type { StudentProfileRow } from './tableTypes';
 export const CURRENT_CONSENT_VERSION = '2026-07-v1';
 
 /**
- * Age below which a guardian's consent is also required. 20 is the age of majority in
- * the Civil and Commercial Code, and PDPA §20 lets a minor consent alone only to what
- * the Civil Code lets a minor do alone; consenting to research use of income and
- * grades is not obviously that. Chosen by the project owner on 2026-10-26 (it was 18);
- * counsel and the ethics committee may still change it. Mirrored in
- * research_minor_age_threshold() in SQL (scripts/20261101_v33_minor_age_threshold_20.sql);
+ * Age below which a guardian's consent is also required. 18, chosen by the project
+ * owner on 2026-11-22 (it was 20 from 2026-10-26, and 18 before that), in line with
+ * Thai research-ethics practice that lets participants consent alone from 18. Under
+ * the Civil and Commercial Code 18- and 19-year-olds are still minors, and PDPA §20
+ * lets a minor consent alone only to what the Code lets a minor do alone, so counsel
+ * and the ethics committee must confirm this; see
+ * research/AMENDMENT-2026-11-22-age-threshold-18.md. Mirrored in
+ * research_minor_age_threshold() in SQL (scripts/20261122_v37_minor_age_threshold_18.sql);
  * a test fails if they drift.
  */
-export const MINOR_AGE_THRESHOLD = 20;
+export const MINOR_AGE_THRESHOLD = 18;
 
 /**
  * Returns true if this student profile may be included in research exports.
@@ -46,9 +48,9 @@ export function isResearchConsented(profile: Pick<StudentProfileRow, 'consent_re
  * by one (someone born in December is that many "years old" for eleven months before
  * they are). A student is therefore treated as an adult only when they cannot be under
  * the threshold on ANY day of the reference year: the year difference must EXCEED
- * MINOR_AGE_THRESHOLD. With 20, a student born in `year - 20` is still asked for a
- * guardian (some of them are 19 and they cannot be told apart), and one born in
- * `year - 21` or earlier is not. A missing birth year cannot make anyone a minor.
+ * MINOR_AGE_THRESHOLD. With 18, a student born in `year - 18` is still asked for a
+ * guardian (some of them are 17 and they cannot be told apart), and one born in
+ * `year - 19` or earlier is not. A missing birth year cannot make anyone a minor.
  */
 export function requiresGuardianConsent(
   birthYear: number | null,

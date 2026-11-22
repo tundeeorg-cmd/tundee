@@ -63,17 +63,18 @@ describe('age / minor helpers', () => {
     expect(computeAge(2010, now)).toBe(16);
   });
 
-  it('flags under-20 as a minor (guardian consent applies, MINOR_AGE_THRESHOLD)', () => {
-    expect(isMinor(2010, now)).toBe(true);
-    expect(isMinor(2008, now)).toBe(true);      // 18
+  it('flags under-18 as a minor (guardian consent applies, MINOR_AGE_THRESHOLD)', () => {
+    expect(isMinor(2010, now)).toBe(true);      // 16
+    expect(isMinor(2009, now)).toBe(true);      // 17
   });
 
-  it('still flags the birth year that turns 20 this year: only the year is known, some are 19', () => {
-    expect(isMinor(2006, now)).toBe(true);
+  it('still flags the birth year that turns 18 this year: only the year is known, some are 17', () => {
+    expect(isMinor(2008, now)).toBe(true);
   });
 
-  it('does not flag a student born 21 or more years before (certainly an adult)', () => {
-    expect(isMinor(2005, now)).toBe(false);
+  it('does not flag a student born 19 or more years before (certainly an adult)', () => {
+    expect(isMinor(2007, now)).toBe(false);
+    expect(isMinor(2006, now)).toBe(false);
   });
 
   it('treats null/NaN birth year as not-a-minor (can\'t determine, don\'t block)', () => {

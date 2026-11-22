@@ -42,6 +42,7 @@ import { readAdParams } from '@/lib/adTracking';
 import { profileCompleted } from '@/lib/analytics';
 import { PREVIEW_COOKIE, decodePreviewInput } from '@/lib/preview/types';
 import { CONSENT_VERSION } from '@/lib/consent';
+import { MINOR_AGE_THRESHOLD } from '@/lib/research/consentGate';
 import {
   GRADE_LEVELS, canonicalizeGradeLevel, hasGradeYear, gradeYearsFor, gradeYearLabel,
   coherentGradeYear,
@@ -1062,8 +1063,8 @@ export default function ProfileSetupPage() {
           />
           <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
             {lang === 'th'
-              ? 'หากอายุต่ำกว่า 20 ปี ผู้ปกครองหรือบิดามารดาของฉันรับทราบการใช้งานนี้แล้ว (ไม่บังคับ)'
-              : 'If I am under 20 years old, my parent or guardian is aware of this registration. (Optional)'}
+              ? `หากอายุต่ำกว่า ${MINOR_AGE_THRESHOLD} ปี ผู้ปกครองหรือบิดามารดาของฉันรับทราบการใช้งานนี้แล้ว (ไม่บังคับ)`
+              : `If I am under ${MINOR_AGE_THRESHOLD} years old, my parent or guardian is aware of this registration. (Optional)`}
           </span>
         </label>
 
