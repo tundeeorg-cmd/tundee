@@ -6,10 +6,20 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    // lib/ui holds shared class strings (lib/ui/choice.ts); Tailwind must see them.
+    "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       colors: {
+        // Contrast tokens: light/dark values live in app/globals.css (--tx-*).
+        muted:          'rgb(var(--tx-muted) / <alpha-value>)',
+        subtle:         'rgb(var(--tx-subtle) / <alpha-value>)',
+        warning:        'rgb(var(--tx-warning) / <alpha-value>)',
+        'nav-active':   'rgb(var(--tx-nav-active) / <alpha-value>)',
+        'nav-inactive': 'rgb(var(--tx-nav-inactive) / <alpha-value>)',
+        chip:           'rgb(var(--tx-chip) / <alpha-value>)',
+        'label-accent': 'rgb(var(--tx-label-accent) / <alpha-value>)',
         navy: {
           950: '#07111F',
           900: '#0A2342',

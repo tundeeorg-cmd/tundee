@@ -146,7 +146,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
   const pct = Math.round(((step + 1) / total) * 100);
   return (
     <div className="w-full">
-      <div className="flex justify-between text-xs text-[#aeaeb2] mb-2">
+      <div className="flex justify-between text-xs text-subtle mb-2">
         <span>{step + 1} / {total}</span>
         <span>{pct}%</span>
       </div>
@@ -1076,7 +1076,7 @@ export default function ProfileSetupPage() {
         >
           {lang === 'th' ? 'ยืนยันและเริ่มต้น →' : 'Confirm & Continue →'}
         </button>
-        <p className="text-xs text-[#aeaeb2] text-center mt-3" style={{ fontFamily: font }}>
+        <p className="text-xs text-subtle text-center mt-3" style={{ fontFamily: font }}>
           {lang === 'th'
             ? 'คุณสามารถขอลบข้อมูลได้ตลอดเวลาที่ hello@tundee.org'
             : 'You can request data deletion at any time: hello@tundee.org'}
@@ -1123,7 +1123,7 @@ export default function ProfileSetupPage() {
         <p className="text-center mt-3">
           <button
             onClick={nextStep}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
@@ -1184,7 +1184,7 @@ export default function ProfileSetupPage() {
         <p className="text-center">
           <button
             onClick={nextStep}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
@@ -1246,13 +1246,13 @@ export default function ProfileSetupPage() {
                 wrong one — a genuinely different action from "go back". */}
             <button
               onClick={() => { setGradeLevel(''); setGradeYear(null); setFieldError(null); }}
-              className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+              className="text-xs text-subtle hover:text-muted transition-colors"
             >
               {lang === 'th' ? '‹ เปลี่ยนระดับชั้น' : '‹ Change level'}
             </button>
             <button
               onClick={nextStep}
-              className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+              className="text-xs text-subtle hover:text-muted transition-colors"
             >
               {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
             </button>
@@ -1296,7 +1296,7 @@ export default function ProfileSetupPage() {
         <p className="text-center">
           <button
             onClick={nextStep}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
@@ -1339,7 +1339,7 @@ export default function ProfileSetupPage() {
             className="text-center text-4xl font-light w-40 border-0 border-b-2 border-[#e0e0e0] dark:border-[#3a3a3c] focus:border-[#2E6BE6] focus:outline-none bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-[#aeaeb2] py-2 transition-colors"
             onKeyDown={(e) => { if (e.key === 'Enter') nextStep(); }}
           />
-          <p className="text-xs text-[#aeaeb2] mt-2">0.00 – 4.00</p>
+          <p className="text-xs text-subtle mt-2">0.00 – 4.00</p>
         </div>
 
         <FieldError code={fieldError} lang={lang} />
@@ -1353,7 +1353,7 @@ export default function ProfileSetupPage() {
         <p className="text-center">
           <button
             onClick={() => { setGpa(''); nextStep(); }}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ยังไม่รู้ / ข้ามก่อน' : 'Not sure yet / Skip'}
           </button>
@@ -1405,7 +1405,7 @@ export default function ProfileSetupPage() {
             </button>
           ))}
           {filteredProvinces.length === 0 && (
-            <p className="text-center text-sm text-[#aeaeb2] py-4" style={{ fontFamily: font }}>
+            <p className="text-center text-sm text-subtle py-4" style={{ fontFamily: font }}>
               {lang === 'th' ? 'ไม่พบจังหวัด' : 'Province not found'}
             </p>
           )}
@@ -1415,7 +1415,7 @@ export default function ProfileSetupPage() {
         <p className="text-center">
           <button
             onClick={() => setStep(6)}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
@@ -1538,7 +1538,7 @@ export default function ProfileSetupPage() {
         <p className="text-center mt-3">
           <button
             onClick={nextStep}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors"
+            className="text-xs text-subtle hover:text-muted transition-colors"
           >
             {lang === 'th' ? 'ข้ามก่อน' : 'Skip for now'}
           </button>
@@ -1601,7 +1601,7 @@ export default function ProfileSetupPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-xs text-[#aeaeb2] hover:text-[#6e6e73] transition-colors disabled:opacity-50"
+            className="text-xs text-subtle hover:text-muted transition-colors disabled:opacity-50"
           >
             {lang === 'th' ? 'ข้ามก่อน ดูทุนเลย' : 'Skip, browse scholarships now'}
           </button>

@@ -46,7 +46,7 @@ export default function TrustStrip({ scholarships, funders, lang, className = ''
 
   return (
     <p
-      className={`text-[11px] leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0] ${className}`}
+      className={`text-[11px] leading-relaxed text-muted ${className}`}
       style={{ fontFamily: th ? 'Sarabun, system-ui, sans-serif' : undefined }}
     >
       {segments.join(' · ')}

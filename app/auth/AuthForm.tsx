@@ -685,6 +685,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           type="button"
           onClick={() => signInWithLine()}
           disabled={busy}
+          data-brand="line"
           className="mt-3 w-full rounded-lg bg-[#06C755] hover:bg-[#05B34C] disabled:bg-[#06C755]/40 text-white font-bold min-h-[44px]"
           style={THAI}
         >
@@ -799,7 +800,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
           </button>
         </div>
 
-        <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={{ ...THAI, lineHeight: 1.8 }}>
+        <p className="text-center text-xs text-subtle mt-5" style={{ ...THAI, lineHeight: 1.8 }}>
           {th ? 'หรือกดลิงก์ในอีเมลก็ได้' : 'Or just tap the link in the email.'}
         </p>
       </>,
@@ -831,6 +832,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       ) : (
       <a
         href={lineHref}
+        data-brand="line"
         onClick={(e) => { e.preventDefault(); signInWithLine(); }}
         aria-disabled={busy}
         className={`w-full flex items-center justify-center gap-3 rounded-xl min-h-[56px] px-4 text-base font-bold transition-colors ${
@@ -873,7 +875,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       {/* 3 ── Divider */}
       <div className="flex items-center gap-3 mb-5">
         <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-        <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium" style={THAI}>
+        <span className="text-xs text-subtle font-medium" style={THAI}>
           {th ? 'หรือ' : 'or'}
         </span>
         <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
@@ -967,7 +969,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
       className="group"
     >
       <summary
-        className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-[#6e6e73] group-open:mb-3"
+        className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-subtle group-open:mb-3"
         style={THAI}
       >
         {th ? 'ใช้อีเมลแทน' : 'Use email instead'}
@@ -1034,7 +1036,7 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
         : <>{lineBlock}{methodDivider}{googleButton}{emailFolded}</>}
 
 
-      <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={THAI}>
+      <p className="text-center text-xs text-subtle mt-5" style={THAI}>
         {th ? 'ฟรีตลอด ไม่มีค่าใช้จ่าย' : 'Always free.'}
       </p>
     </>,

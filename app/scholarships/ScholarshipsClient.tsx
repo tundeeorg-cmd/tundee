@@ -829,7 +829,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
           {/* Search — above the tabs, on both, for guests too. It always
               searches every scholarship (see onSearchChange). */}
           <div className="relative mt-4 max-w-[640px]">
-            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#ADADB8]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-nav-inactive" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -982,7 +982,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                 {/* How this page works — three lines, closable, remembered. */}
                 {!guideDismissed && (
                   <div className="mb-4 relative rounded-2xl border border-[#E5E5EA] dark:border-[#1A2E4A] bg-[#F5F7FA] dark:bg-[#0A1628] px-5 py-4 pr-12">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#8A96A8] mb-2" style={{ fontFamily: font }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-subtle mb-2" style={{ fontFamily: font }}>
                       {b.guideTitle[lang]}
                     </p>
                     <ol className="grid gap-2 sm:grid-cols-3 sm:gap-4">
@@ -997,7 +997,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                       type="button"
                       onClick={dismissGuide}
                       aria-label={b.guideClose[lang]}
-                      className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-[#8A96A8] hover:bg-[#E5E5EA] dark:hover:bg-[#1A2E4A] hover:text-[#1D1D1F] dark:hover:text-white transition-colors"
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-subtle hover:bg-[#E5E5EA] dark:hover:bg-[#1A2E4A] hover:text-[#1D1D1F] dark:hover:text-white transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -1043,7 +1043,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                             <h2 className="text-base font-bold text-[#0A2342] dark:text-[#E8EDF5] flex items-center flex-wrap gap-2"
                                 style={{ fontFamily: font }}>
                               {group.title[lo === 'th' ? 'th' : 'en']}
-                              <span className="text-sm font-normal text-[#8A96A8]">
+                              <span className="text-sm font-normal text-subtle">
                                 {group.items.length}
                               </span>
                               {/* Only set for ม.4–5: these scholarships recruit
@@ -1091,7 +1091,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                         ดูทุนเพิ่มเติม
                       </button>
                     ) : (
-                      <p className="text-sm text-[#8A96A8]"
+                      <p className="text-sm text-subtle"
                          style={{ fontFamily: font, lineHeight: 1.8 }}>
                         แสดงทุนครบทุกรายการแล้ว
                       </p>
@@ -1186,7 +1186,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                   {lo === 'th' ? `พบ ${browseVisible.length} ทุน` : `${browseVisible.length} scholarships`}
                 </p>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-[#ADADB8] font-semibold uppercase tracking-wider">{lo === 'th' ? 'เรียง' : 'Sort'}</span>
+                  <span className="text-[11px] text-nav-inactive font-semibold uppercase tracking-wider">{lo === 'th' ? 'เรียง' : 'Sort'}</span>
                   {([
                     { key: 'deadline', th: 'ใกล้หมดเขต', en: 'Deadline' },
                     { key: 'name',     th: 'ชื่อ',        en: 'Name'     },
@@ -1285,7 +1285,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                       ดูทุนเพิ่มเติม
                     </button>
                   ) : (
-                    <p className="text-sm text-[#8A96A8]"
+                    <p className="text-sm text-subtle"
                        style={{ fontFamily: font, lineHeight: 1.8 }}>
                       แสดงทุนครบทุกรายการแล้ว
                     </p>

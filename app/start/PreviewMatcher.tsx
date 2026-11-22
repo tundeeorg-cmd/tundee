@@ -13,6 +13,7 @@
  * Neither is pre-selected; submit waits for one. Both give the same scholarships.
  */
 
+import { CHOICE_IDLE, CHOICE_SELECTED } from '@/lib/ui/choice';
 import { useEffect, useRef, useState } from 'react';
 import { PREVIEW_LEVELS, type PreviewInput, type PreviewResponse } from '@/lib/preview/types';
 import { PROVINCES_TH } from '@/lib/translations';
@@ -307,7 +308,7 @@ export default function PreviewMatcher({
   // ── Results ────────────────────────────────────────────────────────────────
   if (status === 'done' && results) {
     return (
-      <div className="max-w-[500px] mx-auto">
+      <div>
         <PreviewResults
           results={results}
           signupHref={signupHref}
@@ -327,7 +328,7 @@ export default function PreviewMatcher({
   // ── Loading ────────────────────────────────────────────────────────────────
   if (status === 'loading') {
     return (
-      <div className="max-w-[500px] mx-auto">
+      <div className="max-w-[520px] mx-auto">
         <div className="flex items-center justify-center gap-3 mb-5">
           <div className="w-5 h-5 border-2 border-[#1B3A6B]/30 border-t-[#1B3A6B] rounded-full animate-spin" />
           <p className="text-sm font-semibold text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
@@ -352,7 +353,7 @@ export default function PreviewMatcher({
 
   // ── Form (idle / error) ────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} noValidate className="max-w-[500px] mx-auto text-left">
+    <form onSubmit={handleSubmit} noValidate className="max-w-[520px] mx-auto text-left">
       <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5">
         <p className="text-sm font-bold text-[#1B3A6B] dark:text-[#8FB4FF] mb-4 text-center" style={th}>
           {MATCHER_HEADLINE}
@@ -362,11 +363,11 @@ export default function PreviewMatcher({
             decides whether the consent text is shown at all. Nothing here is required to see
             scholarships, and nothing is pre-selected. */}
         {researchConsentOffered && (
-          <div className="mb-5 rounded-xl bg-[#F5F7FA] dark:bg-[#0D1F35] border border-[#E8ECF2] dark:border-[#1A2E4A] p-4">
+          <div data-testid="matcher-first-question" className="mb-5 rounded-xl bg-[#F5F7FA] dark:bg-[#0D1F35] border border-[#E8ECF2] dark:border-[#1A2E4A] p-4">
             <p className="text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
               {START_CONSENT.ageQuestion}
             </p>
-            <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] mb-3" style={th}>
+            <p className="text-xs text-chip mb-3" style={th}>
               {START_CONSENT.ageHint}
             </p>
             <div className="grid grid-cols-2 gap-2" role="group" aria-label={START_CONSENT.ageQuestion}>
@@ -379,8 +380,8 @@ export default function PreviewMatcher({
                   style={th}
                   className={`min-h-[48px] px-3 rounded-xl border-2 font-semibold text-sm transition-colors ${
                     adult === value
-                      ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
-                      : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
+                      ? CHOICE_SELECTED
+                      : CHOICE_IDLE
                   }`}
                 >
                   {label}
@@ -389,7 +390,7 @@ export default function PreviewMatcher({
             </div>
 
             {adult === false && (
-              <p className="mt-3 text-xs text-[#4A5A70] dark:text-[#8e9bb0]" style={th}>
+              <p className="mt-3 text-xs text-chip" style={th}>
                 {START_CONSENT.minorOutcome}
               </p>
             )}
@@ -399,7 +400,7 @@ export default function PreviewMatcher({
                 <p className="text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
                   {START_CONSENT.heading}
                 </p>
-                <p className="text-xs text-[#4A5A70] dark:text-[#8e9bb0] leading-relaxed" style={th}>
+                <p className="text-xs text-chip leading-relaxed" style={th}>
                   {START_CONSENT.body}{' '}
                   <a href={START_CONSENT.detailsHref} target="_blank" rel="noopener noreferrer"
                      className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{START_CONSENT.detailsLabel}</a>
@@ -416,8 +417,8 @@ export default function PreviewMatcher({
                       style={th}
                       className={`min-h-[48px] px-2 rounded-xl border-2 font-semibold text-sm leading-snug transition-colors ${
                         researchChoice === key
-                          ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
-                          : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#4A5A70] dark:text-[#8e9bb0]'
+                          ? CHOICE_SELECTED
+                          : CHOICE_IDLE
                       }`}
                     >
                       {label}
@@ -425,7 +426,7 @@ export default function PreviewMatcher({
                   ))}
                 </div>
                 {researchChoice === null && (
-                  <p className="mt-2 text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+                  <p className="mt-2 text-xs text-muted" style={th}>
                     {START_CONSENT.chooseHint}
                   </p>
                 )}
@@ -435,7 +436,7 @@ export default function PreviewMatcher({
         )}
 
         {/* ระดับชั้น */}
-        <label className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2.5" style={th}>
+        <label data-testid={researchConsentOffered ? undefined : 'matcher-first-question'} className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2.5" style={th}>
           ระดับชั้นของคุณ
         </label>
         <div className="grid grid-cols-2 gap-2 mb-5">
@@ -450,8 +451,8 @@ export default function PreviewMatcher({
                 i === PREVIEW_LEVELS.length - 1 ? 'col-span-2' : ''
               } ${
                 level === opt.value
-                  ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
-                  : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
+                  ? CHOICE_SELECTED
+                  : CHOICE_IDLE
               }`}
             >
               {opt.th}
@@ -495,8 +496,8 @@ export default function PreviewMatcher({
                 i === PREVIEW_INCOME_OPTIONS.length - 1 ? 'col-span-2' : ''
               } ${
                 income === opt.value
-                  ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
-                  : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
+                  ? CHOICE_SELECTED
+                  : CHOICE_IDLE
               }`}
             >
               {opt.th}
@@ -509,9 +510,9 @@ export default function PreviewMatcher({
             guessed at, so the count they see stays true. */}
         <label htmlFor="preview-gpa" className="block text-sm font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={th}>
           เกรดเฉลี่ย (GPA){' '}
-          <span className="font-normal text-[#6E7A8A] dark:text-[#8e9bb0]">— ไม่ใส่ก็ได้</span>
+          <span className="font-normal text-muted">— ไม่ใส่ก็ได้</span>
         </label>
-        <p className="text-xs text-[#6E7A8A] dark:text-[#8e9bb0] mb-2.5" style={th}>
+        <p className="text-xs text-muted mb-2.5" style={th}>
           ใส่เกรดแล้วจะเห็นทุนที่กำหนดเกรดขั้นต่ำเพิ่มขึ้น
         </p>
         <input
@@ -545,7 +546,7 @@ export default function PreviewMatcher({
         </button>
       </div>
 
-      <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
+      <p className="mt-3 text-center text-xs text-subtle" style={th}>
         ไม่ต้องสมัครสมาชิก · เห็นผลลัพธ์ทันทีใน 10 วินาที
       </p>
 

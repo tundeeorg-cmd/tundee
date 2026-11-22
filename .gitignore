@@ -55,3 +55,6 @@ scholarships_gaps.md
 *_LATEST_*.csv
 hidden_verified_scholarships.csv
 hidden_worklist.csv
+e2e/__screenshots__/
+e2e/test-results/
+e2e/report/

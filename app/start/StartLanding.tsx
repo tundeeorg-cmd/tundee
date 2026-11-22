@@ -10,6 +10,7 @@ import {
   landingCopy,
 } from '@/lib/landing/variants';
 import { logFunnelEvent } from '@/lib/research/funnel';
+import { keepTimeTogether } from '@/lib/landing/headline';
 
 /** Where a visitor lands after logging in — their full matched results. */
 const POST_LOGIN_DESTINATION = '/scholarships?from=preview';
@@ -18,6 +19,7 @@ const POST_LOGIN_DESTINATION = '/scholarships?from=preview';
 const MATCHER_ANCHOR = 'tundee-matcher';
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
+
 
 const HOW_IT_WORKS = [
   { n: '1', title: 'บอกเราเกี่ยวกับตัวคุณ', sub: 'เกรด จังหวัด รายได้ครอบครัว' },
@@ -150,12 +152,12 @@ export default function StartLanding({
         </p>
         <h1
           className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2 mx-auto"
-          style={{ ...th, fontSize: 'clamp(1.35rem, 5.5vw, 2rem)', lineHeight: 1.35, maxWidth: 480 }}
+          style={{ ...th, fontSize: 'clamp(1.35rem, 5.5vw, 2rem)', lineHeight: 1.35, maxWidth: 480, textWrap: 'balance' }}
         >
-          {copy.h1}
+          {keepTimeTogether(copy.h1)}
         </h1>
         <p
-          className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-4 mx-auto leading-snug"
+          className="text-muted mb-4 mx-auto leading-snug"
           style={{ ...th, fontSize: 'clamp(0.9rem, 3.4vw, 1rem)', maxWidth: 420 }}
         >
           {copy.sub}
@@ -185,7 +187,7 @@ export default function StartLanding({
             the live query and is dropped entirely when that query failed —
             never a literal, never a rounded-up "90+". */}
         <div className="max-w-[500px] mx-auto text-center">
-          <span className="text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+          <span className="text-xs text-muted" style={th}>
             {copy.trust(scholarshipCount)}
           </span>
         </div>
@@ -201,7 +203,7 @@ export default function StartLanding({
           >
             ทุกปี ทุนหลายล้านบาท…ไม่มีใครมารับ
           </h2>
-          <p className="text-[#6E7A8A] dark:text-[#8e9bb0] leading-relaxed" style={{ ...th, fontSize: '0.95rem' }}>
+          <p className="text-muted leading-relaxed" style={{ ...th, fontSize: '0.95rem' }}>
             ไม่ใช่เพราะนักเรียนไม่เก่งพอ แต่เพราะไม่มีใครบอกว่าโอกาสนั้นมีอยู่จริง
             คนที่พลาดบ่อยที่สุดคือคนที่ต้องการมันที่สุด — เด็กต่างจังหวัด ครอบครัวรายได้น้อย
             และคนแรกในบ้านที่ได้เรียนต่อ อย่าให้คุณเป็นคนต่อไปที่พลาดทุนที่ควรได้
@@ -231,7 +233,7 @@ export default function StartLanding({
                   <p className="font-semibold text-[#0A2342] dark:text-[#E8EDF5]" style={{ ...th, fontSize: '0.95rem' }}>
                     {step.title}
                   </p>
-                  <p className="text-[#6E7A8A] dark:text-[#8e9bb0] text-sm mt-0.5" style={th}>
+                  <p className="text-muted text-sm mt-0.5" style={th}>
                     {step.sub}
                   </p>
                 </div>
@@ -259,7 +261,7 @@ export default function StartLanding({
                 <p className="font-semibold text-[#0A2342] dark:text-[#E8EDF5] mb-1" style={{ ...th, fontSize: '0.95rem' }}>
                   {card.title}
                 </p>
-                <p className="text-[#6E7A8A] dark:text-[#8e9bb0] text-sm leading-relaxed" style={th}>
+                <p className="text-muted text-sm leading-relaxed" style={th}>
                   {card.desc}
                 </p>
               </div>
@@ -281,7 +283,7 @@ export default function StartLanding({
             {WHO_ITS_FOR.map((item) => (
               <li key={item} className="flex items-start gap-3">
                 <span className="text-[#1B3A6B] dark:text-[#8FB4FF] font-bold shrink-0" style={th}>✓</span>
-                <span className="text-[#6E7A8A] dark:text-[#8e9bb0] text-sm leading-relaxed" style={th}>
+                <span className="text-muted text-sm leading-relaxed" style={th}>
                   {item}
                 </span>
               </li>
@@ -308,7 +310,7 @@ export default function StartLanding({
                 >
                   {item.q}
                   <svg
-                    className="w-4 h-4 text-[#8A96A8] shrink-0 transition-transform group-open:rotate-180"
+                    className="w-4 h-4 text-subtle shrink-0 transition-transform group-open:rotate-180"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -316,7 +318,7 @@ export default function StartLanding({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </summary>
-                <p className="mt-2 text-[#6E7A8A] dark:text-[#8e9bb0] text-sm leading-relaxed" style={th}>
+                <p className="mt-2 text-muted text-sm leading-relaxed" style={th}>
                   {item.a}
                 </p>
               </details>
@@ -352,7 +354,7 @@ export default function StartLanding({
               target="_blank"
               rel="noopener noreferrer"
               aria-label="LINE"
-              className="text-[#8A96A8] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
+              className="text-subtle hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
@@ -363,7 +365,7 @@ export default function StartLanding({
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Instagram"
-              className="text-[#8A96A8] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
+              className="text-subtle hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
@@ -374,14 +376,14 @@ export default function StartLanding({
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Facebook"
-              className="text-[#8A96A8] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
+              className="text-subtle hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
               </svg>
             </a>
           </div>
-          <div className="flex items-center gap-2 text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
+          <div className="flex items-center gap-2 text-xs text-subtle" style={th}>
             <span>© TunDee</span>
             <span>·</span>
             <span>tundee.org</span>

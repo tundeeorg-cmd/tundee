@@ -15,6 +15,7 @@
  * visitor gets after the matcher is a different, opt-in thing.
  */
 
+import { CHOICE_IDLE, CHOICE_SELECTED } from '@/lib/ui/choice';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
@@ -157,9 +158,12 @@ export default function StartBrowse({
   );
   const page = visible.slice(0, shown);
 
-  /** Back up to the questions. No modal, no focus trap. */
+  /** Back up to the questions, and put focus on the first one. No modal, no focus trap. */
   function openMatcher() {
-    matcherRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = matcherRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.querySelector<HTMLElement>('[data-testid="matcher-first-question"] button, button, select')?.focus({ preventScroll: true });
   }
 
   function toggleBrowse() {
@@ -172,12 +176,12 @@ export default function StartBrowse({
   const chip = (active: boolean) =>
     `shrink-0 min-h-[40px] px-4 rounded-full border-2 text-sm font-semibold transition-colors ${
       active
-        ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
-        : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
+        ? CHOICE_SELECTED
+        : CHOICE_IDLE
     }`;
 
   return (
-    <div className="max-w-[560px] mx-auto text-left">
+    <div className="max-w-[560px] md:max-w-[640px] lg:max-w-[720px] mx-auto text-left">
       {/* The matcher, open, first. */}
       {matcherOpen && (
         <div ref={matcherRef} id="tundee-matcher-inline" className="scroll-mt-4">
@@ -228,7 +232,10 @@ export default function StartBrowse({
 
       {/* One-tap chips. The province question lives in the matcher, which knows
           which provinces a scholarship really accepts; a text chip would guess. */}
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="กรองทุน">
+      {/* Phones: one scrolling row, no scrollbar track, a fade at the right edge to say
+          there is more. md and up: the chips wrap, there is room. */}
+      <div className="relative mt-3">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pr-6 md:pr-0 md:flex-wrap md:overflow-visible" role="group" aria-label="กรองทุน">
         {LEVEL_CHIPS.map((c) => (
           <button
             key={c.key}
@@ -263,20 +270,22 @@ export default function StartBrowse({
           จังหวัดของฉัน
         </button>
       </div>
+      <div aria-hidden="true" className="md:hidden pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-[#F5F7FA] dark:from-[#07111F] to-transparent" />
+      </div>
 
       {/* The list. */}
       <div className="mt-5">
         {!listOk && !filtering ? (
-          <p className="text-sm text-center text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+          <p className="text-sm text-center text-muted" style={th}>
             ยังโหลดรายการทุนไม่ได้ในตอนนี้ — ตอบ 4 ข้อด้านบนเพื่อดูทุนที่ตรงกับคุณได้เลย
           </p>
         ) : filtering && fullState === 'loading' ? (
-          <p className="text-sm text-center text-[#6E7A8A] dark:text-[#8e9bb0] py-6" style={th} role="status">
+          <p className="text-sm text-center text-muted py-6" style={th} role="status">
             กำลังค้นหา…
           </p>
         ) : filtering && fullState === 'error' ? (
           <div className="text-center py-6">
-            <p className="text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mb-3" style={th} role="alert">
+            <p className="text-sm text-muted mb-3" style={th} role="alert">
               ค้นหาไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่
             </p>
             <button type="button" onClick={() => { setFullState('idle'); void loadFull(); }}
@@ -286,7 +295,7 @@ export default function StartBrowse({
           </div>
         ) : page.length === 0 ? (
           <div className="text-center py-6">
-            <p className="text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mb-3" style={th}>
+            <p className="text-sm text-muted mb-3" style={th}>
               ไม่พบทุนที่ตรงกับคำค้นนี้
             </p>
             <button type="button" onClick={() => setFilters(NO_FILTERS)} style={th}
@@ -296,7 +305,7 @@ export default function StartBrowse({
           </div>
         ) : (
           <>
-            <p className="text-xs text-[#6E7A8A] dark:text-[#8e9bb0] mb-3" style={th}>
+            <p className="text-xs text-muted mb-3" style={th}>
               {filtering
                 ? `พบ ${visible.length.toLocaleString('th-TH')} ทุน`
                 : 'ทุนที่เปิดรับอยู่ เรียงตามวันปิดรับที่ใกล้ที่สุด'}

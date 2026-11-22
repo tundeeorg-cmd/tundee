@@ -72,32 +72,34 @@ function deadlineLabel(card: PreviewMatchCard): string {
 
 function MatchCard({ card, onApply }: { card: PreviewMatchCard; onApply: (c: PreviewMatchCard) => void }) {
   return (
-    <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5 text-left">
+    <div className="h-full flex flex-col bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5 text-left">
       <p className="font-bold text-[#0A2342] dark:text-[#E8EDF5] leading-snug" style={{ ...th, fontSize: '1rem' }}>
         {card.name}
       </p>
       {card.funder && (
-        <p className="text-[#6E7A8A] dark:text-[#8e9bb0] text-sm mt-1" style={th}>
+        <p className="text-muted text-sm mt-1" style={th}>
           {card.funder}
         </p>
       )}
 
       <div className="mt-3 flex flex-col gap-1.5">
         <div className="flex items-baseline gap-2">
-          <span className="text-xs text-[#8A96A8] dark:text-[#7A8FA8] shrink-0" style={th}>มูลค่าทุน</span>
+          <span className="text-xs text-subtle shrink-0" style={th}>มูลค่าทุน</span>
           <span className="text-sm font-semibold text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
             {awardLabel(card)}
           </span>
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-xs text-[#8A96A8] dark:text-[#7A8FA8] shrink-0" style={th}>ปิดรับสมัคร</span>
+          <span className="text-xs text-subtle shrink-0" style={th}>ปิดรับสมัคร</span>
           <span className="text-sm font-semibold text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
             {deadlineLabel(card)}
           </span>
         </div>
       </div>
 
-      <div className="mt-3 bg-[#EBF2FF] dark:bg-[#0D1F35] rounded-xl px-4 py-3">
+      {/* mt-auto: in the two-column grid the why-box and buttons line up at the bottom. */}
+      <div className="mt-auto pt-3" />
+      <div className="bg-[#EBF2FF] dark:bg-[#0D1F35] rounded-xl px-4 py-3">
         <p className="text-xs font-semibold text-[#1B3A6B] dark:text-[#8FB4FF] mb-1" style={th}>
           ทำไมคุณถึงเหมาะกับทุนนี้
         </p>
@@ -205,6 +207,17 @@ export default function PreviewResults({
   // The broadened list is everything there is; otherwise more of the same ranked list.
   const hasMore = results.lockedCount > 0 && !results.broadened;
 
+  // The results replace the form, but the scroll position stayed where the submit
+  // button was: on a phone the visitor landed partway down the first card. Bring the
+  // heading to the top and give it focus, so screen readers announce the results too.
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  useEffect(() => {
+    const h = headingRef.current;
+    if (!h) return;
+    h.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    h.focus({ preventScroll: true });
+  }, []);
+
   // The portal below needs document.body, which does not exist during SSR.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -214,13 +227,29 @@ export default function PreviewResults({
   // 2026) and signed in a second time. Asked once; until the answer arrives the
   // guest prompts show, because nearly everyone on these results is a guest.
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // "ดูทุนที่บันทึกไว้ →" leads to an empty tracker when nothing is saved: only shown from 1.
+  const [savedCount, setSavedCount] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    createClient().auth.getUser()
-      .then(({ data }) => { if (!cancelled) setSignedIn(!!data.user); })
+    const supabase = createClient();
+    supabase.auth.getUser()
+      .then(async ({ data }) => {
+        if (cancelled) return;
+        setSignedIn(!!data.user);
+        if (!data.user) return;
+        const { count } = await supabase
+          .from('tracked_scholarship')
+          .select('scholarship_id', { count: 'exact', head: true })
+          .eq('user_id', data.user.id);
+        if (!cancelled) setSavedCount(count ?? 0);
+      })
       .catch(() => { if (!cancelled) setSignedIn(false); });
     return () => { cancelled = true; };
   }, []);
+
+  // The phone bar: the sign-up ask for a guest; for a signed-in student, a way to the
+  // saved list only once there is something in it. Never for an unknown state.
+  const showStickyBar = signedIn === false || (signedIn === true && savedCount > 0);
 
   /** A visitor clicking through to a funder. Recorded as the outcome, logged, never blocked. */
   function handleApply(card: PreviewMatchCard) {
@@ -243,21 +272,27 @@ export default function PreviewResults({
   return (
     <div className="text-left">
       <div className="text-center mb-5">
-        <h2 className="font-bold text-[#0A2342] dark:text-[#E8EDF5]" style={{ ...th, fontSize: 'clamp(1.15rem, 5vw, 1.4rem)' }}>
+        <h2
+          id="start-results-heading"
+          ref={headingRef}
+          tabIndex={-1}
+          className="font-bold text-[#0A2342] dark:text-[#E8EDF5] scroll-mt-4 focus:outline-none"
+          style={{ ...th, fontSize: 'clamp(1.15rem, 5vw, 1.4rem)' }}
+        >
           {/* The broadened branch keeps its own wording: these are near-misses, and
               claiming "you are eligible for N" over them would be false. */}
           {results.broadened
             ? 'ยังไม่มีทุนที่ตรงเป๊ะ แต่เรามีทุนที่น่าสนใจให้คุณ'
             : `เจอ ${results.total} ทุนที่คุณมีสิทธิ์สมัคร 🎓`}
         </h2>
-        <p className="text-sm text-[#6E7A8A] dark:text-[#8e9bb0] mt-1.5" style={th}>
+        <p className="text-sm text-muted mt-1.5" style={th}>
           {results.broadened
             ? 'ลองดูทุนเหล่านี้ก่อน — หลายทุนผ่อนปรนเรื่องเกรด และมีทุนใหม่เพิ่มเข้ามาทุกสัปดาห์'
             : 'ตรวจสอบโดยทีมงาน · ไม่มีทุนหมดอายุ'}
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
         {results.preview.map((card) => (
           <MatchCard key={card.scholarship_id} card={card} onApply={handleApply} />
         ))}
@@ -299,7 +334,7 @@ export default function PreviewResults({
           descendants, so an in-tree bar positioned itself against the page instead of
           the viewport and landed 4,700px down, further away than the button it was
           meant to replace. The portal is immune to whatever the wrapper does next. */}
-      {mounted && createPortal(
+      {mounted && showStickyBar && createPortal(
         <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-[#F5F7FA] via-[#F5F7FA] to-transparent dark:from-[#07111F] dark:via-[#07111F]">
           {/* Opens the sign-in sheet rather than navigating to /auth: until 15 Nov
               2026 this button left the page while the box below signed in on it, so
@@ -336,10 +371,9 @@ export default function PreviewResults({
         />
       )}
 
-      {/* Clears the sticky bar so it never covers the last card or the reset link. */}
-      <div className="sm:hidden h-20" aria-hidden="true" />
-
-      <div className="mt-5">
+      {/* Clears the sticky bar: its spacer is now at the very end of the results
+          (it used to stand here, leaving an 80 px gap above the sign-up box). */}
+      <div className="mt-4">
         {/* With three or fewer matches there is nothing behind the gate, so the ask is
             reframed around the reminder rather than around locked cards. This block used
             to be hidden entirely when nothing was locked, so those visitors reached the
@@ -382,7 +416,7 @@ export default function PreviewResults({
             signupHref={signupHref}
             fallback={
               <>
-                <p className="text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] mb-3" style={th}>
+                <p className="text-center text-xs text-subtle mb-3" style={th}>
                   หรือสมัครด้วยอีเมล
                 </p>
 
@@ -396,11 +430,11 @@ export default function PreviewResults({
               </>
             }
           />
-          <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={th}>
+          <p className="mt-3 text-center text-xs text-subtle" style={th}>
             ใช้เวลา 10 วินาที · ฟรี 100% · ไม่มีโฆษณา
           </p>
           {registeredCount !== null && (
-            <p className="mt-2 text-center text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+            <p className="mt-2 text-center text-xs text-muted" style={th}>
               นักเรียน {registeredCount.toLocaleString('th-TH')}+ คนใช้ TunDee หาทุนแล้ว
             </p>
           )}
@@ -427,7 +461,8 @@ export default function PreviewResults({
         <button
           type="button"
           onClick={onReset}
-          className="mt-3 w-full text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors underline"
+          data-testid="results-reset"
+          className="mt-3 w-full text-center text-xs text-subtle hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors underline"
           style={th}
         >
           แก้ไขข้อมูลของฉัน
@@ -435,11 +470,16 @@ export default function PreviewResults({
 
         {/* The one secondary way out to the full catalogue. Nothing is withheld. */}
         <p className="mt-2 text-center text-xs" style={th}>
-          <Link href="/scholarships?from=preview" className="text-[#8A96A8] dark:text-[#7A8FA8] underline">
+          <Link href="/scholarships?from=preview" data-testid="results-all-link" className="text-subtle underline">
             ดูทุนทั้งหมดในเว็บไซต์
           </Link>
         </p>
       </div>
+
+      {/* At the very end (it used to sit between the pager and the sign-up box, an
+          80 px hole on phones): clears the fixed bar and the iPhone home indicator so
+          the last link is never under it. */}
+      {showStickyBar && <div className="sm:hidden h-[calc(6rem+env(safe-area-inset-bottom))]" aria-hidden="true" />}
     </div>
   );
 }

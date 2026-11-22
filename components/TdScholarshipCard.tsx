@@ -96,7 +96,7 @@ function localizeRegion(val: string, lang: string): string {
 
 function matchBg(score: number): string {
   if (score >= 0.9) return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300';
-  if (score >= 0.7) return 'bg-[#EFF4FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#4A7FD4]';
+  if (score >= 0.7) return 'bg-[#EFF4FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-label-accent';
   if (score >= 0.5) return 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300';
   return 'bg-[#F5F7FA] dark:bg-[#1A2440] text-[#6E6E73] dark:text-[#8E8E93]';
 }
@@ -106,7 +106,7 @@ function matchBg(score: number): string {
 function LabeledChip({ label, value }: { label: string; value: string }) {
   return (
     <span className="inline-flex items-center text-[11px] rounded-full px-2 py-0.5 bg-[#F5F7FA] dark:bg-[#1A2440] text-[#4A4A5A] dark:text-[#8E8E93] border border-[#E5E5EA] dark:border-[#243050]">
-      <span className="font-semibold mr-0.5 text-[#1B3A6B] dark:text-[#4A7FD4]">{label}:</span>
+      <span className="font-semibold mr-0.5 text-[#1B3A6B] dark:text-label-accent">{label}:</span>
       {value}
     </span>
   );
@@ -148,7 +148,7 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
   const days = schedule.daysUntil;
 
   const deadlineColor = days === null || days < 0
-    ? 'text-[#ADADB8] dark:text-[#636366]'
+    ? 'text-nav-inactive'
     : days === 0 || days <= 7
     ? 'text-red-600 dark:text-red-400'
     : days <= 30
@@ -335,7 +335,7 @@ export default function TdScholarshipCard({ scholarship: s, matchInfo, userId, v
               context: { variant: variant ?? null, from: 'list' },
             });
           }}
-          className="shrink-0 px-4 py-2 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg text-[13px] font-semibold text-[#1B3A6B] dark:text-[#4A7FD4] hover:bg-[#F0F4FF] dark:hover:bg-[#162552] hover:border-[#2E6BE6] transition-colors"
+          className="shrink-0 px-4 py-2 border border-[#E5E5EA] dark:border-[#1A2E4A] rounded-lg text-[13px] font-semibold text-[#1B3A6B] dark:text-label-accent hover:bg-[#F0F4FF] dark:hover:bg-[#162552] hover:border-[#2E6BE6] transition-colors"
           style={{ fontFamily: lo === 'th' ? 'Sarabun, sans-serif' : 'Inter, system-ui, sans-serif' }}
         >
           {lo === 'th' ? 'รายละเอียด' : 'Details'}

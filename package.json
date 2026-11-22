@@ -11,7 +11,8 @@
     "hide-scholarships": "node -e \"require('dotenv').config({path:'.env.local'}); require('child_process').execSync('python3 scripts/hide_all_scholarships.py', {stdio:'inherit', env: {...process.env}})\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "analyze": "vitest run --config vitest.analysis.config.ts --reporter=verbose"
+    "analyze": "vitest run --config vitest.analysis.config.ts --reporter=verbose",
+    "test:visual": "playwright test --config e2e/playwright.config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -25,6 +26,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.1",
+    "@playwright/test": "1.49.1",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/qrcode": "^1.5.6",

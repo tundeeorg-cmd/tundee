@@ -61,7 +61,7 @@ function ThemeRow({ lang }: { lang: string }) {
           className={`flex-1 text-xs py-1 rounded-md transition-all ${
             theme === key
               ? 'bg-white dark:bg-[#0A1628] text-[#0A2342] dark:text-[#E8EDF5] shadow-sm font-semibold'
-              : 'text-[#6E7A8A] dark:text-[#7A8FA8] hover:text-[#0A2342] dark:hover:text-[#E8EDF5]'
+              : 'text-muted hover:text-[#0A2342] dark:hover:text-[#E8EDF5]'
           }`}
         >
           {label}
@@ -147,7 +147,7 @@ export default function Nav() {
     setMenuOpen(false);
   }
 
-  const linkClass = 'text-[13px] font-medium text-[#6E7A8A] dark:text-[#7A8FA8] hover:text-[#0A2342] dark:hover:text-white transition-colors';
+  const linkClass = 'text-[13px] font-medium text-muted hover:text-[#0A2342] dark:hover:text-white transition-colors';
 
   const links = (
     <>
@@ -196,7 +196,7 @@ export default function Nav() {
             ทุนดี
           </span>
           <span
-            className="hidden sm:inline text-[9px] font-medium text-[#8A96A8] tracking-[0.18em] uppercase"
+            className="hidden sm:inline text-[9px] font-medium text-subtle tracking-[0.18em] uppercase"
             style={{ fontFamily: 'var(--font-lato), Lato, sans-serif' }}
           >
             TUNDEE
@@ -207,7 +207,7 @@ export default function Nav() {
         <div className="hidden md:flex items-center gap-6">
           {links}
           {user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
-            <a href="/admin" className="text-xs text-[#8A96A8] hover:text-[#1B3A6B] transition-colors">
+            <a href="/admin" className="text-xs text-subtle hover:text-[#1B3A6B] transition-colors">
               Admin
             </a>
           )}
@@ -237,7 +237,7 @@ export default function Nav() {
                       <p className="text-sm font-semibold text-[#0A2342] dark:text-[#E8EDF5] truncate">
                         {displayName || user.email?.split('@')[0] || 'User'}
                       </p>
-                      <p className="text-xs text-[#6E7A8A] dark:text-[#7A8FA8] truncate">{user.email}</p>
+                      <p className="text-xs text-muted truncate">{user.email}</p>
                     </div>
                   </div>
                   <Link href="/profile" role="menuitem" onClick={() => setDropdown(false)}
@@ -245,7 +245,7 @@ export default function Nav() {
                     {nav.navProfile[lang]}
                   </Link>
                   <div className="px-4 py-2.5 border-t border-[#E8ECF2] dark:border-[#1A2E4A]">
-                    <p className="text-xs text-[#6E7A8A] dark:text-[#7A8FA8] mb-1.5">{nav.navTheme[lang]}</p>
+                    <p className="text-xs text-muted mb-1.5">{nav.navTheme[lang]}</p>
                     <ThemeRow lang={lang} />
                   </div>
                   <div className="border-t border-[#E8ECF2] dark:border-[#1A2E4A]">
@@ -300,15 +300,15 @@ export default function Nav() {
                   <p className="text-sm font-semibold text-[#0A2342] dark:text-[#E8EDF5] truncate">
                     {displayName || user.email?.split('@')[0]}
                   </p>
-                  <p className="text-xs text-[#6E7A8A] dark:text-[#7A8FA8] truncate">{user.email}</p>
+                  <p className="text-xs text-muted truncate">{user.email}</p>
                 </div>
               </div>
               <Link href="/profile" onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-[#1B3A6B]">
+                className="text-sm font-medium text-[#1B3A6B] dark:text-[#8FB4FF]">
                 {nav.navProfile[lang]}
               </Link>
               <div>
-                <p className="text-xs text-[#6E7A8A] dark:text-[#7A8FA8] mb-1.5">{nav.navTheme[lang]}</p>
+                <p className="text-xs text-muted mb-1.5">{nav.navTheme[lang]}</p>
                 <ThemeRow lang={lang} />
               </div>
               <button onClick={signOut} className="text-sm text-red-500 text-left">
