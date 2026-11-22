@@ -18,18 +18,26 @@ const SQL = readFileSync('scripts/20261031_v29_research_views_consent_gate.sql',
 const live = SQL.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');   // un-commented statements only
 const V33 = readFileSync('scripts/20261101_v33_minor_age_threshold_20.sql', 'utf8');
 const V33_LIVE = V33.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+const V37 = readFileSync('scripts/20261122_v37_minor_age_threshold_18.sql', 'utf8');
+const V37_LIVE = V37.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 
 describe('the constants match the TypeScript ones', () => {
   it('current consent version', () => {
     expect(SQL).toContain(`SELECT '${CURRENT_CONSENT_VERSION}'::TEXT`);
   });
-  // The threshold was 18 when v29 PART 1 ran; v33 replaces it (and the year comparison).
-  it('minor age threshold (v33 is the live definition)', () => {
-    expect(V33).toMatch(new RegExp(`research_minor_age_threshold\\(\\)\\s*RETURNS INTEGER LANGUAGE sql IMMUTABLE AS \\$\\$ SELECT ${MINOR_AGE_THRESHOLD} \\$\\$`));
+  // 18 in v29 PART 1, 20 in v33, 18 again in v37 (the live definition of the threshold;
+  // v33 is still the live definition of the year comparison).
+  it('minor age threshold (v37 is the live definition)', () => {
+    expect(V37_LIVE).toMatch(new RegExp(`research_minor_age_threshold\\(\\)\\s*RETURNS INTEGER LANGUAGE sql IMMUTABLE AS \\$\\$ SELECT ${MINOR_AGE_THRESHOLD} \\$\\$`));
   });
   it('v33 treats a student as an adult only when the year difference EXCEEDS the threshold, as TypeScript does', () => {
     expect(V33_LIVE).toMatch(/p_birth_year\)\s*>\s*public\.research_minor_age_threshold\(\)/);
     expect(V33_LIVE).not.toMatch(/p_birth_year\)\s*>=\s*public\.research_minor_age_threshold/);
+  });
+  it('v37 only replaces the threshold function: no table, view, data or constraint', () => {
+    for (const bad of [/\bINSERT\b/i, /\bUPDATE\b/i, /\bDELETE\b/i, /\bTRUNCATE\b/i, /\bDROP\b/i, /\bALTER\b/i, /\bCREATE OR REPLACE VIEW\b/i, /\bCONSTRAINT\b/i]) {
+      expect(V37_LIVE).not.toMatch(bad);
+    }
   });
   it('v33 only replaces the two functions: no table, view, data or constraint', () => {
     for (const bad of [/\bINSERT\b/i, /\bUPDATE\b/i, /\bDELETE\b/i, /\bTRUNCATE\b/i, /\bDROP\b/i, /\bALTER\b/i, /\bCREATE OR REPLACE VIEW\b/i, /\bCONSTRAINT\b/i]) {

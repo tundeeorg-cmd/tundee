@@ -283,7 +283,10 @@ describe('requiresGuardianConsent', () => {
     expect(requiresGuardianConsent(CURRENT_YEAR - 15, CURRENT_YEAR)).toBe(true);
     expect(requiresGuardianConsent(CURRENT_YEAR - 17, CURRENT_YEAR)).toBe(true);
     expect(requiresGuardianConsent(CURRENT_YEAR - 18, CURRENT_YEAR)).toBe(true);
-    expect(requiresGuardianConsent(CURRENT_YEAR - 19, CURRENT_YEAR)).toBe(true);
+  });
+
+  it(`does not require it once the student is certainly ${MINOR_AGE_THRESHOLD} or older`, () => {
+    expect(requiresGuardianConsent(CURRENT_YEAR - (MINOR_AGE_THRESHOLD + 1), CURRENT_YEAR)).toBe(false);
   });
 
   it(`still requires it in the year the student can turn ${MINOR_AGE_THRESHOLD} (only the birth year is known)`, () => {
