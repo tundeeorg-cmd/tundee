@@ -1,5 +1,5 @@
 import { CONSENT_PARAM, CONSENT_VERSION } from '@/lib/consent';
-import { authHeading } from '@/lib/auth/authHeading';
+import { authHeading, emailOpenFor } from '@/lib/auth/authHeading';
 import type { InAppBrowserInfo } from '@/lib/browser/inAppBrowser';
 import { OTP_LENGTH } from '@/lib/auth/otp';
 import { LINE_DATA_NOTICE } from '@/lib/line/dataNotice';
@@ -183,7 +183,7 @@ export default function AuthShell({
                     start inside a webview, where it is the way that works.
                     A real POST that carries the consent version
                     (/api/auth/otp/send re-checks it). */}
-            <details open={webview || !!email} className="group">
+            <details open={webview || !!email || emailOpenFor(from)} className="group">
               <summary
                 className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-[#6e6e73] group-open:mb-3"
                 style={THAI}

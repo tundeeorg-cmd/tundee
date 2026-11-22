@@ -108,13 +108,31 @@ describe('the page', () => {
     expect(src).not.toMatch(/createPortal|role="dialog"|fixed inset|blur\(|\/auth/);
   });
 
-  it('keeps the matcher as an opt-in, inside the page', () => {
+  it('puts the matcher first and open, inside the page (2026-11-22: ad traffic must meet the questions)', () => {
     const src = read('components/start/StartBrowse.tsx');
     expect(src).toContain('PreviewMatcher');
-    expect(src).toContain('matcherOpen');
+    expect(src).toContain('const matcherOpen = true;');
+    // The matcher renders before the search box and the list.
+    expect(src.indexOf('<PreviewMatcher')).toBeLessThan(src.indexOf('id="start-search"'));
   });
 
-  it('a failed server load still renders: the matcher is offered, never a blank page', () => {
-    expect(read('components/start/StartBrowse.tsx')).toContain('useState(!listOk)');
+  it('folds the catalogue under "หรือดูทุนทั้งหมด", closed on arrival', () => {
+    const src = read('components/start/StartBrowse.tsx');
+    expect(src).toContain("BROWSE_TOGGLE_LABEL = 'หรือดูทุนทั้งหมด'");
+    expect(src).toContain('useState(false)');
+    expect(src).toContain('{browseOpen && (');
+    expect(src).toContain('aria-expanded={browseOpen}');
+  });
+
+  it('a failed server load still renders: the matcher is there regardless, never a blank page', () => {
+    const src = read('components/start/StartBrowse.tsx');
+    expect(src).toContain('ยังโหลดรายการทุนไม่ได้ในตอนนี้');
+    expect(src).not.toMatch(/listOk\s*&&\s*\(\s*<div ref=\{matcherRef\}/);
+  });
+
+  it('counts the questions honestly: 4, not 3', () => {
+    expect(read('components/start/StartBrowse.tsx')).not.toContain('ตอบ 3');
+    expect(read('lib/landing/variants.ts')).not.toContain('ตอบ 3');
+    expect(read('app/start/PreviewMatcher.tsx')).toContain('ตอบ 4 ข้อ ใช้เวลา 30 วินาที');
   });
 });

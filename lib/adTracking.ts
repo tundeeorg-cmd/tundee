@@ -22,6 +22,8 @@ export type AdParams = {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
+  /** Which ad creative (ad1 | ad2 | retarget). Stored on the anonymous assignment (v38). */
+  utm_content?: string;
   src?: string;
 };
 

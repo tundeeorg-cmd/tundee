@@ -111,6 +111,7 @@ export default function StartLanding({
       context: {
         landing_variant: landingVariant,
         utm_campaign:    adParams.utm_campaign ?? null,
+        utm_content:     adParams.utm_content ?? null,
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,24 +138,25 @@ export default function StartLanding({
       </div>
 
       {/* ── A) Hero + matcher ────────────────────────────────────────────────── */}
-      {/* Real scholarships sit directly under the headline: cold ad traffic sees what
-          TunDee has before it is asked anything. The matcher is an opt-in inside it. */}
-      <section ref={heroRef} id={MATCHER_ANCHOR} className="px-5 pt-6 pb-10 text-center scroll-mt-4">
+      {/* Headline, then the questions, above the fold at ~400 px: the matcher is the
+          first thing ad traffic sees (2026-11-22). The catalogue folds below it. */}
+      <section ref={heroRef} id={MATCHER_ANCHOR} className="px-4 pt-4 pb-10 text-center scroll-mt-4">
+        {/* Kept (smaller): the badge is part of the landing variant's copy (PREREG §5.8). */}
         <p
-          className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-xs font-semibold px-3 py-1.5 rounded-full mb-4"
+          className="inline-block bg-[#EBF2FF] dark:bg-[#0D1F35] text-[#1B3A6B] dark:text-[#8FB4FF] text-[11px] font-semibold px-2.5 py-1 rounded-full mb-2"
           style={th}
         >
           {copy.badge}
         </p>
         <h1
-          className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-3 mx-auto"
-          style={{ ...th, fontSize: 'clamp(1.5rem, 6vw, 2.2rem)', lineHeight: 1.4, maxWidth: 480 }}
+          className="font-bold text-[#0A2342] dark:text-[#E8EDF5] mb-2 mx-auto"
+          style={{ ...th, fontSize: 'clamp(1.35rem, 5.5vw, 2rem)', lineHeight: 1.35, maxWidth: 480 }}
         >
           {copy.h1}
         </h1>
         <p
-          className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-6 mx-auto leading-relaxed"
-          style={{ ...th, fontSize: 'clamp(0.95rem, 3.5vw, 1.05rem)', maxWidth: 420 }}
+          className="text-[#6E7A8A] dark:text-[#8e9bb0] mb-4 mx-auto leading-snug"
+          style={{ ...th, fontSize: 'clamp(0.9rem, 3.4vw, 1rem)', maxWidth: 420 }}
         >
           {copy.sub}
         </p>
@@ -163,6 +165,13 @@ export default function StartLanding({
           initialCards={initialCards}
           listOk={listOk}
           researchConsentOffered={researchConsentOffered}
+          attribution={{
+            utm_source:      adParams.utm_source,
+            utm_medium:      adParams.utm_medium,
+            utm_campaign:    adParams.utm_campaign,
+            utm_content:     adParams.utm_content,
+            landing_variant: landingVariant,
+          }}
           signupHref={ctaHref}
           registeredCount={registeredCount}
           scholarshipCount={scholarshipCount}

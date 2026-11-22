@@ -137,6 +137,9 @@ function MatchCard({ card, onApply }: { card: PreviewMatchCard; onApply: (c: Pre
 
 // ── Results block ─────────────────────────────────────────────────────────────
 
+/** The in-place pager. Loads the next page of the SAME arm-ranked list. */
+export const LOAD_MORE_LABEL = 'ดูเพิ่มอีก 10 ทุน';
+
 export default function PreviewResults({
   results,
   signupHref,
@@ -144,10 +147,25 @@ export default function PreviewResults({
   registeredCount,
   scholarshipCount,
   funderCount,
+  onLoadMore,
+  loadingMore = false,
+  loadMoreFailed = false,
+  onApplyClick,
 }: {
   results: PreviewResponse;
   signupHref: string;
   onReset: () => void;
+  /** Appends the next ten of the same ranked list. Absent = no pager. */
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  loadMoreFailed?: boolean;
+  /**
+   * Records the click as an outcome (POST /api/apply-click, keepalive). The server
+   * binds it to the visitor's anonymous assignment, if any; the page sends only the
+   * scholarship id. Called synchronously in the click handler, before the funder's
+   * page opens.
+   */
+  onApplyClick?: (scholarshipId: string) => void;
   /** Rounded signup count for the social-proof line; null hides it entirely. */
   registeredCount: number | null;
   /** Live catalogue counts for the trust strip. Null drops that segment. */
@@ -164,7 +182,7 @@ export default function PreviewResults({
     tracked.current = true;
     trackPreviewResults(results.total, results.preview.map(c => c.scholarship_id));
     // Lead — the event ad delivery optimizes against — fires here: the
-    // visitor answered the 3-question form and is now looking at real
+    // visitor answered the matcher's questions and is now looking at real
     // matched scholarships. trackPersonalized's own sessionStorage guard
     // is the one that actually matters for "once per session"; this ref only
     // stops a same-mount re-render from calling it twice.
@@ -184,7 +202,8 @@ export default function PreviewResults({
     });
   }, [results]);
 
-  const hasMore = results.lockedCount > 0;
+  // The broadened list is everything there is; otherwise more of the same ranked list.
+  const hasMore = results.lockedCount > 0 && !results.broadened;
 
   // The portal below needs document.body, which does not exist during SSR.
   const [mounted, setMounted] = useState(false);
@@ -203,8 +222,10 @@ export default function PreviewResults({
     return () => { cancelled = true; };
   }, []);
 
-  /** An anonymous visitor clicking through to a funder. Logged, never blocked. */
+  /** A visitor clicking through to a funder. Recorded as the outcome, logged, never blocked. */
   function handleApply(card: PreviewMatchCard) {
+    // The primary outcome first (PREREG §6.1): keepalive fetch, fired before the new tab opens.
+    onApplyClick?.(card.scholarship_id);
     logFunnelEvent({
       eventType:     'click_apply',
       scholarshipId: card.scholarship_id,
@@ -242,16 +263,29 @@ export default function PreviewResults({
         ))}
       </div>
 
-      {/* Nothing is withheld. The scholarships beyond the cards above are on the
-          public list, one tap away, with no account. What an account adds is
-          reminders and a saved list — and that is what the ask below says. */}
-      {hasMore && (
-        <p className="mt-3 text-center text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
-          ยังมีอีก {results.lockedCount.toLocaleString('th-TH')} ทุนที่คุณมีสิทธิ์{' '}
-          <Link href="/scholarships?from=preview" className="font-bold text-[#1B3A6B] dark:text-[#8FB4FF] underline">
-            ดูทั้งหมดได้เลย ไม่ต้องสมัคร
-          </Link>
-        </p>
+      {/* More of the SAME ranked list, in place. It used to link to /scholarships,
+          which is not the arm-ranked list: clicks there had no rank and no arm. The
+          link stays, once, at the very bottom. */}
+      {hasMore && onLoadMore && (
+        <div className="mt-4 text-center">
+          <p className="mb-2 text-sm text-[#0A2342] dark:text-[#E8EDF5]" style={th}>
+            ยังมีอีก {results.lockedCount.toLocaleString('th-TH')} ทุนที่คุณมีสิทธิ์
+          </p>
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            style={th}
+            className="w-full min-h-[52px] rounded-xl border-2 border-[#1B3A6B] dark:border-[#8FB4FF] text-[#1B3A6B] dark:text-[#8FB4FF] font-bold text-sm active:opacity-90 disabled:opacity-60"
+          >
+            {loadingMore ? 'กำลังโหลด…' : LOAD_MORE_LABEL}
+          </button>
+          {loadMoreFailed && (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400" style={th} role="alert">
+              โหลดไม่สำเร็จ กรุณาลองอีกครั้ง
+            </p>
+          )}
+        </div>
       )}
 
       {/* Sticky CTA, phones only.
@@ -398,6 +432,13 @@ export default function PreviewResults({
         >
           แก้ไขข้อมูลของฉัน
         </button>
+
+        {/* The one secondary way out to the full catalogue. Nothing is withheld. */}
+        <p className="mt-2 text-center text-xs" style={th}>
+          <Link href="/scholarships?from=preview" className="text-[#8A96A8] dark:text-[#7A8FA8] underline">
+            ดูทุนทั้งหมดในเว็บไซต์
+          </Link>
+        </p>
       </div>
     </div>
   );

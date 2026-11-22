@@ -30,6 +30,9 @@ export const TD_BROWSE_COLUMNS = [
   'status', 'status_effective', 'application_url', 'application_link',
   'source_url', 'last_verified',
   'is_displayed',
+  // Admin data-quality flag: "Excluded: …" keeps a row out of match lists
+  // (lib/recommender/exclusions.ts) while it stays browsable.
+  'verification_status',
 ] as const;
 
 /** The browser fallback gives up after this, and shows an error with a retry. */

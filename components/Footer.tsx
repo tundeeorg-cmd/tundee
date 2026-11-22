@@ -120,7 +120,9 @@ export default function Footer() {
 
         <div className="pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs text-white/25 text-center">{f.copyright[lang]}</p>
-          <p className="text-[11px] text-white/20 text-center">{f.updated[lang]}</p>
+          {/* No site-wide "data updated" date: a hand-typed month went stale (it said
+              June 2569 in November) and contradicted "ไม่มีทุนหมดอายุ". Each card shows
+              its own last_verified date instead. */}
         </div>
       </div>
     </footer>

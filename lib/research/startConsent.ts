@@ -9,9 +9,17 @@
  * visitors who say they have reached it; the answer is self-declared and cannot be
  * checked, and a checkbox is never a guardian's consent. See research/AMENDMENT-*.md.
  *
- * Rules the page follows (PART 2 step 6): the box is NEVER pre-ticked; declining
+ * Rules the page follows (PART 2 step 6): nothing is EVER pre-selected; declining
  * costs nothing — the visitor sees the same scholarships and the baseline ranking
  * and is simply not in the study; no dark pattern.
+ *
+ * Since v38 (2026-11-22) the answer is an explicit choice between two equal buttons,
+ * `join` and `decline`, instead of an optional tick box that most adults skipped
+ * without deciding. A visitor who said they are 18+ must pick one before submitting;
+ * either answer gets the same results. The heading, body and link are unchanged, so
+ * CURRENT_CONSENT_VERSION is unchanged; the two button labels are new wording and
+ * are flagged for the ethics committee in the PR. `checkbox` is kept for the record
+ * of what the previous version showed.
  */
 import { START_ADULT_AGE } from './startEligibility';
 
@@ -27,7 +35,13 @@ export const START_CONSENT = {
   body:
     'คำตอบ 3 ข้อนี้ใช้แนะนำทุนให้คุณ และใช้ในงานวิจัยการเข้าถึงทุนการศึกษาของนักเรียนไทยโดยไม่ระบุตัวตน ' +
     '(เราไม่เก็บชื่อหรืออีเมลในขั้นนี้) การเข้าร่วมวิจัยเป็นความสมัครใจ ไม่เข้าร่วมก็ใช้เว็บได้เต็มที่เหมือนเดิม',
+  /** Shown until 2026-11-22. No longer rendered: replaced by the two buttons below. */
   checkbox: 'ฉันยินยอมให้ใช้คำตอบของฉันในงานวิจัยที่ไม่ระบุตัวตน (ไม่บังคับ)',
+  /** The two equal choices (v38). Neither is pre-selected; both give the same results. */
+  join: 'เข้าร่วมงานวิจัย (ไม่ระบุตัวตน)',
+  decline: 'ไม่เข้าร่วม',
+  /** Under the buttons, until one is chosen. */
+  chooseHint: 'เลือกได้ทั้งสองแบบ ทุนที่คุณเห็นจะเหมือนกันทุกประการ',
   detailsLabel: 'อ่านรายละเอียด',
   detailsHref: '/privacy',
 } as const;

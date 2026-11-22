@@ -1,15 +1,16 @@
 'use client';
 
 /**
- * "Taste before signup" matcher for /start.
+ * "Taste before signup" matcher for /start — the first thing a visitor sees.
  *
- * Three inputs, one screen, above the fold: ระดับชั้น / เกรดเฉลี่ย / จังหวัด.
- * Income is deliberately NOT asked here — the recommender falls back to the same
- * default it already uses for logged-in students without income on file, and
- * every extra field on a cold-traffic landing page costs conversions.
+ * Four answers, one screen, above the fold: age (when the study is offered),
+ * ระดับชั้น, จังหวัด, รายได้ครัวเรือน — and GPA, optional. Submitting calls the public
+ * /api/preview-match endpoint (no account needed) and swaps the form for real
+ * matched cards; "ดูเพิ่มอีก 10 ทุน" pages through the SAME ranked list.
  *
- * Submitting calls the public /api/preview-match endpoint (no account needed)
- * and swaps the form for real matched cards.
+ * The study (when ANON_RANDOMIZATION is on): after "ใช่ 18 ปีขึ้นไป" the visitor
+ * makes an explicit, voluntary choice between two equal buttons — join or not.
+ * Neither is pre-selected; submit waits for one. Both give the same scholarships.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -22,6 +23,19 @@ import { storeIntakeId, isIntakeId } from '@/lib/intake/pendingIntake';
 import TrustStrip from '@/components/trust/TrustStrip';
 import { START_CONSENT } from '@/lib/research/startConsent';
 import { researchParticipation } from '@/lib/research/startEligibility';
+import { recordApplyClick } from '@/lib/analytics/applyClick';
+
+/** How the visitor arrived. Stored on the anonymous assignment, never used to rank. */
+export interface StartAttribution {
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  landing_variant?: string;
+}
+
+/** The study question's answer. null = not chosen yet (and never pre-selected). */
+type ResearchChoice = 'join' | 'decline' | null;
 
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
@@ -45,15 +59,21 @@ const PREVIEW_INCOME_OPTIONS: { value: number; th: string }[] = [
 
 type Status = 'idle' | 'loading' | 'done' | 'error';
 
+/** What the form asks, honestly counted: age, level, province, income (GPA optional). */
+export const MATCHER_HEADLINE = 'ตอบ 4 ข้อ ใช้เวลา 30 วินาที';
+
 export default function PreviewMatcher({
   signupHref,
   registeredCount,
   scholarshipCount,
   funderCount,
   researchConsentOffered = false,
+  attribution,
 }: {
   /** True only when ANON_RANDOMIZATION is on; otherwise no consent block and no extra request. */
   researchConsentOffered?: boolean;
+  /** UTMs and landing variant, forwarded to /api/start/randomize as covariates. */
+  attribution?: StartAttribution;
   signupHref: string;
   /** Resolved on the server — see lib/social/userCount.ts. Null hides the line. */
   registeredCount: number | null;
@@ -67,11 +87,15 @@ export default function PreviewMatcher({
   // Optional. Left blank, GPA-gated scholarships are excluded from the results
   // rather than assumed away, so the count stays honest.
   const [gpa,      setGpa]      = useState('');
-  // Never pre-ticked. Declining costs nothing: the same scholarships, the baseline
+  // Never pre-selected. Declining costs nothing: the same scholarships, the baseline
   // ranking, and no place in the study.
-  const [researchConsent, setResearchConsent] = useState(false);
+  const [researchChoice, setResearchChoice] = useState<ResearchChoice>(null);
+  const researchConsent = researchChoice === 'join';
+  const setResearchConsent = (v: boolean) => setResearchChoice(v ? 'join' : null);
   // Self-declared, never pre-selected, skippable. null = not answered.
   const [adult, setAdult] = useState<boolean | null>(null);
+  // A declared adult must answer the study question (either way) before submitting.
+  const choicePending = researchConsentOffered && adult === true && researchChoice === null;
 
   // quiz_started fires once per session, on the first field the visitor
   // actually touches — not on render. A view is landing_view; this event is
@@ -86,6 +110,10 @@ export default function PreviewMatcher({
   const [status,  setStatus]  = useState<Status>('idle');
   const [message, setMessage] = useState('');
   const [results, setResults] = useState<PreviewResponse | null>(null);
+  // "ดูเพิ่มอีก 10 ทุน": the answers that produced `results`, and the paging state.
+  const lastInput = useRef<PreviewInput | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError,   setMoreError]   = useState(false);
 
   // Restore a previous draft (e.g. the visitor tapped back from /auth)
   useEffect(() => {
@@ -134,6 +162,10 @@ export default function PreviewMatcher({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (choicePending) {
+      setMessage('กรุณาเลือกว่าจะเข้าร่วมงานวิจัยหรือไม่ (เลือกแบบไหนก็ได้ ทุนที่เห็นเหมือนกัน)');
+      return;
+    }
     const input = validate();
     if (!input) return;
 
@@ -177,7 +209,7 @@ export default function PreviewMatcher({
         const res = await fetch('/api/start/randomize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ answers: input, adult: true, consent: true }),
+          body:    JSON.stringify({ answers: input, adult: true, consent: true, attribution: attribution ?? {} }),
         });
         if (!res.ok) {
           console.error('[TunDee] randomization failed:', res.status);
@@ -231,11 +263,44 @@ export default function PreviewMatcher({
         return;
       }
 
+      lastInput.current = input;
+      setMoreError(false);
       setResults((await res.json()) as PreviewResponse);
       setStatus('done');
     } catch {
       setStatus('error');
       setMessage('เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    }
+  }
+
+  /**
+   * The next ten of the SAME arm-ranked list, appended in place. The server
+   * records them as impressions with their true rank (offset + position).
+   */
+  async function loadMore() {
+    const input = lastInput.current;
+    if (!input || !results || loadingMore) return;
+    setLoadingMore(true);
+    setMoreError(false);
+    try {
+      const res = await fetch('/api/preview-match', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...input, offset: results.preview.length }),
+      });
+      if (!res.ok) { setMoreError(true); return; }
+      const next = (await res.json()) as PreviewResponse;
+      setResults((prev) => {
+        if (!prev) return next;
+        const seen = new Set(prev.preview.map((c) => c.scholarship_id));
+        const added = next.preview.filter((c) => !seen.has(c.scholarship_id));
+        return { ...prev, preview: [...prev.preview, ...added], lockedCount: next.lockedCount, offset: 0 };
+      });
+      logFunnelEvent({ eventType: 'results_viewed', context: { more: true, offset: next.offset ?? null, shown: next.preview.length } });
+    } catch {
+      setMoreError(true);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -250,6 +315,10 @@ export default function PreviewMatcher({
           scholarshipCount={scholarshipCount}
           funderCount={funderCount}
           onReset={() => { setStatus('idle'); setResults(null); }}
+          onLoadMore={loadMore}
+          loadingMore={loadingMore}
+          loadMoreFailed={moreError}
+          onApplyClick={recordApplyClick}
         />
       </div>
     );
@@ -285,6 +354,9 @@ export default function PreviewMatcher({
   return (
     <form onSubmit={handleSubmit} noValidate className="max-w-[500px] mx-auto text-left">
       <div className="bg-white dark:bg-[#0A1628] border border-[#E8ECF2] dark:border-[#1A2E4A] rounded-2xl p-5">
+        <p className="text-sm font-bold text-[#1B3A6B] dark:text-[#8FB4FF] mb-4 text-center" style={th}>
+          {MATCHER_HEADLINE}
+        </p>
 
         {/* The study, offered only when randomization is on. The age question comes first and
             decides whether the consent text is shown at all. Nothing here is required to see
@@ -332,15 +404,31 @@ export default function PreviewMatcher({
                   <a href={START_CONSENT.detailsHref} target="_blank" rel="noopener noreferrer"
                      className="underline text-[#1B3A6B] dark:text-[#8FB4FF]">{START_CONSENT.detailsLabel}</a>
                 </p>
-                <label className="mt-3 flex items-start gap-3 cursor-pointer" style={th}>
-                  <input
-                    type="checkbox"
-                    checked={researchConsent}
-                    onChange={(e) => setResearchConsent(e.target.checked)}
-                    className="mt-0.5 w-5 h-5 shrink-0"
-                  />
-                  <span className="text-sm text-[#0A2342] dark:text-[#E8EDF5]">{START_CONSENT.checkbox}</span>
-                </label>
+                {/* An explicit choice, still voluntary: two equal buttons, neither
+                    pre-selected. The results are the same whichever is chosen. */}
+                <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label={START_CONSENT.heading}>
+                  {([['join', START_CONSENT.join], ['decline', START_CONSENT.decline]] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={researchChoice === key}
+                      onClick={() => { setResearchChoice(key); setMessage(''); }}
+                      style={th}
+                      className={`min-h-[48px] px-2 rounded-xl border-2 font-semibold text-sm leading-snug transition-colors ${
+                        researchChoice === key
+                          ? 'border-[#1B3A6B] bg-[#EBF2FF] dark:bg-[#162552] text-[#1B3A6B] dark:text-[#8FB4FF]'
+                          : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#4A5A70] dark:text-[#8e9bb0]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {researchChoice === null && (
+                  <p className="mt-2 text-xs text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
+                    {START_CONSENT.chooseHint}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -448,8 +536,10 @@ export default function PreviewMatcher({
 
         <button
           type="submit"
+          disabled={choicePending}
+          aria-disabled={choicePending}
           style={th}
-          className="w-full min-h-[56px] bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white rounded-2xl font-bold text-base transition-colors active:opacity-90"
+          className="w-full min-h-[56px] bg-[#1B3A6B] hover:bg-[#2E5FA3] text-white rounded-2xl font-bold text-base transition-colors active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           ดูทุนที่ฉันมีสิทธิ์ →
         </button>

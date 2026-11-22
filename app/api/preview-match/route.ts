@@ -14,6 +14,14 @@
  * Ranking is the SAME lib/recommender pipeline the logged-in /scholarships page
  * runs, over the same `is_displayed = true` row set, so the preview a visitor
  * sees is a true subset of what they get after signing up.
+ *
+ * `offset` (optional, default 0) returns the next PREVIEW_TOP_N cards of the SAME
+ * ranked list — "ดูเพิ่มอีก 10 ทุน" on /start — so a visitor keeps clicking from
+ * the arm-ranked list instead of leaving for an unranked one. The ranking is
+ * deterministic for the same answers and day, so pages line up.
+ *
+ * For a randomized anonymous visitor, every card served is written to
+ * anon_impressions here, on the server, with its 1-indexed rank (v38).
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -30,6 +38,7 @@ import {
   PREVIEW_TOP_N,
   PREVIEW_LIMIT,
   PREVIEW_BROADENED_N,
+  parsePreviewOffset,
   type PreviewInput,
   type PreviewMatchCard,
   type PreviewResponse,
@@ -39,6 +48,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { anonFairnessMode, anonRandomizationEnabled } from '@/lib/research/anonAssignment';
 import { loadAnonAssignment } from '@/lib/research/anonStore';
 import { anonIdFromRequest } from '@/lib/research/anonRequest';
+import { buildAnonImpressionRows, recordAnonImpressions } from '@/lib/research/anonImpressions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,6 +68,8 @@ const COLUMNS = [
   'deadline_raw', 'deadline_date', 'deadline_is_rolling', 'deadline_note',
   'status', 'status_effective', 'application_url', 'application_link',
   'is_displayed', 'stale', 'source_language', 'translation_review',
+  // The admin data-quality flag read by lib/recommender/exclusions.ts.
+  'verification_status',
 ].join(', ');
 
 // ── Rate limit ────────────────────────────────────────────────────────────────
@@ -167,6 +179,10 @@ export async function POST(request: NextRequest) {
   if (!input) {
     return NextResponse.json({ error: 'invalid_input' }, { status: 400 });
   }
+  const offset = parsePreviewOffset((body as { offset?: unknown } | null)?.offset);
+  if (offset === null) {
+    return NextResponse.json({ error: 'invalid_offset' }, { status: 400 });
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -211,6 +227,8 @@ export async function POST(request: NextRequest) {
   // and nothing below it reads a cookie or touches the database.
   let fairnessMode: 'on' | 'off' = 'off';
   let variantLabel = 'anonymous';
+  // Set only for a visitor with an assignment: whose impressions are recorded.
+  let participant: { anonId: string; admin: NonNullable<ReturnType<typeof createAdminClient>> } | null = null;
   if (anonRandomizationEnabled()) {
     const anonId = anonIdFromRequest(request);
     const admin = anonId ? createAdminClient() : null;
@@ -223,14 +241,17 @@ export async function POST(request: NextRequest) {
       } else if (found.row) {
         fairnessMode = anonFairnessMode(found.row);
         variantLabel = `anonymous-${found.row.ranking_variant}`;
+        participant = { anonId, admin };
       }
     }
   }
 
+  // Rank enough of the list to serve the requested page.
+  const limit = Math.max(PREVIEW_LIMIT, offset + PREVIEW_TOP_N);
   let result = recommend(scholarships, profile, {
     fairness_mode: fairnessMode,
     variant:       variantLabel,
-    limit:         PREVIEW_LIMIT,
+    limit,
   });
 
   // Empty state: never a dead end. Relax the GPA rule only (the one input most
@@ -246,19 +267,34 @@ export async function POST(request: NextRequest) {
   }
 
   const cards = result.items.map(toCard);
-  const preview = cards.slice(0, PREVIEW_TOP_N);
+  const preview = cards.slice(offset, offset + PREVIEW_TOP_N);
 
   // Count from the eligible set, not the returned page — `items` is capped at
-  // PREVIEW_LIMIT, so using its length would understate the real total in the
-  // headline and in the "และอีก N ทุน" gate copy.
-  const total = Math.max(result.candidate_count, cards.length);
+  // the limit, so using its length would understate the real total in the
+  // headline and in the "ยังมีอีก N ทุน" copy. The broadened list is all there is.
+  const total = broadened ? cards.length : Math.max(result.candidate_count, cards.length);
+  const shownSoFar = offset + preview.length;
 
   const payload: PreviewResponse = {
     preview,
-    lockedCount: Math.max(0, total - preview.length),
+    lockedCount: Math.max(0, total - shownSoFar),
     total,
     broadened,
+    offset,
   };
+
+  // What this participant was shown, server-side, before the response leaves.
+  if (participant && preview.length > 0) {
+    await recordAnonImpressions(participant.admin, buildAnonImpressionRows({
+      anonId:         participant.anonId,
+      scholarshipIds: preview.map(c => c.scholarship_id),
+      offset,
+      fairnessMode,
+      variant:        variantLabel,
+      broadened,
+      servedAt:       new Date(),
+    }));
+  }
 
   const response = NextResponse.json(payload);
 

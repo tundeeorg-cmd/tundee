@@ -51,13 +51,13 @@ export const metadata: Metadata = {
   },
 };
 
-// searchParams (utm_source/utm_medium/utm_campaign/src) are passed to the
+// searchParams (utm_source/utm_medium/utm_campaign/utm_content/src) are passed to the
 // client component, which persists them and forwards them to the CTA link.
 export default async function StartPage({
   searchParams,
 }: {
   searchParams: {
-    utm_source?: string; utm_medium?: string; utm_campaign?: string; src?: string;
+    utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; src?: string;
     /** Landing headline variant (PREREG §5.8). Recruitment-side only. */
     v?: string;
   };
@@ -66,6 +66,8 @@ export default async function StartPage({
     utm_source: typeof searchParams.utm_source === 'string' ? searchParams.utm_source : undefined,
     utm_medium: typeof searchParams.utm_medium === 'string' ? searchParams.utm_medium : undefined,
     utm_campaign: typeof searchParams.utm_campaign === 'string' ? searchParams.utm_campaign : undefined,
+    // The ad creative. Was not read at all, so which ad recruited a participant was lost.
+    utm_content: typeof searchParams.utm_content === 'string' ? searchParams.utm_content : undefined,
     src: typeof searchParams.src === 'string' ? searchParams.src : undefined,
   };
   // Resolved server-side against the registry, so the value that reaches the

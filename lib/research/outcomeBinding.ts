@@ -109,3 +109,73 @@ export function bindOutcome(input: {
     binding_source: 'server',
   };
 }
+
+// ── Anonymous participants (v38) ─────────────────────────────────────────────
+
+/** PREREG §6.1: the primary outcome is >= 1 apply_click within this many days of assignment. */
+export const PRIMARY_WINDOW_DAYS = 14;
+const PRIMARY_WINDOW_MS = PRIMARY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+/** What the server knows about an anonymous participant, from anon_assignments. */
+export interface AnonFacts {
+  ranking_variant: string | null;
+  ranking_assigned_at: string | null;
+  research_consent_version: string | null;
+  research_consented_at: string | null;
+}
+
+/**
+ * Binds a click by a visitor who is NOT signed in but carries a tundee_anon cookie
+ * whose assignment the server has read (research/AMENDMENT-2026-11-22-anonymous-outcomes.md).
+ *
+ * The same rule as bindOutcome, with the anonymous assignment in place of the
+ * profile, plus two conditions that the profile path enforces elsewhere:
+ *
+ *   - consent to the CURRENT wording (the export gate for accounts), and
+ *   - the 14-day primary window (§6.1). A later click keeps its arm — it is real
+ *     behaviour under that arm — but is excluded from the primary outcome.
+ *
+ * No assignment row: never randomized (a decliner, a minor, the switch off), so no
+ * arm. A failed read: kept, excluded, 'server_unbound', re-bindable later.
+ */
+export function bindAnonOutcome(input: {
+  clickedAt: Date;
+  anon: AnonFacts | null;
+  anonReadFailed?: boolean;
+  impression: ServedImpression | null;
+  currentConsentVersion: string;
+}): OutcomeBinding {
+  const { clickedAt, anon, impression } = input;
+  const served = servedFrom(impression, clickedAt);
+  const excluded = (
+    source: OutcomeBinding['binding_source'],
+    arm: RankingVariant | null = null,
+    assignedAt: string | null = null,
+  ): OutcomeBinding => ({
+    ranking_variant: arm,
+    ranking_assigned_at: assignedAt,
+    ...served,
+    excluded_from_primary: true,
+    binding_source: source,
+  });
+
+  if (input.anonReadFailed) return excluded('server_unbound');
+  if (!anon || !isVariant(anon.ranking_variant) || !anon.ranking_assigned_at) return excluded('server');
+
+  const assignedAt = Date.parse(anon.ranking_assigned_at);
+  if (!Number.isFinite(assignedAt) || clickedAt.getTime() < assignedAt) {
+    return excluded('server', null, anon.ranking_assigned_at);
+  }
+
+  const consented = !!anon.research_consented_at && anon.research_consent_version === input.currentConsentVersion;
+  const inWindow = clickedAt.getTime() - assignedAt <= PRIMARY_WINDOW_MS;
+  if (!consented || !inWindow) return excluded('server', anon.ranking_variant, anon.ranking_assigned_at);
+
+  return {
+    ranking_variant: anon.ranking_variant,
+    ranking_assigned_at: anon.ranking_assigned_at,
+    ...served,
+    excluded_from_primary: false,
+    binding_source: 'server',
+  };
+}

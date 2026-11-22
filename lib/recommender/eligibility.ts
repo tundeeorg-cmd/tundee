@@ -7,7 +7,8 @@
 
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import type { RecommenderProfile } from './types';
-import { normalizeGradeLevel, normalizeScholarshipLevel, levelsAreCompatible } from './gradeLevel';
+import { normalizeGradeLevel, effectiveScholarshipLevel, levelsAreCompatible } from './gradeLevel';
+import { matchExclusion } from './exclusions';
 
 // Monthly income ceiling per bracket (THB)
 const INCOME_CEILING_MONTHLY: Record<number, number> = {
@@ -37,6 +38,10 @@ export function isEligible(
 
   // 1. Must be displayed (admin-approved and meets display gate)
   if (!s.is_displayed) return { eligible: false, reason: 'not_displayed' };
+
+  // 1b. Never matched: flagged by an admin, or tobacco-industry money (exclusions.ts).
+  const excluded = matchExclusion(s);
+  if (excluded) return { eligible: false, reason: `excluded_${excluded}` };
 
   // 2. Must have Open status
   if (s.status && s.status !== 'Open') {
@@ -80,7 +85,9 @@ export function isEligible(
 
   // 6. Level match — both sides go through lib/recommender/gradeLevel.ts so the
   //    values /profile/setup stores ('M4-M6', 'vocational', …) are understood.
-  const schBucket = normalizeScholarshipLevel(s.level);
+  //    The scholarship's level is its column corrected by its title
+  //    (effectiveScholarshipLevel): 'Multiple' on a ป.โท award is not an open door.
+  const schBucket = effectiveScholarshipLevel(s);
   if (schBucket && schBucket !== 'multiple') {
     const studentBuckets = [
       normalizeGradeLevel(profile.grade_level),

@@ -31,7 +31,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { authHeading, authEntryFrom } from '@/lib/auth/authHeading';
+import { authHeading, authEntryFrom, emailOpenFor } from '@/lib/auth/authHeading';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/lib/LanguageContext';
 import { PREVIEW_COOKIE, PREVIEW_PARAM, decodePreviewInput } from '@/lib/preview/types';
@@ -290,8 +290,9 @@ export default function AuthForm({ initialIab }: { initialIab: InAppBrowserInfo 
   const [lineLoading, setLineLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message,     setMessage]     = useState<AuthBanner | null>(null);
-  /** The email form, folded behind "ใช้อีเมลแทน" except inside in-app browsers. */
-  const [emailOpen,   setEmailOpen]   = useState(false);
+  /** The email form, folded behind "ใช้อีเมลแทน" except inside in-app browsers and
+   *  when the student arrived from the "สมัครด้วยอีเมล" link (from=signup). */
+  const [emailOpen,   setEmailOpen]   = useState(() => emailOpenFor(searchParams.get('from')));
   const [iosHelp,     setIosHelp]     = useState(false);
   const [copied,      setCopied]      = useState(false);
   const [hydrated,    setHydrated]    = useState(false);

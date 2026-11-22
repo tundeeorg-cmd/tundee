@@ -29,6 +29,8 @@ describe('the column list did not change when it moved', () => {
       'status', 'status_effective', 'application_url', 'application_link',
       'source_url', 'last_verified',
       'is_displayed',
+      // v38: the admin data-quality flag read by lib/recommender/exclusions.ts.
+      'verification_status',
     ]);
   });
 

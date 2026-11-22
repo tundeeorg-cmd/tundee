@@ -9,7 +9,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mergeAnonAssignment } from '@/lib/research/anonStore';
 
 type Row = Record<string, unknown>;
-interface Db { anon_assignments: Row[]; profiles: Row[]; student_profile: Row[]; randomization_conflicts: Row[] }
+interface Db {
+  anon_assignments: Row[]; profiles: Row[]; student_profile: Row[]; randomization_conflicts: Row[];
+  apply_click: Row[]; anon_impressions: Row[];
+}
 const KEY: Record<string, string> = { anon_assignments: 'anon_id', profiles: 'id', student_profile: 'user_id' };
 
 function fakeAdmin(db: Db, ops: string[], failOn: Record<string, string> = {}) {
@@ -66,7 +69,19 @@ let db: Db;
 let ops: string[];
 beforeEach(() => {
   ops = [];
-  db = { anon_assignments: [anonRow('fairness_adjusted')], profiles: [{ id: 'u1', cohort: 'main', ranking_variant: null }], student_profile: [], randomization_conflicts: [] };
+  db = {
+    anon_assignments: [anonRow('fairness_adjusted')], profiles: [{ id: 'u1', cohort: 'main', ranking_variant: null }],
+    student_profile: [], randomization_conflicts: [],
+    // What the visitor did before signing in (v38): back-filled with the account.
+    apply_click: [
+      { anon_id: ANON, user_id: null, scholarship_id: 'TD-1' },
+      { anon_id: 'other-anon', user_id: null, scholarship_id: 'TD-1' },
+    ],
+    anon_impressions: [
+      { anon_id: ANON, user_id: null, scholarship_id: 'TD-1', rank: 1 },
+      { anon_id: ANON, user_id: null, scholarship_id: 'TD-2', rank: 2 },
+    ],
+  };
 });
 
 const merge = (failOn?: Record<string, string>) =>
@@ -75,7 +90,11 @@ const merge = (failOn?: Record<string, string>) =>
 describe('lift', () => {
   it('writes the consent, then claims, then writes the arm — in that order', async () => {
     expect(await merge()).toEqual({ outcome: 'lift' });
-    expect(ops).toEqual(['upsert:student_profile', 'update:anon_assignments', 'update:profiles']);
+    expect(ops).toEqual([
+      'upsert:student_profile', 'update:anon_assignments', 'update:profiles',
+      // then the account is put on what the visitor did before signing in
+      'update:apply_click', 'update:anon_impressions',
+    ]);
   });
 
   it('puts the ORIGINAL assignment time and version on the profile, not the time of sign-in', async () => {
@@ -191,6 +210,48 @@ describe('nothing to do', () => {
   it('an unknown anonymous id is nothing to merge', async () => {
     db.anon_assignments = [];
     expect(await merge()).toEqual({ outcome: 'none', reason: 'no_anon_assignment' });
+  });
+});
+
+describe('v38: what the visitor did before signing in follows them into the account', () => {
+  it('a lift back-fills user_id onto that anon\'s clicks and impressions, and no one else\'s', async () => {
+    await merge();
+    expect(db.apply_click.find((r) => r.anon_id === ANON)!.user_id).toBe('u1');
+    expect(db.apply_click.find((r) => r.anon_id === 'other-anon')!.user_id).toBeNull();
+    expect(db.anon_impressions.every((r) => r.user_id === 'u1')).toBe(true);
+  });
+
+  it('so does a conflict (the account wins the arm, but the rows are still theirs) and an agreement', async () => {
+    db.profiles[0].ranking_variant = 'baseline';
+    await merge();
+    expect(db.apply_click[0].user_id).toBe('u1');
+    expect(db.anon_impressions[0].user_id).toBe('u1');
+  });
+
+  it('is idempotent: a second sign-in adds nothing and duplicates nothing', async () => {
+    await merge();
+    const before = JSON.stringify(db);
+    await merge();
+    expect(JSON.stringify(db)).toBe(before);
+    expect(db.apply_click).toHaveLength(2);
+  });
+
+  it('a back-fill that failed is finished on the next sign-in', async () => {
+    await merge({ 'update:apply_click': 'boom' });
+    expect(db.anon_assignments[0].claimed_by).toBe('u1');
+    expect(db.apply_click[0].user_id).toBeNull();
+    await merge();
+    expect(db.apply_click[0].user_id).toBe('u1');
+  });
+
+  it('a failed back-fill never fails the sign-in merge', async () => {
+    expect(await merge({ 'update:anon_impressions': 'boom' })).toEqual({ outcome: 'lift' });
+  });
+
+  it('a declined account is not given the anonymous rows', async () => {
+    db.student_profile = [{ user_id: 'u1', consent_research: false }];
+    await merge();
+    expect(db.apply_click[0].user_id).toBeNull();
   });
 });
 

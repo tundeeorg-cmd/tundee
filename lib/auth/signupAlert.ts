@@ -18,7 +18,16 @@ export const MIN_LANDING_VIEWS = 30;
 export const WINDOW_HOURS = 24;
 
 export interface SignupCounts {
+  /**
+   * New accounts in the window: the larger of the two sources below, so an
+   * account counted by either is counted (2026-11-22: LINE sign-ups were missing
+   * from the alert's picture).
+   */
   newAccounts:    number;
+  /** Of those, created through LINE sign-in (provider `custom:line` / `line`). */
+  lineAccounts?:  number;
+  /** signup_completed funnel events in the window, every method (LINE included). */
+  signupCompleted?: number;
   landingViews:   number;
   /** /auth opened (signup_started). */
   signupStarted:  number;
@@ -39,8 +48,25 @@ export type SignupDiagnosis =
   | 'nobody_pressed_send' // the form is reached, nobody submits it
   | 'nobody_reached_signup'; // traffic, but nobody opens the sign-in form
 
+/**
+ * Whether an auth user was created through LINE. LINE sign-in is the Supabase
+ * provider `custom:line` (lib/line/authMode.ts); accounts from the earlier bridge
+ * carry provider 'line' or a LINE identity. Read from app_metadata and identities
+ * so neither shape is missed.
+ */
+export function isLineAccount(u: {
+  app_metadata?: { provider?: unknown; providers?: unknown } | null;
+  identities?: Array<{ provider?: unknown }> | null;
+}): boolean {
+  const isLine = (p: unknown) => typeof p === 'string' && /(^|:)line$/i.test(p);
+  if (isLine(u.app_metadata?.provider)) return true;
+  if (Array.isArray(u.app_metadata?.providers) && u.app_metadata!.providers.some(isLine)) return true;
+  return (u.identities ?? []).some((i) => isLine(i?.provider));
+}
+
 export function diagnoseSignups(c: SignupCounts): SignupDiagnosis {
-  if (c.newAccounts > 0 || c.landingViews < MIN_LANDING_VIEWS) return 'ok';
+  const accounts = Math.max(c.newAccounts, c.signupCompleted ?? 0);
+  if (accounts > 0 || c.landingViews < MIN_LANDING_VIEWS) return 'ok';
   if (c.sendFailures > 0 && c.otpSent === 0)                   return 'send_failing';
   if (c.otpSent > 0 && c.otpVerified === 0)                    return 'codes_not_working';
   if (c.signupStarted > 0 && c.otpSent === 0)                  return 'nobody_pressed_send';
@@ -67,6 +93,8 @@ const MEANING: Record<Exclude<SignupDiagnosis, 'ok'>, string> = {
 export function buildSignupAlertEmail(c: SignupCounts, d: Exclude<SignupDiagnosis, 'ok'>) {
   const rows: [string, number][] = [
     ['New accounts',             c.newAccounts],
+    ['  of which LINE',          c.lineAccounts ?? 0],
+    ['Sign-ups completed (events, all methods)', c.signupCompleted ?? 0],
     ['Landing views',            c.landingViews],
     ['Sign-in form opened',      c.signupStarted],
     ['Codes sent',               c.otpSent],
