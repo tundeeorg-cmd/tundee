@@ -25,3 +25,14 @@ export function authEntryFrom(from: string | null | undefined): string {
   if (!from) return 'direct';
   return KNOWN_FROM.has(from) ? from : 'other';
 }
+
+/**
+ * Whether /auth opens with the email form unfolded.
+ *
+ * `from=signup` is the link labelled "สมัครด้วยอีเมล" on /start (buildSignupHref):
+ * the student has already chosen email. Folding it behind "ใช้อีเมลแทน" made them
+ * choose twice. LINE and Google stay on the page above it.
+ */
+export function emailOpenFor(from: string | null | undefined): boolean {
+  return from === 'signup';
+}

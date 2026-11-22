@@ -31,6 +31,13 @@
  * request that is served is logged ([research/export]) so the extract is a decision on
  * the record, not a habit.
  *
+ * ANONYMOUS PARTICIPANTS (v38). `?scope=anon` emits the visitors randomized on /start
+ * who never signed in: one `participant` line each (arm, stratum, consent, the
+ * covariates stored at assignment) plus their `impression` and `apply_click` lines,
+ * under pseudo_anon_id = sha256(anon_id). Same consent gate (current wording). A
+ * participant claimed by an account is emitted once, under the account, not here.
+ * See lib/research/anonExport.ts and research/ANALYSIS-DATA-DICTIONARY.md.
+ *
  * Requires: ADMIN_EMAILS env var (comma-separated) to gate access.
  */
 
@@ -42,6 +49,90 @@ import { createClient }               from '@supabase/supabase-js';
 import crypto                         from 'crypto';
 import { CURRENT_CONSENT_VERSION, exportExclusion, type ExportExclusion } from '@/lib/research/consentGate';
 import { bindOutcome, type ProfileFacts } from '@/lib/research/outcomeBinding';
+import {
+  buildAnonExport,
+  type AnonClickExportRow, type AnonImpressionExportRow, type AnonParticipantRow,
+} from '@/lib/research/anonExport';
+import { ANON_COVARIATE_COLUMNS } from '@/lib/research/anonCovariates';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+const PAGE = 1000;
+const IN_CHUNK = 200;
+
+/** Every row of a query, page by page; an error is returned, never a short result. */
+async function readAll<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<{ rows: T[]; error: string | null }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build(from, from + PAGE - 1);
+    if (error) return { rows, error: error.message };
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < PAGE) return { rows, error: null };
+  }
+}
+
+async function exportAnonymous(db: SupabaseClient, by: string, since: string | null): Promise<NextResponse> {
+  const participantCols = [
+    'anon_id', 'ranking_variant', 'ranking_assigned_at', 'assignment_algorithm_version', 'stratum',
+    'fairness_eligible', 'research_consent_version', 'research_consented_at', 'claimed_by',
+    ...ANON_COVARIATE_COLUMNS,
+  ].join(', ');
+  const parts = await readAll<AnonParticipantRow>((from, to) => {
+    let q = db.from('anon_assignments').select(participantCols).order('ranking_assigned_at', { ascending: true }).range(from, to);
+    if (since) q = q.gte('ranking_assigned_at', since);
+    return q;
+  });
+  if (parts.error) {
+    console.error('[research/export] anon_assignments read failed:', parts.error);
+    return NextResponse.json({ error: 'anon_assignments_read_failed' }, { status: 500 });
+  }
+
+  const ids = parts.rows.map(p => p.anon_id);
+  const impressions: AnonImpressionExportRow[] = [];
+  const clicks: AnonClickExportRow[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const imp = await readAll<AnonImpressionExportRow>((from, to) => db
+      .from('anon_impressions')
+      .select('anon_id, scholarship_id, rank, fairness_mode, variant, broadened, served_at')
+      .in('anon_id', chunk).order('served_at', { ascending: true }).range(from, to));
+    if (imp.error) {
+      console.error('[research/export] anon_impressions read failed:', imp.error);
+      return NextResponse.json({ error: 'anon_impressions_read_failed' }, { status: 500 });
+    }
+    impressions.push(...imp.rows);
+    const clk = await readAll<AnonClickExportRow>((from, to) => db
+      .from('apply_click')
+      .select('anon_id, scholarship_id, clicked_at, ranking_variant, ranking_assigned_at, rank_position, was_personalized, served_fairness_mode, excluded_from_primary, binding_source')
+      .in('anon_id', chunk).order('clicked_at', { ascending: true }).range(from, to));
+    if (clk.error) {
+      console.error('[research/export] apply_click read failed:', clk.error);
+      return NextResponse.json({ error: 'apply_click_read_failed' }, { status: 500 });
+    }
+    clicks.push(...clk.rows);
+  }
+
+  const out = buildAnonExport({ participants: parts.rows, impressions, clicks, currentConsentVersion: CURRENT_CONSENT_VERSION });
+  console.info('[research/export] served (anonymous)', {
+    by, participants: out.participants, rows: out.lines.length, since, excluded: out.excluded,
+  });
+
+  return new NextResponse(out.lines.join('\n') + (out.lines.length ? '\n' : ''), {
+    headers: {
+      'Content-Type':        'application/x-ndjson',
+      'Content-Disposition': `attachment; filename="tundee_research_anon_${new Date().toISOString().slice(0,10)}.ndjson"`,
+      'X-Record-Count':      String(out.lines.length),
+      'X-Participant-Count': String(out.participants),
+      'X-Export-Basis':      'PDPA-2562-consent',
+      'X-Consent-Version':   CURRENT_CONSENT_VERSION,
+      'X-Arm-Source':        'anon_assignments.ranking_variant; clicks bound at click time (bindAnonOutcome)',
+      'X-Excluded-Stale-Consent':     String(out.excluded.stale_consent_version),
+      'X-Excluded-Claimed-By-Account': String(out.excluded.claimed_by_account),
+    },
+  });
+}
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',').map(e => e.trim()).filter(Boolean);
 
@@ -67,6 +158,8 @@ export async function GET(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
+
+  if (searchParams.get('scope') === 'anon') return exportAnonymous(db, user.email ?? '', since);
 
   let query = db
     .from('funnel_events')

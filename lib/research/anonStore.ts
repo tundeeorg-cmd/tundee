@@ -15,6 +15,7 @@ import {
   anonLogTag, decideMerge,
   type AnonAssignment, type MergeDecision,
 } from './anonAssignment';
+import type { AnonCovariates } from './anonCovariates';
 
 const COLUMNS =
   'anon_id, ranking_variant, ranking_assigned_at, assignment_algorithm_version, stratum, ' +
@@ -36,12 +37,74 @@ export async function loadAnonAssignment(
 export async function saveAnonAssignment(
   admin: SupabaseClient,
   assignment: Omit<AnonAssignment, 'claimed_by'>,
-): Promise<{ row: AnonAssignment | null; created: boolean; error: string | null }> {
-  const { error } = await admin.from('anon_assignments').insert(assignment);
-  if (!error) return { row: { ...assignment, claimed_by: null }, created: true, error: null };
+  covariates?: AnonCovariates | null,
+): Promise<{ row: AnonAssignment | null; created: boolean; error: string | null; covariatesStored?: boolean }> {
+  const full = covariates ? { ...assignment, ...covariates } : assignment;
+  let { error } = await admin.from('anon_assignments').insert(full);
+  let covariatesStored = !!covariates;
+
+  // The covariate columns come from scripts/20261122_v38_1. If the app is deployed
+  // before that has run, the insert names columns that do not exist. Randomizing
+  // without them is far better than not randomizing at all — the arm and stratum
+  // are what the trial cannot do without — so retry without, and say so loudly.
+  if (error && covariates && isMissingColumn(error)) {
+    console.error('[anon] covariate columns missing — run scripts/20261122_v38_1; assignment stored WITHOUT covariates:', error.message);
+    covariatesStored = false;
+    ({ error } = await admin.from('anon_assignments').insert(assignment));
+  }
+
+  if (!error) return { row: { ...assignment, claimed_by: null }, created: true, error: null, covariatesStored };
   if (error.code !== '23505') return { row: null, created: false, error: `${error.code ?? ''} ${error.message}`.trim() };
+  // Already assigned: the first answers stand, covariates included (they are frozen).
   const existing = await loadAnonAssignment(admin, assignment.anon_id);
-  return { row: existing.row, created: false, error: existing.error };
+  return { row: existing.row, created: false, error: existing.error, covariatesStored: false };
+}
+
+/** PostgREST PGRST204 / Postgres 42703: a column named in the request does not exist (yet). */
+export function isMissingColumn(err: { code?: string; message?: string } | null | undefined): boolean {
+  return !!err && (err.code === 'PGRST204' || err.code === '42703' || /column .* does not exist|could not find the .* column/i.test(err.message ?? ''));
+}
+
+/** Postgres 42P01 / PostgREST PGRST205: the table does not exist (yet). */
+export function isMissingTable(err: { code?: string; message?: string } | null | undefined): boolean {
+  return !!err && (err.code === '42P01' || err.code === 'PGRST205' || /relation .* does not exist|could not find the table/i.test(err.message ?? ''));
+}
+
+/**
+ * Puts the account on everything the visitor did before signing in (v38): the
+ * apply_click rows and the impressions carrying this anon_id and no user yet.
+ * One row each, so nothing is double-counted, and nothing is lost when the export
+ * emits a claimed participant under the account.
+ *
+ * Idempotent (only user_id IS NULL rows), and never fatal to a sign-in: a failure is
+ * returned and logged, and the next sign-in tries again (mergeAnonAssignment calls it
+ * on 'already_claimed' too).
+ */
+export async function backfillAnonUserId(
+  admin: SupabaseClient,
+  anonId: string,
+  userId: string,
+): Promise<{ clicks: number; impressions: number; error: string | null }> {
+  let clicks = 0;
+  let impressions = 0;
+  for (const table of ['apply_click', 'anon_impressions'] as const) {
+    const { data, error } = await admin
+      .from(table)
+      .update({ user_id: userId })
+      .eq('anon_id', anonId)
+      .is('user_id', null)
+      .select('anon_id');
+    if (error) {
+      // Before scripts/20261122_v38_2 there is nothing to back-fill.
+      if (isMissingColumn(error) || isMissingTable(error)) continue;
+      console.error(`[anon] back-fill of ${table} FAILED`, { anon: anonLogTag(anonId), userId, message: error.message });
+      return { clicks, impressions, error: `${table}: ${error.message}` };
+    }
+    if (table === 'apply_click') clicks = (data ?? []).length;
+    else impressions = (data ?? []).length;
+  }
+  if (clicks || impressions) console.info('[anon] back-filled the account onto pre-sign-in rows', { anon: anonLogTag(anonId), userId, clicks, impressions });
+  return { clicks, impressions, error: null };
 }
 
 export type MergeOutcome =
@@ -98,6 +161,8 @@ export async function mergeAnonAssignment(
 
   if (decision.action === 'none') {
     console.info('[anon] nothing to merge', { anon: tag, userId, reason: decision.reason });
+    // Claimed by this account on an earlier sign-in: finish a back-fill that failed then.
+    if (decision.reason === 'already_claimed') await backfillAnonUserId(admin, anonId, userId);
     return { outcome: 'none', reason: decision.reason };
   }
 
@@ -113,6 +178,7 @@ export async function mergeAnonAssignment(
       if (error) return fail('record_conflict', error.message);
       console.warn('[anon] CONFLICT: anonymous arm differs from the account; the account wins', { anon: tag, userId });
     }
+    await backfillAnonUserId(admin, anonId, userId);
     return { outcome: decision.action };
   }
 
@@ -160,11 +226,14 @@ export async function mergeAnonAssignment(
       });
       if (error) return fail('record_conflict', error.message);
       console.warn('[anon] CONFLICT after a lost race; the account wins', { anon: tag, userId });
+      await backfillAnonUserId(admin, anonId, userId);
       return { outcome: 'conflict' };
     }
+    await backfillAnonUserId(admin, anonId, userId);
     return { outcome: 'same_arm' };
   }
 
+  await backfillAnonUserId(admin, anonId, userId);
   console.info('[anon] arm lifted onto the account', { anon: tag, userId, consentVersion: a.research_consent_version });
   return { outcome: 'lift' };
 }

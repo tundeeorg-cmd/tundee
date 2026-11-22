@@ -38,7 +38,8 @@ export interface LandingCopy {
 const DEFAULT_COPY: LandingCopy = {
   badge: 'ฟรี · ไม่ต้องสมัครสมาชิกก่อนดู',
   h1:    'หาทุนการศึกษาที่คุณมีสิทธิ์ ใน 2 นาที',
-  sub:   'ตอบ 3 คำถาม แล้วดูรายชื่อทุนที่ตรงกับคุณทันที ไม่ต้องสมัครสมาชิกก่อน',
+  // Four answers (age, level, province, income) plus an optional GPA; the old copy said three.
+  sub:   'ตอบ 4 ข้อ แล้วดูรายชื่อทุนที่ตรงกับคุณทันที ไม่ต้องสมัครสมาชิกก่อน',
   cta:   'เริ่มเลย ฟรี',
   trust: (count) =>
     [

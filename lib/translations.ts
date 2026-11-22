@@ -376,7 +376,6 @@ export const translations = {
   footer: {
     tagline: { th: 'ทุกทุน ทุกโอกาส ในที่เดียว', en: 'Every scholarship. Every opportunity. In one place.' },
     copyright: { th: '© 2569 ทุนดี (TunDee) · สร้างเพื่อนักเรียนไทยทุกคน', en: '© 2026 TunDee · Built for every Thai student' },
-    updated: { th: 'ข้อมูลทุนอัปเดต: มิถุนายน 2569', en: 'Scholarship data updated: June 2026' },
     links_title: { th: 'ลิงก์', en: 'Links' },
     contact_title: { th: 'ติดต่อ', en: 'Contact' },
   },

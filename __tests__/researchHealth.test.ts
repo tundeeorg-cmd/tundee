@@ -15,6 +15,10 @@ interface World {
   funnelTreated: { rows: Rows; count: number };
   conflicts: { count: number } | { error: { code: string; message: string } };
   attrition: { rows: Rows } | { error: { code: string; message: string } };
+  // v38: anonymous participants.
+  anonAssignments: { rows: Rows } | { error: { code: string; message: string } };
+  anonImpressions: { rows: Rows } | { error: { code: string; message: string } };
+  anonClicks: { count: number } | { error: { code: string; message: string } };
 }
 let world: World;
 
@@ -31,10 +35,16 @@ vi.mock('@/lib/supabase/admin', () => ({
             return 'error' in world.conflicts ? { error: world.conflicts.error } : { count: world.conflicts.count, error: null };
           case 'research_attrition':
             return 'error' in world.attrition ? { error: world.attrition.error } : { data: world.attrition.rows, error: null };
+          case 'anon_assignments':
+            return 'error' in world.anonAssignments ? { error: world.anonAssignments.error } : { data: world.anonAssignments.rows, error: null };
+          case 'anon_impressions':
+            return 'error' in world.anonImpressions ? { error: world.anonImpressions.error } : { data: world.anonImpressions.rows, error: null };
+          case 'apply_click':
+            return 'error' in world.anonClicks ? { error: world.anonClicks.error } : { count: world.anonClicks.count, error: null };
           default: throw new Error(`unexpected table ${table}`);
         }
       };
-      for (const m of ['select', 'eq', 'filter', 'in', 'limit']) q[m] = () => q;
+      for (const m of ['select', 'eq', 'filter', 'in', 'limit', 'gte', 'not']) q[m] = () => q;
       q.range = () => Promise.resolve(done());
       // Awaiting the chain itself (funnel_events, conflicts, attrition) resolves too.
       q.then = (resolve: (v: unknown) => unknown) => Promise.resolve(done()).then(resolve);
@@ -64,6 +74,9 @@ beforeEach(() => {
     funnelTreated: { rows: [], count: 0 },
     conflicts: MISSING,
     attrition: MISSING,
+    anonAssignments: { rows: [] },
+    anonImpressions: { rows: [] },
+    anonClicks: { count: 0 },
   };
 });
 
@@ -160,8 +173,61 @@ describe('no-peeking (PART 2 step 8)', () => {
   it('the route never reads an outcome table or splits outcomes by arm', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync('app/api/health/research/route.ts', 'utf8');
-    for (const outcome of ['apply_click', 'click_apply', 'application_submitted', 'award_reported', 'applications', 'outcomes']) {
+    for (const outcome of ['click_apply', 'application_submitted', 'award_reported', 'applications', 'outcomes']) {
       expect(src, outcome).not.toContain(`'${outcome}'`);
     }
+  });
+
+  it('v38: apply_click is touched once, for a head-only TOTAL of anonymous clicks — no rows, no arm', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('app/api/health/research/route.ts', 'utf8');
+    expect(src.split("'apply_click'")).toHaveLength(2);
+    const query = src.slice(src.indexOf(".from('apply_click')"), src.indexOf(".from('apply_click')") + 200);
+    expect(query).toContain("select('id', { count: 'exact', head: true })");
+    expect(query).not.toMatch(/ranking_variant|served_fairness_mode|excluded_from_primary/);
+  });
+});
+
+describe('v38: anonymous participants', () => {
+  const A = (id: string, over: Record<string, unknown> = {}) => ({
+    anon_id: id, level: 'uni', region_group: 'northeast', income_bracket: 2, recruitment_source: 'isaan_2026', ...over,
+  });
+
+  it('the zero case: no assignments in 24 h is healthy, with no shares and no alert', async () => {
+    const body = await (await get()).json();
+    expect(body.anonymous_participants).toEqual({
+      available: true, window_hours: 24, assignments: 0,
+      with_covariates_share: null, with_impression_share: null, apply_clicks: 0, alerts: [],
+    });
+    expect(body.ok).toBe(true);
+  });
+
+  it('reports assignments, covariate and impression shares, and the click total', async () => {
+    world.anonAssignments = { rows: [A('a1'), A('a2'), A('a3'), A('a4', { level: null })] };
+    world.anonImpressions = { rows: [{ anon_id: 'a1' }, { anon_id: 'a1' }, { anon_id: 'a2' }, { anon_id: 'a3' }, { anon_id: 'a4' }] };
+    world.anonClicks = { count: 3 };
+    const body = await (await get()).json();
+    expect(body.anonymous_participants).toMatchObject({
+      available: true, assignments: 4, with_covariates_share: 0.75, with_impression_share: 1, apply_clicks: 3,
+    });
+    expect(body.alerts).toContain('anon_covariates_missing');
+  });
+
+  it('alerts when randomized visitors are not being recorded as shown anything', async () => {
+    world.anonAssignments = { rows: Array.from({ length: 10 }, (_, i) => A(`a${i}`)) };
+    world.anonImpressions = { rows: [{ anon_id: 'a0' }] };
+    const body = await (await get()).json();
+    expect(body.anonymous_participants.with_impression_share).toBe(0.1);
+    expect(body.alerts).toContain('anon_impressions_missing');
+  });
+
+  it('before the v38 migrations it says unavailable, never zero', async () => {
+    world.anonAssignments = { error: { code: '42703', message: 'column anon_assignments.level does not exist' } };
+    let body = await (await get()).json();
+    expect(body.anonymous_participants.available).toBe(false);
+    world.anonAssignments = { rows: [A('a1')] };
+    world.anonImpressions = MISSING;
+    body = await (await get()).json();
+    expect(body.anonymous_participants.available).toBe(false);
   });
 });

@@ -41,6 +41,23 @@ export const PREVIEW_LIMIT = 50;
 export const PREVIEW_BROADENED_N = 5;
 
 /**
+ * The deepest page "ดูเพิ่มอีก 10 ทุน" can ask for. Bounds the work a public
+ * endpoint will do for one request; far beyond any real catalogue page.
+ */
+export const PREVIEW_MAX_OFFSET = 1000;
+
+/**
+ * The `offset` of a /api/preview-match request: absent = 0; otherwise a whole
+ * number from 0 to PREVIEW_MAX_OFFSET. Anything else is null (400).
+ */
+export function parsePreviewOffset(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > PREVIEW_MAX_OFFSET) return null;
+  return n;
+}
+
+/**
  * Education levels offered on /start.
  *
  * Derived from GRADE_LEVELS rather than restated. The old comment here said
@@ -115,6 +132,8 @@ export interface PreviewResponse {
    * relaxing the GPA rule, so the UI can label the results honestly.
    */
   broadened: boolean;
+  /** Where this page starts in the ranked list (0 for the first ten). */
+  offset?: number;
 }
 
 /**

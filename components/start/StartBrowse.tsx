@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * /start: browse first, ask later.
+ * /start: the matcher first, the catalogue one tap below it.
  *
- * Real scholarships, in the page, before anything is asked. Search and chips work
- * without an account and without answering a thing. The matcher is an invitation
- * a visitor opts into, inline, not a gate: nothing here is blurred, covered or
- * withheld, and nothing asks for a login to LOOK.
+ * Since 2026-11-22 the matcher is OPEN and above the fold for every visitor:
+ * headline → age → questions → submit. Ad traffic used to land on a browse list
+ * sorted by deadline (foreign ป.โท awards on top) and only met the questions after
+ * tapping a small card; those who browsed were never randomized and produced no
+ * data. The list is still here — search, chips, every open scholarship, no account
+ * and nothing withheld — collapsed under "หรือดูทุนทั้งหมด" below the matcher.
  *
  * The default list is open scholarships by soonest deadline, identical for every
  * visitor. It is not personalized and not an experiment arm; the ranked list a
@@ -18,7 +20,7 @@ import { createClient } from '@/lib/supabase/client';
 import TdScholarshipCard from '@/components/TdScholarshipCard';
 import TrustStrip from '@/components/trust/TrustStrip';
 import { logFunnelEvent } from '@/lib/research/funnel';
-import PreviewMatcher from '@/app/start/PreviewMatcher';
+import PreviewMatcher, { type StartAttribution } from '@/app/start/PreviewMatcher';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
 import { START_CARD_SELECT } from '@/lib/tdScholarships/startColumns';
 import {
@@ -29,9 +31,10 @@ import {
 const th = { fontFamily: "'Sarabun', system-ui, sans-serif" } as const;
 
 const PAGE = 12;
-/** The invitation sits after this many cards, so it is met by scrolling, never by a pop-up. */
-const INVITE_AFTER = 10;
 const FULL_LIST_TIMEOUT_MS = 12_000;
+
+/** The fold the catalogue sits behind, below the matcher. */
+export const BROWSE_TOGGLE_LABEL = 'หรือดูทุนทั้งหมด';
 
 const LEVEL_CHIPS: { key: LevelChip; label: string }[] = [
   { key: 'high_school',   label: 'มัธยม' },
@@ -78,16 +81,19 @@ export default function StartBrowse({
   initialCards,
   listOk,
   researchConsentOffered = false,
+  attribution,
   signupHref,
   registeredCount,
   scholarshipCount,
   funderCount,
 }: {
   initialCards: TdScholarship[];
-  /** False when the server could not load the list: the matcher is then shown at once. */
+  /** False when the server could not load the list: the fold then says so. */
   listOk: boolean;
   /** True only when ANON_RANDOMIZATION is on. */
   researchConsentOffered?: boolean;
+  /** UTMs and landing variant for the anonymous assignment's covariates. */
+  attribution?: StartAttribution;
   signupHref: string;
   registeredCount: number | null;
   scholarshipCount: number | null;
@@ -97,14 +103,15 @@ export default function StartBrowse({
   const [full, setFull] = useState<TdScholarship[] | null>(null);
   const [fullState, setFullState] = useState<FullState>('idle');
   const [shown, setShown] = useState(PAGE);
-  const [matcherOpen, setMatcherOpen] = useState(!listOk);
+  // The matcher is always open now; the catalogue is what folds.
+  const matcherOpen = true;
+  const [browseOpen, setBrowseOpen] = useState(false);
   const matcherRef = useRef<HTMLDivElement | null>(null);
-  const inviteRef = useRef<HTMLDivElement | null>(null);
   const thirdCardRef = useRef<HTMLDivElement | null>(null);
 
-  // The invitation to answer the questions has been on screen.
-  useSeenOnce(inviteRef, () => logStepOnce('personalize_shown'));
-  // Scrolled past the first three cards.
+  // The questions have been on screen (they are, on arrival, for nearly everyone).
+  useSeenOnce(matcherRef, () => logStepOnce('personalize_shown', { placement: 'top' }));
+  // Scrolled past the first three cards of the opened list.
   useSeenOnce(thirdCardRef, () => logStepOnce('browsed', { how: 'scroll' }));
 
   const today = useMemo(() => bangkokToday(), []);
@@ -150,10 +157,16 @@ export default function StartBrowse({
   );
   const page = visible.slice(0, shown);
 
+  /** Back up to the questions. No modal, no focus trap. */
   function openMatcher() {
-    setMatcherOpen(true);
-    // After the form has rendered, bring it into view. No modal, no focus trap.
-    requestAnimationFrame(() => matcherRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    matcherRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function toggleBrowse() {
+    setBrowseOpen((open) => {
+      if (!open) logStepOnce('browsed', { how: 'open_list' });
+      return !open;
+    });
   }
 
   const chip = (active: boolean) =>
@@ -163,24 +176,41 @@ export default function StartBrowse({
         : 'border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0D1F35] text-[#6E7A8A] dark:text-[#8e9bb0]'
     }`;
 
-  const invite = (
-    <button
-      type="button"
-      onClick={openMatcher}
-      style={th}
-      className="w-full text-left rounded-xl border-2 border-[#1B3A6B]/25 dark:border-[#8FB4FF]/25 bg-[#EBF2FF] dark:bg-[#0D1F35] px-4 py-3 active:opacity-90"
-    >
-      <span className="block text-sm font-bold text-[#1B3A6B] dark:text-[#8FB4FF]">
-        ดูทุนที่ตรงกับคุณ →
-      </span>
-      <span className="block text-xs text-[#4A5A70] dark:text-[#8e9bb0] mt-0.5">
-        ตอบ 3 คำถาม ใช้เวลาประมาณ 30 วินาที (ไม่ต้องสมัครสมาชิก)
-      </span>
-    </button>
-  );
-
   return (
     <div className="max-w-[560px] mx-auto text-left">
+      {/* The matcher, open, first. */}
+      {matcherOpen && (
+        <div ref={matcherRef} id="tundee-matcher-inline" className="scroll-mt-4">
+          <PreviewMatcher
+            signupHref={signupHref}
+            registeredCount={registeredCount}
+            scholarshipCount={scholarshipCount}
+            funderCount={funderCount}
+            researchConsentOffered={researchConsentOffered}
+            attribution={attribution}
+          />
+        </div>
+      )}
+
+      {/* The catalogue, folded below. */}
+      <div className="mt-8 border-t border-[#E8ECF2] dark:border-[#1A2E4A] pt-4">
+        <button
+          type="button"
+          onClick={toggleBrowse}
+          aria-expanded={browseOpen}
+          aria-controls="start-browse"
+          style={th}
+          className="w-full min-h-[48px] flex items-center justify-center gap-2 text-sm font-semibold text-[#1B3A6B] dark:text-[#8FB4FF]"
+        >
+          {BROWSE_TOGGLE_LABEL}
+          <svg className={`w-4 h-4 transition-transform ${browseOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {browseOpen && (
+      <div id="start-browse" className="mt-3">
       <TrustStrip scholarships={scholarshipCount} funders={funderCount} lang="th" className="mb-4 text-center" />
 
       {/* Search — 16px so iOS does not zoom the page on focus. */}
@@ -234,25 +264,11 @@ export default function StartBrowse({
         </button>
       </div>
 
-      <div className="mt-3" ref={inviteRef}>{invite}</div>
-
-      {matcherOpen && (
-        <div ref={matcherRef} id="tundee-matcher-inline" className="mt-4 scroll-mt-4">
-          <PreviewMatcher
-            signupHref={signupHref}
-            registeredCount={registeredCount}
-            scholarshipCount={scholarshipCount}
-            funderCount={funderCount}
-            researchConsentOffered={researchConsentOffered}
-          />
-        </div>
-      )}
-
       {/* The list. */}
       <div className="mt-5">
         {!listOk && !filtering ? (
           <p className="text-sm text-center text-[#6E7A8A] dark:text-[#8e9bb0]" style={th}>
-            ยังโหลดรายการทุนไม่ได้ในตอนนี้ — ตอบ 3 คำถามด้านบนเพื่อดูทุนที่ตรงกับคุณได้เลย
+            ยังโหลดรายการทุนไม่ได้ในตอนนี้ — ตอบ 4 ข้อด้านบนเพื่อดูทุนที่ตรงกับคุณได้เลย
           </p>
         ) : filtering && fullState === 'loading' ? (
           <p className="text-sm text-center text-[#6E7A8A] dark:text-[#8e9bb0] py-6" style={th} role="status">
@@ -289,7 +305,6 @@ export default function StartBrowse({
               {page.map((s, i) => (
                 <div key={s.scholarship_id} ref={i === BROWSED_AFTER_CARDS - 1 ? thirdCardRef : undefined}>
                   <TdScholarshipCard scholarship={s} userId={null} variant={null} />
-                  {i === INVITE_AFTER - 1 && <div className="mt-4">{invite}</div>}
                 </div>
               ))}
             </div>
@@ -312,6 +327,8 @@ export default function StartBrowse({
           </>
         )}
       </div>
+      </div>
+      )}
     </div>
   );
 }

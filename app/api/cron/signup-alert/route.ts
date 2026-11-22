@@ -24,7 +24,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/send';
 import { AUTH_EMAIL_FROM } from '@/lib/email/authEmails';
 import {
-  WINDOW_HOURS, diagnoseSignups, buildSignupAlertEmail, signupAlertRecipients,
+  WINDOW_HOURS, diagnoseSignups, buildSignupAlertEmail, signupAlertRecipients, isLineAccount,
   type SignupCounts,
 } from '@/lib/auth/signupAlert';
 
@@ -49,14 +49,21 @@ export async function GET(request: NextRequest) {
 
   // New accounts. listUsers has no created_at filter, so page through: the
   // whole table is a few hundred rows.
-  let newAccounts = 0;
+  // LINE accounts are counted by name, so a day of LINE-only sign-ups is visibly
+  // sign-ups (and never mistaken for "nobody signed up").
+  let accountsListed = 0;
+  let lineAccounts = 0;
   for (let page = 1; page <= MAX_PAGES; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE });
     if (error) {
       console.error('[signup-alert] listUsers failed:', error.message);
       return NextResponse.json({ error: 'listUsers failed' }, { status: 500 });
     }
-    for (const u of data.users) if (new Date(u.created_at) >= since) newAccounts++;
+    for (const u of data.users) {
+      if (new Date(u.created_at) < since) continue;
+      accountsListed++;
+      if (isLineAccount(u as Parameters<typeof isLineAccount>[0])) lineAccounts++;
+    }
     if (data.users.length < PER_PAGE) break;
   }
 
@@ -74,7 +81,7 @@ export async function GET(request: NextRequest) {
 
   let counts: SignupCounts;
   try {
-    const [landingViews, signupStarted, otpSent, otpVerified, sendFailures, verifyFailures] =
+    const [landingViews, signupStarted, otpSent, otpVerified, sendFailures, verifyFailures, signupCompleted] =
       await Promise.all([
         count('landing_view'),
         count('signup_started'),
@@ -82,8 +89,15 @@ export async function GET(request: NextRequest) {
         count('otp_verified'),
         count('otp_failed', 'send'),
         count('otp_failed', 'verify'),
+        // Every method, LINE included (lib/adTracking trackSignupComplete).
+        count('signup_completed'),
       ]);
-    counts = { newAccounts, landingViews, signupStarted, otpSent, otpVerified, sendFailures, verifyFailures };
+    counts = {
+      // Either source is enough to count an account; neither is trusted to be complete alone.
+      newAccounts: Math.max(accountsListed, signupCompleted),
+      lineAccounts, signupCompleted,
+      landingViews, signupStarted, otpSent, otpVerified, sendFailures, verifyFailures,
+    };
   } catch (e) {
     console.error('[signup-alert] funnel count failed:', e);
     return NextResponse.json({ error: 'funnel count failed' }, { status: 500 });

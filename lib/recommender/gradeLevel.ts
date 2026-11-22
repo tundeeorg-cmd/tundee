@@ -122,3 +122,60 @@ export function levelsAreCompatible(
   const allowed = ELIGIBLE_STUDENT_BUCKETS[scholarshipLevel];
   return known.some(b => allowed.includes(b));
 }
+
+// ── What the scholarship's own text says about level ─────────────────────────
+//
+// The `level` column is filled by hand on import and is coarse: 'Multiple' is used
+// both for "open to everyone" and for "several postgraduate levels", and some rows
+// have none. A ปริญญาตรี test profile (ขอนแก่น, income 2, no GPA) was matched to
+// Gates Cambridge, the Swiss Government Excellence Scholarships and foreign ป.โท
+// awards, and to a child-sponsorship programme — every one of them a row whose
+// column said nothing usable. When the column does not settle it, the title does.
+
+/** Postgraduate-only wording. */
+const GRADUATE_TEXT = new RegExp([
+  "\\bmaster'?s?\\b", '\\bm\\.?sc\\b', '\\bmba\\b', '\\bll\\.?m\\b', '\\bm\\.?phil\\b',
+  '\\bph\\.?\\s?d\\b', '\\bdoctoral\\b', '\\bdoctorate\\b', '\\bpostgraduate\\b', '\\bpost-graduate\\b',
+  '\\bpost-?doc', '\\bgraduate (study|studies|school|program|programme|research)',
+  'ปริญญาโท', 'ป\\.\\s?โท', 'ปริญญาเอก', 'ป\\.\\s?เอก', 'บัณฑิตศึกษา', 'หลังปริญญาเอก',
+  // Programmes that are postgraduate by definition, whatever the row's title says.
+  '\\bgates cambridge\\b', '\\bswiss government excellence', '\\bchevening\\b', '\\brhodes scholarship', '\\berasmus mundus\\b',
+].join('|'), 'i');
+
+/** Undergraduate wording: when present, a mixed row stays open to undergraduates. */
+const UNDERGRADUATE_TEXT = /\bbachelor'?s?\b|\bundergraduate\b|\bundergrad\b|ปริญญาตรี|ป\.\s?ตรี/i;
+
+/** Child sponsorship: support for a child's schooling, not a student's own application. */
+const CHILD_SPONSORSHIP_TEXT = /child sponsorship|sponsor a child|อุปการะเด็ก|เด็กในอุปการะ|ทุนอุปถัมภ์เด็ก|อุปถัมภ์เด็ก/i;
+
+type LevelText = {
+  level?: string | null;
+  scholarship_name_en?: string | null;
+  scholarship_name_th?: string | null;
+  scholarship_name?: string | null;
+};
+
+/**
+ * The level bucket to filter on: the `level` column, corrected by the title.
+ *
+ *   - Child sponsorship is school-age support (high_school) whatever the column says.
+ *   - Postgraduate-only wording (and no undergraduate wording) makes the row
+ *     'graduate' when the column is 'Multiple', blank, unknown, or 'Undergraduate'
+ *     (a data-entry slip the title contradicts). A 'High school' column is left alone.
+ *   - Otherwise the column, as normalizeScholarshipLevel reads it.
+ */
+export function effectiveScholarshipLevel(s: LevelText): ScholarshipLevelBucket | null {
+  const column = normalizeScholarshipLevel(s.level);
+  const title = [s.scholarship_name_en, s.scholarship_name_th, s.scholarship_name]
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .join(' • ');
+  if (!title) return column;
+
+  if (CHILD_SPONSORSHIP_TEXT.test(title)) return 'high_school';
+
+  if (column !== 'high_school' && column !== 'vocational' && column !== 'graduate'
+      && GRADUATE_TEXT.test(title) && !UNDERGRADUATE_TEXT.test(title)) {
+    return 'graduate';
+  }
+  return column;
+}

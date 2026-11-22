@@ -150,7 +150,9 @@ describe('no outcome-by-arm interface (PREREG §8, §12.8)', () => {
 describe('/start instrumentation', () => {
   const src = readFileSync('components/start/StartBrowse.tsx', 'utf8');
   it('logs browsed (scroll or filter) and personalize_shown, once per session', () => {
-    expect(src).toContain("logStepOnce('personalize_shown')");
+    // Since 2026-11-22 the matcher is open at the top, so it is "shown" when it is seen.
+    expect(src).toContain("logStepOnce('personalize_shown', { placement: 'top' })");
+    expect(src).toContain("logStepOnce('browsed', { how: 'open_list' })");
     expect(src).toContain("logStepOnce('browsed', { how: 'scroll' })");
     expect(src).toContain("logStepOnce('browsed', { how: 'filter' })");
     expect(src).toContain('sessionStorage.getItem(key)');

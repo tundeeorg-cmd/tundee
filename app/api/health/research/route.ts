@@ -16,8 +16,10 @@
  *       forbids it; this proves it).
  *
  * The rest are signals: arm balance within region_group, how many consented
- * students are complete but unrandomized, randomization_conflicts, and answer
- * rate by arm.
+ * students are complete but unrandomized, randomization_conflicts, answer
+ * rate by arm, and (v38) the anonymous participants randomized on /start in the
+ * last 24 h: how many, the share with covariates, the share shown >= 1 ranked card,
+ * and the apply-clicks bound to an anon_id (a total, never by arm).
  *
  * NO-PEEKING (PART 2 step 8). This route reports how people were ASSIGNED and
  * whether they ANSWERED. It never reports an outcome — application rate, clicks,
@@ -35,6 +37,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { CURRENT_CONSENT_VERSION, isResearchConsented } from '@/lib/research/consentGate';
+import { ANON_HEALTH_WINDOW_HOURS, summarizeAnonHealth, type AnonAssignmentHealthRow, type AnonHealth } from '@/lib/research/anonHealth';
 
 const PAGE = 1000;
 const IN_CHUNK = 100;
@@ -72,6 +75,11 @@ async function selectAll<T>(
     rows.push(...((data ?? []) as unknown as T[]));
     if (!data || data.length < PAGE) return { rows };
   }
+}
+
+/** PostgREST PGRST204 / Postgres 42703: a column does not exist (yet). */
+function isMissingColumn(err: { code?: string; message?: string } | null): boolean {
+  return !!err && (err.code === 'PGRST204' || err.code === '42703' || /column .* does not exist/i.test(err.message ?? ''));
 }
 
 /** Postgres 42P01 / PostgREST PGRST205: the table or view does not exist (yet). */
@@ -197,6 +205,54 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Anonymous participants (v38): complete records? ───────────────────────
+  let anonymous: ({ available: true } & AnonHealth) | Unavailable;
+  {
+    const since = new Date(Date.now() - ANON_HEALTH_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+    const { data, error } = await admin
+      .from('anon_assignments')
+      .select('anon_id, level, region_group, income_bracket, recruitment_source')
+      .gte('created_at', since)
+      .limit(5000);
+    if (error) {
+      if (!isMissingRelation(error) && !isMissingColumn(error)) return fail('anon_assignments read', error.message);
+      anonymous = { available: false, reason: 'columns not created yet (scripts/20261122_v38_1)' };
+    } else {
+      const rows = (data ?? []) as unknown as AnonAssignmentHealthRow[];
+      const ids = rows.map(r => r.anon_id);
+      const withImpression = new Set<string>();
+      let impressionsReadable = true;
+      for (let i = 0; i < ids.length; i += IN_CHUNK) {
+        const { data: imp, error: impErr } = await admin
+          .from('anon_impressions')
+          .select('anon_id')
+          .in('anon_id', ids.slice(i, i + IN_CHUNK))
+          .limit(PAGE);
+        if (impErr) {
+          if (!isMissingRelation(impErr)) return fail('anon_impressions read', impErr.message);
+          impressionsReadable = false;
+          break;
+        }
+        for (const r of (imp ?? []) as { anon_id: string }[]) withImpression.add(r.anon_id);
+      }
+      const { count: clicks, error: clickErr } = await admin
+        .from('apply_click')
+        .select('id', { count: 'exact', head: true })
+        .not('anon_id', 'is', null)
+        .gte('clicked_at', since);
+      if (clickErr && !isMissingColumn(clickErr)) return fail('apply_click read', clickErr.message);
+
+      if (!impressionsReadable || clickErr) {
+        anonymous = { available: false, reason: 'tables not created yet (scripts/20261122_v38_2)' };
+      } else {
+        anonymous = {
+          available: true,
+          ...summarizeAnonHealth({ assignments: rows, anonIdsWithImpression: withImpression, anonApplyClicks: clicks ?? 0 }),
+        };
+      }
+    }
+  }
+
   // ── Alerts: invariants first, then signals ─────────────────────────────────
   const alerts: string[] = [];
   if (treatedImpressions > 0) alerts.push('treated_without_randomization');
@@ -208,6 +264,7 @@ export async function GET(request: NextRequest) {
     }
   }
   if (consentedUnrandomized > 0) alerts.push('consented_complete_but_unrandomized');
+  if (anonymous.available) alerts.push(...anonymous.alerts);
 
   if (alerts.length) console.error('[research/health] ALERT', alerts.join(','));
 
@@ -226,6 +283,7 @@ export async function GET(request: NextRequest) {
     research_consent: consentStatus,
     randomization_conflicts: conflicts,
     answer_rate_by_arm: answerRate,
+    anonymous_participants: anonymous,
     alerts,
     ok: alerts.length === 0,
   });

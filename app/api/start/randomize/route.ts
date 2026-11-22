@@ -4,7 +4,12 @@
  * BEHIND A SWITCH: answers 404 {enabled:false} unless ANON_RANDOMIZATION=on. See
  * lib/research/anonAssignment.ts for what must be true before that is turned on.
  *
- * Body: { answers: PreviewInput, adult: true, consent: true }
+ * Body: { answers: PreviewInput, adult: true, consent: true,
+ *         attribution?: { utm_source, utm_medium, utm_campaign, utm_content, landing_variant } }
+ *
+ * - The covariates (answers, region_group, recruitment_source, UTMs, landing
+ *   variant) are written on the assignment row, once (scripts/20261122_v38_1), so a
+ *   participant who never signs up is still a complete record (PREREG §10.2).
  *
  * - Age first: unless the visitor declared they have reached the threshold
  *   (START_ADULT_AGE) there is no assignment, no cookie and no row — they get the full
@@ -30,13 +35,16 @@ import { anonRandomizationEnabled, buildAnonAssignment, anonLogTag } from '@/lib
 import { ANON_CONSENT_VERSION, saveAnonAssignment } from '@/lib/research/anonStore';
 import { anonIdFromRequest, mintAnonId, setAnonCookie } from '@/lib/research/anonRequest';
 import { mayBeRandomized } from '@/lib/research/startEligibility';
+import { buildAnonCovariates, type AnonAttribution } from '@/lib/research/anonCovariates';
 
 export async function POST(request: NextRequest) {
   if (!anonRandomizationEnabled()) {
     return NextResponse.json({ enabled: false }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => null) as { answers?: unknown; consent?: unknown; adult?: unknown } | null;
+  const body = await request.json().catch(() => null) as {
+    answers?: unknown; consent?: unknown; adult?: unknown; attribution?: unknown;
+  } | null;
   const answers = parsePreviewInput(body?.answers);
   if (!answers) return NextResponse.json({ error: 'invalid_answers' }, { status: 400 });
 
@@ -70,13 +78,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'randomization_unavailable' }, { status: 503 });
   }
 
-  const saved = await saveAnonAssignment(admin, assignment);
+  const attribution = body?.attribution && typeof body.attribution === 'object'
+    ? body.attribution as AnonAttribution
+    : null;
+  const covariates = buildAnonCovariates(answers, attribution);
+
+  const saved = await saveAnonAssignment(admin, assignment, covariates);
   if (saved.error || !saved.row) {
     console.error('[anon] randomize FAILED', { anon: anonLogTag(anonId), message: saved.error });
     return NextResponse.json({ error: 'randomization_failed' }, { status: 500 });
   }
 
-  console.info('[anon] randomized', { anon: anonLogTag(anonId), created: saved.created });
+  console.info('[anon] randomized', {
+    anon: anonLogTag(anonId), created: saved.created, covariates: saved.covariatesStored ?? false,
+    recruitment_source: covariates.recruitment_source,
+  });
   const response = NextResponse.json({ randomized: true });
   return setAnonCookie(response, anonId, request.nextUrl.hostname);
 }

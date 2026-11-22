@@ -275,7 +275,7 @@ describe('everything is inert with the switch off', () => {
 
   it('the matcher shows the consent block only when offered, never pre-ticked', () => {
     const src = read('app/start/PreviewMatcher.tsx');
-    expect(src).toContain('useState(false)');                    // researchConsent default
+    expect(src).toContain('useState<ResearchChoice>(null)');    // the study choice starts unchosen (v38)
     expect(src).toMatch(/researchConsentOffered && \(/);
     expect(src).toContain('researchConsentOffered && adult === true && researchConsent');   // age first (startAgeGate.test.ts)
     expect(read('app/start/page.tsx')).toContain('researchConsentOffered={anonRandomizationEnabled()}');
