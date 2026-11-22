@@ -97,7 +97,7 @@ export default function WhyTunDeeIsFree() {
             fontSize: '11px',
             textTransform: 'uppercase',
             letterSpacing: '2px',
-            color: '#8A96A8',
+            color: 'rgb(var(--tx-subtle))',
             fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif',
           }}
         >
@@ -158,7 +158,7 @@ export function WhyFreeCondensed({ className = '' }: { className?: string }) {
           // capitalised in the source instead, so both languages read as intended.
           fontSize: '11px',
           letterSpacing: '1.5px',
-          color: '#8A96A8',
+          color: 'rgb(var(--tx-subtle))',
           fontFamily: 'var(--font-lato), Lato, system-ui, sans-serif',
         }}
       >
@@ -174,7 +174,7 @@ export function WhyFreeCondensed({ className = '' }: { className?: string }) {
             />
             <p
               style={{ fontSize: '13px', lineHeight: 1.65, fontFamily: face }}
-              className="text-[#6E7A8A] dark:text-[#7A8FA8]"
+              className="text-muted"
             >
               {th ? point.th : point.en}
             </p>

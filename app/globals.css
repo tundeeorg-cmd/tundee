@@ -127,6 +127,38 @@
   --border-sm:      #E8ECF2;
 }
 
+/* ── Text contrast tokens (WCAG AA ≥ 4.5:1 on every background they are used on) ──
+   Used through tailwind.config.ts: text-muted, text-subtle, text-warning,
+   text-nav-active, text-nav-inactive, text-chip, text-label-accent.
+   Light values checked on #FFFFFF, #F5F7FA, #EBF2FF, #F0F4F9; dark values on
+   #07111F, #0A1628, #0D1F35, #16263F, #162552, #1A2440, #232B3E. Channels, not hex,
+   so Tailwind's opacity modifiers work. */
+:root {
+  --tx-muted:        86 98 111;   /* #56626F  5.4–6.2:1 */
+  --tx-subtle:       95 107 124;  /* #5F6B7C  4.8–5.4:1 */
+  --tx-warning:      164 74 6;    /* #A44A06  5.2–5.9:1 (was #D97706, 3.2:1) */
+  --tx-nav-active:   27 58 107;   /* #1B3A6B */
+  --tx-nav-inactive: 102 112 133; /* #667085  4.6–5.0:1 (was #ADADB8, 2.2:1) */
+  --tx-chip:         74 90 112;   /* #4A5A70 */
+  --tx-label-accent: 42 85 150;   /* #2A5596 */
+}
+.dark {
+  --tx-muted:        154 167 187; /* #9AA7BB  5.8–7.8:1 */
+  --tx-subtle:       138 155 179; /* #8A9BB3  5.0–6.7:1 */
+  --tx-warning:      251 191 36;  /* #FBBF24 */
+  --tx-nav-active:   143 180 255; /* #8FB4FF  (was #1B3A6B, 1.7:1) */
+  --tx-nav-inactive: 152 162 179; /* #98A2B3 */
+  --tx-chip:         169 182 200; /* #A9B6C8 */
+  --tx-label-accent: 127 168 232; /* #7FA8E8  (was #4A7FD4, 3.9:1 on #1A2440) */
+}
+
+/* Native controls (the province <select>, scrollbars, date inputs) follow the theme. */
+html.dark { color-scheme: dark; }
+
+/* A horizontal scroller with no visible scrollbar (chip rows on phones). */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 .dark {
   --color-bg:             #07111F;
   --color-card:           #0A1628;

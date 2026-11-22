@@ -115,7 +115,7 @@ export default function AuthShell({
                 </a>
               </p>
 
-              <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={{ ...THAI, lineHeight: 1.8 }}>
+              <p className="text-center text-xs text-subtle mt-5" style={{ ...THAI, lineHeight: 1.8 }}>
                 หรือกดลิงก์ในอีเมลก็ได้
               </p>
             </div>
@@ -144,6 +144,7 @@ export default function AuthShell({
                     build an intent:// URL with, so a webview visitor gets the
                     ordinary authorize URL. The hydrated form adds the escape. */}
             <a
+              data-brand="line"
               href={`/api/auth/line/start?next=${encodeURIComponent(next)}&${CONSENT_PARAM}=${CONSENT_VERSION}`}
               className="flex items-center justify-center gap-3 w-full min-h-[56px] bg-[#06C755] rounded-xl text-white font-bold text-base px-4"
               style={THAI}
@@ -174,7 +175,7 @@ export default function AuthShell({
             {/* 3 ── Divider */}
             <div className="flex items-center gap-3 mb-5">
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
-              <span className="text-xs text-[#aeaeb2] dark:text-[#6e6e73] font-medium" style={THAI}>หรือ</span>
+              <span className="text-xs text-subtle font-medium" style={THAI}>หรือ</span>
               <div className="flex-1 h-px bg-[#e0e0e0] dark:bg-[#3a3a3c]" />
             </div>
 
@@ -185,7 +186,7 @@ export default function AuthShell({
                     (/api/auth/otp/send re-checks it). */}
             <details open={webview || !!email || emailOpenFor(from)} className="group">
               <summary
-                className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-[#6e6e73] group-open:mb-3"
+                className="list-none [&::-webkit-details-marker]:hidden cursor-pointer min-h-[44px] flex items-center justify-center text-sm text-[#1B3A6B] dark:text-[#8FB4FF] underline group-open:no-underline group-open:text-subtle group-open:mb-3"
                 style={THAI}
               >
                 ใช้อีเมลแทน
@@ -219,7 +220,7 @@ export default function AuthShell({
             </form>
             </details>
 
-            <p className="text-center text-xs text-[#aeaeb2] dark:text-[#6e6e73] mt-5" style={THAI}>
+            <p className="text-center text-xs text-subtle mt-5" style={THAI}>
               ฟรีตลอด ไม่มีค่าใช้จ่าย
             </p>
           </div>

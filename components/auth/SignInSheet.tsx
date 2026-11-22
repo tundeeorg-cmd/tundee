@@ -79,7 +79,7 @@ export default function SignInSheet({
             {detail}
           </p>
         )}
-        <p className="mt-2 mb-4 text-xs text-center text-[#6E7A8A] dark:text-[#8e9bb0]" style={TH}>
+        <p className="mt-2 mb-4 text-xs text-center text-muted" style={TH}>
           {sub}
         </p>
 
@@ -102,7 +102,7 @@ export default function SignInSheet({
           ref={closeRef}
           type="button"
           onClick={onClose}
-          className="mt-2 block w-full py-2.5 text-sm text-[#6E7A8A] dark:text-[#8e9bb0] underline-offset-2 hover:underline"
+          className="mt-2 block w-full py-2.5 text-sm text-muted underline-offset-2 hover:underline"
           style={TH}
         >
           {SIGN_IN_SHEET_LATER}

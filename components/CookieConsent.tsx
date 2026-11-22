@@ -46,7 +46,7 @@ export default function CookieConsent() {
           traffic arrives on. Buttons stay side by side at every width. */}
       <div className="mx-auto max-w-[560px] rounded-2xl border border-[#E8ECF2] dark:border-[#1A2E4A] bg-white dark:bg-[#0A1628] shadow-lg px-4 py-3.5">
         <p
-          className="text-[#6E7A8A] dark:text-[#8e9bb0] leading-snug mb-3"
+          className="text-muted leading-snug mb-3"
           style={{ ...th, fontSize: '0.8rem' }}
         >
           เราใช้คุกกี้เพื่อวิเคราะห์การใช้งานและวัดผลโฆษณา ปฏิเสธได้โดยไม่กระทบการใช้งาน{' '}
@@ -71,7 +71,7 @@ export default function CookieConsent() {
             type="button"
             onClick={() => choose('rejected')}
             style={th}
-            className="flex-1 min-h-[44px] rounded-xl border-2 border-[#E8ECF2] dark:border-[#1A2E4A] text-[#6E7A8A] dark:text-[#8e9bb0] font-bold text-sm hover:border-[#1B3A6B] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
+            className="flex-1 min-h-[44px] rounded-xl border-2 border-[#E8ECF2] dark:border-[#1A2E4A] text-muted font-bold text-sm hover:border-[#1B3A6B] hover:text-[#1B3A6B] dark:hover:text-[#8FB4FF] transition-colors"
           >
             ปฏิเสธ
           </button>

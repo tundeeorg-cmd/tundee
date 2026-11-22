@@ -29,7 +29,7 @@ export default function ConsentNotice({
   withField?: boolean;
 }) {
   return (
-    <p className={`text-center text-xs leading-relaxed text-[#6E7A8A] dark:text-[#8e9bb0] ${className}`} style={THAI}>
+    <p className={`text-center text-xs leading-relaxed text-muted ${className}`} style={THAI}>
       {withField && <input type="hidden" name={CONSENT_PARAM} value={CONSENT_VERSION} />}
       เมื่อดำเนินการต่อ ถือว่าคุณยอมรับ{' '}
       <a href="/terms" target="_blank" rel="noopener noreferrer"

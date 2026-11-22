@@ -9,7 +9,8 @@ export default defineConfig({
     // live database and need env vars, so they must not run in `npm test` or
     // in CI. Run one explicitly:
     //   npx vitest run scripts/analysis/rankDisplacement.test.ts
-    exclude: [...defaultExclude, 'scripts/analysis/**'],
+    // e2e/ is Playwright (npm run test:visual), not vitest.
+    exclude: [...defaultExclude, 'scripts/analysis/**', 'e2e/**'],
   },
   resolve: {
     alias: {

@@ -193,7 +193,7 @@ export default function LineQuickStart({
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
           <div className="flex-1 h-px bg-[#E8ECF2] dark:bg-[#1A2E4A]" />
-          <span className="text-xs text-[#8A96A8]" style={TH}>หรือ</span>
+          <span className="text-xs text-subtle" style={TH}>หรือ</span>
           <div className="flex-1 h-px bg-[#E8ECF2] dark:bg-[#1A2E4A]" />
         </div>
 
@@ -225,7 +225,7 @@ export default function LineQuickStart({
         <p className="mt-3 text-center text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ ...TH, lineHeight: 1.8 }}>
           {IN_APP_COPY.lineNote}
         </p>
-        <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={{ ...TH, lineHeight: 1.8 }}>
+        <p className="mt-3 text-center text-xs text-subtle" style={{ ...TH, lineHeight: 1.8 }}>
           {LINE_DATA_NOTICE.th}
         </p>
       </div>
@@ -240,6 +240,7 @@ export default function LineQuickStart({
           type="button"
           onClick={start}
           aria-disabled={leaving}
+          data-brand="line"
           className={`w-full flex items-center justify-center gap-3 rounded-2xl min-h-[56px] px-4 text-base font-bold text-white transition-colors ${
             !leaving ? 'bg-[#06C755] active:opacity-90' : 'bg-[#06C755]/40'
           }`}
@@ -255,7 +256,7 @@ export default function LineQuickStart({
             other non-Safari browsers) — or Android, when the hand-off did not happen. */}
         {helpBox}
 
-        <p className="mt-3 text-center text-xs text-[#8A96A8] dark:text-[#7A8FA8]" style={{ ...TH, lineHeight: 1.8 }}>
+        <p className="mt-3 text-center text-xs text-subtle" style={{ ...TH, lineHeight: 1.8 }}>
           {LINE_DATA_NOTICE.th}
         </p>
       </div>

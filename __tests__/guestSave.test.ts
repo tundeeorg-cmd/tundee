@@ -144,7 +144,7 @@ describe('the Save button and what follows', () => {
 
   it('a signed-in student is not asked to sign up on the results (15 Nov 2026)', () => {
     const results = read('app/start/PreviewResults.tsx');
-    expect(results).toContain('createClient().auth.getUser()');
+    expect(results).toContain('supabase.auth.getUser()');
     const sticky = results.slice(results.indexOf('Sticky CTA'), results.indexOf('Clears the sticky bar'));
     // Signed in: a link to the saved list; otherwise the sign-in sheet.
     expect(sticky).toMatch(/\{signedIn \? \(\s*<Link\s+href="\/tracker"[\s\S]*SIGNED_IN_COPY\.sticky[\s\S]*\) : \([\s\S]*setSheetOpen\(true\)/);

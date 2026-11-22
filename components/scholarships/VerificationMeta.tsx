@@ -72,7 +72,7 @@ export default function VerificationMeta({
   return (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${className}`}>
       {checked && (
-        <span className="text-[11px] text-[#8A96A8] dark:text-[#6B7C93]">
+        <span className="text-[11px] text-subtle">
           {th ? `ตรวจสอบล่าสุด ${checked}` : `Last checked ${checked}`}
         </span>
       )}
@@ -81,7 +81,7 @@ export default function VerificationMeta({
           href={link.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] text-[#1B3A6B] dark:text-[#4A7FD4] hover:underline"
+          className="inline-flex items-center gap-1 text-[11px] text-[#1B3A6B] dark:text-label-accent hover:underline"
         >
           {linkText}
           <span aria-hidden="true">→</span>
