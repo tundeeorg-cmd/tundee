@@ -304,7 +304,7 @@ export default function Nav() {
                 </div>
               </div>
               <Link href="/profile" onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-[#1B3A6B]">
+                className="text-sm font-medium text-[#1B3A6B] dark:text-[#8FB4FF]">
                 {nav.navProfile[lang]}
               </Link>
               <div>
