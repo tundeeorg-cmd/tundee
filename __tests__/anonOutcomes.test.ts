@@ -309,6 +309,7 @@ describe('test participants are left out of the anonymous extract (2026-11-23)',
 
   it('the walkthrough participant is listed', () => {
     expect(TEST_ANON_IDS.has(TEST)).toBe(true);
+    expect(TEST_ANON_IDS.has('d6bb94cf-ba67-4711-995d-0955b19337de')).toBe(true);
     expect(anonExclusion(part(TEST), CURRENT_CONSENT_VERSION)).toBe('test_participant');
     expect(anonExclusion(part(REAL), CURRENT_CONSENT_VERSION)).toBeNull();
   });
