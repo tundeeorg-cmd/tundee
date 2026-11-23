@@ -51,6 +51,8 @@ const BAD = {
   melbourne: sch({ scholarship_name_en: "Melbourne Research Scholarship (Master's by research / PhD)", level: 'Undergraduate' }),
   uwaPhd: sch({ scholarship_name_th: 'ทุนปริญญาเอก UWA', level: "PhD" }),
   msOnly: sch({ scholarship_name_en: 'Some award', level: "Master's" }),
+  // Live on 2026-11-23 at rank 59 for this profile: "Graduate Scholarships" was not read as postgraduate.
+  oxfordPershing: sch({ scholarship_name_en: 'Oxford-Pershing Square Graduate Scholarships 2027', funder_en: 'University of Oxford', level: 'Multiple' }),
 };
 
 const GOOD = {
@@ -58,6 +60,8 @@ const GOOD = {
   kys: sch({ scholarship_name_th: 'กองทุนเงินให้กู้ยืมเพื่อการศึกษา (กยศ.)', level: 'Multiple' }),
   mixed: sch({ scholarship_name_th: 'ทุนรัฐบาล ป.ตรี-โท-เอก', level: 'Multiple' }),
   mastercard: sch({ scholarship_name_en: 'Mastercard Foundation Scholars Program', level: 'Multiple' }),
+  // "Undergraduate Scholarships" must not trip the "Graduate Scholarships" rule.
+  jefferson: sch({ scholarship_name_en: 'Jefferson Scholars Foundation Undergraduate Scholarships 2027', level: 'Multiple' }),
   tobaccoControl: sch({ scholarship_name_th: 'ทุนวิจัยควบคุมยาสูบ ศจย.', funder_th: 'ศูนย์วิจัยและจัดการความรู้เพื่อการควบคุมยาสูบ', level: 'Multiple' }),
 };
 
@@ -87,6 +91,11 @@ describe('effectiveScholarshipLevel — the column, corrected by the title', () 
     expect(effectiveScholarshipLevel(BAD.swiss)).toBe('graduate');
     expect(effectiveScholarshipLevel(BAD.exeter)).toBe('graduate');
     expect(effectiveScholarshipLevel(BAD.melbourne)).toBe('graduate');
+    expect(effectiveScholarshipLevel(BAD.oxfordPershing)).toBe('graduate');
+  });
+
+  it('"Undergraduate Scholarships" stays undergraduate-open', () => {
+    expect(effectiveScholarshipLevel(GOOD.jefferson)).toBe('multiple');
   });
 
   it('keeps a mixed row open when it also names ป.ตรี / bachelor', () => {
