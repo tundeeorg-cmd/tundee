@@ -20,6 +20,12 @@ Consent gate (both): consent to the current wording, `CURRENT_CONSENT_VERSION` =
 | `3c75c8de-c9ed-49fb-a11a-3a34777e8973` | 2026-11-23 | Headless run that followed the LINE button to LINE's login page, to check the redirect chain. Never signed in. | 10 `anon_impressions`; no click. |
 | `203a2f6d-d331-466f-bd50-b888b3ca8ad1` | 2026-11-23 08:01 UTC | LINE sign-in merge test from a private window. Claimed by a team account (so it was already out of the extract as `claimed_by_account`); it is listed here so it is counted as a test instead. | 10 `anon_impressions`, `user_id` backfilled to that account; `randomization_conflicts` id `72b2453f-b7ca-489b-8747-105a10cd45ab` (anon `baseline`, account `fairness_adjusted`); no click. **Exclude that conflict row** when counting arm conflicts. |
 
+**Team accounts** (account extract and `/api/health/research`): accounts the team uses on production are listed in `TEAM_ACCOUNT_IDS` (`lib/research/teamAccounts.ts`). The account extract drops their events and counts them in `X-Excluded-Team-Account`. The health check leaves them out of arm balance and the conflict count, and reports how many it dropped as `team_accounts_excluded`. The rows stay in the database. If you query `profiles`, `funnel_events`, `apply_click`, `anon_impressions` or `randomization_conflicts` directly, exclude them yourself:
+
+| user_id | Why | Related rows |
+|---|---|---|
+| `efe69840-0552-4456-a643-726e4f0027ad` | Team account (signed up 2026-08-30, LINE linked). `profiles.ranking_variant = fairness_adjusted` since 2026-09-02. No `student_profile` row, so it was already outside the consent-gated extract and SQL views. | 268 `funnel_events` (2026-11-23); 10 `anon_impressions` from anon `203a2f6d` (merge test); `randomization_conflicts` `72b2453f…`; no `apply_click`. |
+
 ## Anonymous extract (`?scope=anon`)
 
 ### `record_type = "participant"` — one per participant

@@ -133,6 +133,16 @@ describe('GET /api/research/export', () => {
     expect(res.headers.get('X-Consent-Version')).toBe(CURRENT_CONSENT_VERSION);
   });
 
+  it('drops the team\'s own accounts whatever their consent, and counts them separately', async () => {
+    const TEAM = 'efe69840-0552-4456-a643-726e4f0027ad';
+    world.rows = [event(TEAM, sp()), event(TEAM, null), event('adult-current', sp())];
+    const res = await callExport();
+    const body = await res.text();
+    expect(body.trim().split('\n')).toHaveLength(1);
+    expect(res.headers.get('X-Excluded-Team-Account')).toBe('2');
+    expect(res.headers.get('X-Excluded-No-Student-Profile')).toBe('0');
+  });
+
   it('never lets the old-wording student through, however their other fields look', async () => {
     world.rows = [event('old-wording', sp({ consent_version: '2026-01-v1' }))];
     const body = await (await callExport()).text();

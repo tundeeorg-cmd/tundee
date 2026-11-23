@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { readFileSync } from 'node:fs';
 import { CURRENT_CONSENT_VERSION } from '@/lib/research/consentGate';
 
 type Rows = Record<string, unknown>[];
@@ -81,6 +82,18 @@ beforeEach(() => {
 });
 
 describe('/api/health/research', () => {
+  it('leaves the team\'s own accounts out of arm balance and says how many', async () => {
+    world.profiles.push(profile({ id: 'efe69840-0552-4456-a643-726e4f0027ad', ranking_variant: 'fairness_adjusted' }));
+    const body = await (await get()).json();
+    expect(body.team_accounts_excluded).toBe(1);
+    expect(body.arm_balance_by_region_group.northeast).toMatchObject({ baseline: 1, fairness_adjusted: 1, n: 2 });
+  });
+
+  it('counts randomization conflicts without the team\'s accounts', () => {
+    const src = readFileSync('app/api/health/research/route.ts', 'utf8');
+    expect(src).toMatch(/from\('randomization_conflicts'\)[\s\S]{0,120}\.not\('user_id', 'in', teamAccountInList\(\)\)/);
+  });
+
   it('refuses a request without the secret', async () => {
     expect((await get(null)).status).toBe(401);
     expect((await get('Bearer nope')).status).toBe(401);
