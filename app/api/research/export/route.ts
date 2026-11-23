@@ -43,6 +43,7 @@
 
 export const runtime = 'nodejs';
 
+import { isTeamAccount } from '@/lib/research/teamAccounts';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient }               from '@supabase/supabase-js';
@@ -192,7 +193,10 @@ export async function GET(request: NextRequest) {
   const excluded: Record<ExportExclusion, number> = {
     no_student_profile: 0, no_research_consent: 0, stale_consent_version: 0, minor_without_guardian: 0,
   };
+  let teamAccountRows = 0;
   const exportable = (data ?? []).filter((row: Row) => {
+    // The team's own accounts are testing, not participation (lib/research/teamAccounts.ts).
+    if (isTeamAccount(row.user_id as string)) { teamAccountRows++; return false; }
     const why = exportExclusion(row.student_profile as unknown as Sp);
     if (why) { excluded[why]++; return false; }
     return true;
@@ -263,7 +267,7 @@ export async function GET(request: NextRequest) {
 
   console.info('[research/export] served', {
     by: user.email, rows: lines.length, since: since ?? null,
-    excluded: excluded,
+    excluded: { ...excluded, team_account: teamAccountRows },
   });
 
   // Stream as NDJSON (easy to parse with pandas: pd.read_json(..., lines=True))
@@ -279,6 +283,7 @@ export async function GET(request: NextRequest) {
       'X-Excluded-No-Consent':           String(excluded.no_research_consent),
       'X-Excluded-Stale-Consent':        String(excluded.stale_consent_version),
       'X-Excluded-Minor-No-Guardian':    String(excluded.minor_without_guardian),
+      'X-Excluded-Team-Account':         String(teamAccountRows),
     },
   });
 }

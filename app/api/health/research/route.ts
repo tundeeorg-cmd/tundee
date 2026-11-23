@@ -34,6 +34,7 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+import { isTeamAccount, teamAccountInList } from '@/lib/research/teamAccounts';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { CURRENT_CONSENT_VERSION, isResearchConsented } from '@/lib/research/consentGate';
@@ -110,7 +111,9 @@ export async function GET(request: NextRequest) {
     'id, cohort, region_group, ranking_variant, ranking_assigned_at, assignment_algorithm_version, province, income_bracket, research_opt_in',
   );
   if ('error' in profilesRes) return fail('profiles read', profilesRes.error);
-  const profiles = profilesRes.rows;
+  // The team's own accounts are testing, not participation (lib/research/teamAccounts.ts).
+  const teamAccountsExcluded = profilesRes.rows.filter(p => isTeamAccount(p.id)).length;
+  const profiles = profilesRes.rows.filter(p => !isTeamAccount(p.id));
 
   const complete = (p: ProfileRow) => !!p.province && p.income_bracket != null;
   const variantWithoutAudit = profiles.filter(
@@ -176,7 +179,8 @@ export async function GET(request: NextRequest) {
   // ── randomization_conflicts (exists after scripts/20261026_v24) ───────────
   let conflicts: { available: true; rows: number } | Unavailable;
   {
-    const { count, error } = await admin.from('randomization_conflicts').select('id', { count: 'exact', head: true });
+    const { count, error } = await admin.from('randomization_conflicts').select('id', { count: 'exact', head: true })
+      .not('user_id', 'in', teamAccountInList());
     if (error) {
       if (!isMissingRelation(error)) return fail('randomization_conflicts read', error.message);
       conflicts = { available: false, reason: 'table not created yet (scripts/20261026_v24)' };
@@ -281,6 +285,7 @@ export async function GET(request: NextRequest) {
       note: 'total includes students who skipped the wizard before 26 Oct 2026 and are never randomized retroactively; the consented count is the one that should fall to 0',
     },
     research_consent: consentStatus,
+    team_accounts_excluded: teamAccountsExcluded,
     randomization_conflicts: conflicts,
     answer_rate_by_arm: answerRate,
     anonymous_participants: anonymous,
