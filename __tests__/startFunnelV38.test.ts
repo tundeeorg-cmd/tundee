@@ -19,6 +19,9 @@ const read = (p: string) => readFileSync(p, 'utf8');
 
 const store = vi.hoisted(() => ({ saved: [] as { assignment: Record<string, unknown>; covariates: Record<string, unknown> | null }[] }));
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ fake: true }) }));
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }),
+}));
 vi.mock('@/lib/research/anonStore', async (orig) => {
   const real = await orig<typeof import('@/lib/research/anonStore')>();
   return {
@@ -102,7 +105,7 @@ describe('consent is two equal buttons, neither pre-selected (task 5)', () => {
   });
 
   it('logs research_participation exactly as before, and randomizes only on "join"', () => {
-    expect(src).toContain('research_participation: researchParticipation({ offered: researchConsentOffered, adult, consented: researchConsent })');
+    expect(src).toContain('research_participation: researchParticipation({ offered: researchConsentOffered, signedIn, adult, consented: researchConsent })');
     expect(src).toContain("const researchConsent = researchChoice === 'join';");
     expect(src).toContain('researchConsentOffered && adult === true && researchConsent');
   });

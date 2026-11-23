@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { MINOR_AGE_THRESHOLD } from '@/lib/research/consentGate';
-import { START_ADULT_AGE, mayBeRandomized, researchParticipation } from '@/lib/research/startEligibility';
+import { START_ADULT_AGE, mayBeRandomized, researchParticipation, anonStudyOffered } from '@/lib/research/startEligibility';
 import { START_CONSENT } from '@/lib/research/startConsent';
 
 const read = (p: string) => readFileSync(p, 'utf8');
@@ -95,5 +95,19 @@ describe('the route enforces it too', () => {
   it('checks age before consent, on the server', () => {
     expect(src).toContain('mayBeRandomized({ adult: body?.adult, consent: body?.consent })');
     expect(src.indexOf('mayBeRandomized(')).toBeLessThan(src.indexOf('createAdminClient()'));
+  });
+});
+
+describe('a signed-in visitor is not offered the anonymous study (23 Nov 2026 walkthrough)', () => {
+  it('offered only with the switch on AND no session', () => {
+    expect(anonStudyOffered({ enabled: true, signedIn: false })).toBe(true);
+    expect(anonStudyOffered({ enabled: true, signedIn: true })).toBe(false);
+    expect(anonStudyOffered({ enabled: false, signedIn: false })).toBe(false);
+    expect(anonStudyOffered({ enabled: false, signedIn: true })).toBe(false);
+  });
+
+  it("the quiz event records 'signed_in', distinct from the switch being off", () => {
+    expect(researchParticipation({ offered: false, signedIn: true, adult: null, consented: false })).toBe('signed_in');
+    expect(researchParticipation({ offered: false, signedIn: false, adult: null, consented: false })).toBe('not_offered');
   });
 });

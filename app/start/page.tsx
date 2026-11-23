@@ -14,6 +14,8 @@ import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { getStartCards } from '@/lib/scholarships/startBrowse';
 import { anonRandomizationEnabled } from '@/lib/research/anonAssignment';
 import { resolveLandingVariant } from '@/lib/landing/variants';
+import { anonStudyOffered } from '@/lib/research/startEligibility';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 // The opengraph-image.tsx in this directory is auto-resolved by Next.js for
 // og:image. We declare the other tags here.
@@ -76,10 +78,11 @@ export default async function StartPage({
     typeof searchParams.v === 'string' ? searchParams.v : undefined,
   );
 
-  const [stats, registeredCount, startCards] = await Promise.all([
+  const [stats, registeredCount, startCards, signedIn] = await Promise.all([
     getScholarshipStats(),
     getRegisteredUserCount(),
     getStartCards(),
+    isSignedIn(),
   ]);
   return (
     <StartLanding
@@ -90,7 +93,23 @@ export default async function StartPage({
       landingVariant={landingVariant}
       initialCards={startCards.cards}
       listOk={startCards.ok}
-      researchConsentOffered={anonRandomizationEnabled()}
+      researchConsentOffered={anonStudyOffered({ enabled: anonRandomizationEnabled(), signedIn })}
+      signedIn={signedIn}
     />
   );
+}
+
+/**
+ * Whether the visitor has a session — an account holder is not offered the anonymous
+ * study (anonStudyOffered). A failed read counts as signed out here: the consent shows,
+ * and /api/start/randomize checks the session again before assigning anyone.
+ */
+async function isSignedIn(): Promise<boolean> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return !!user;
+  } catch {
+    return false;
+  }
 }
