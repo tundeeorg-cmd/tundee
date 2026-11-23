@@ -14,7 +14,9 @@
  *   - consent to the CURRENT wording only (the gate every export uses);
  *   - not claimed by an account: a participant who signed in is emitted ONCE, under
  *     the account (their pre-sign-in rows carry the user_id since the merge), never
- *     a second time here.
+ *     a second time here;
+ *   - not a test participant (TEST_ANON_IDS): rows the team created on production to
+ *     check the pipeline. Kept in the database, never in the extract.
  *   Every excluded participant is counted by reason, so a shrinking export is visible.
  *
  * See research/ANALYSIS-DATA-DICTIONARY.md for every field and the prereg section it serves.
@@ -72,9 +74,22 @@ export interface AnonClickExportRow {
   binding_source: string | null;
 }
 
-export type AnonExclusion = 'stale_consent_version' | 'claimed_by_account';
+export type AnonExclusion = 'test_participant' | 'stale_consent_version' | 'claimed_by_account';
 
-export function anonExclusion(p: Pick<AnonParticipantRow, 'research_consent_version' | 'claimed_by'>, currentVersion: string): AnonExclusion | null {
+/**
+ * Participants created by the team on production, never real visitors. Excluded from
+ * the extract (with their impressions and clicks) and counted, not deleted: the rows
+ * stay so the pipeline check that made them can be audited. Add one line per test,
+ * with the date and why, and record it in research/ANALYSIS-DATA-DICTIONARY.md.
+ */
+export const TEST_ANON_IDS: ReadonlySet<string> = new Set([
+  // 2026-11-23 production walkthrough of /start (signed-in browser; found the
+  // signed-in randomization gap fixed in PR #91). Its click is apply_click id 401.
+  '7dfb9dbc-995d-4dd0-aa27-e5314b053e30',
+]);
+
+export function anonExclusion(p: Pick<AnonParticipantRow, 'anon_id' | 'research_consent_version' | 'claimed_by'>, currentVersion: string): AnonExclusion | null {
+  if (TEST_ANON_IDS.has(p.anon_id)) return 'test_participant';
   if (p.research_consent_version !== currentVersion) return 'stale_consent_version';
   if (p.claimed_by) return 'claimed_by_account';
   return null;
@@ -86,7 +101,7 @@ export function buildAnonExport(input: {
   clicks: AnonClickExportRow[];
   currentConsentVersion: string;
 }): { lines: string[]; excluded: Record<AnonExclusion, number>; participants: number } {
-  const excluded: Record<AnonExclusion, number> = { stale_consent_version: 0, claimed_by_account: 0 };
+  const excluded: Record<AnonExclusion, number> = { test_participant: 0, stale_consent_version: 0, claimed_by_account: 0 };
   const kept = new Map<string, string>();       // anon_id -> pseudonymous id
   const lines: string[] = [];
 

@@ -130,6 +130,7 @@ async function exportAnonymous(db: SupabaseClient, by: string, since: string | n
       'X-Arm-Source':        'anon_assignments.ranking_variant; clicks bound at click time (bindAnonOutcome)',
       'X-Excluded-Stale-Consent':     String(out.excluded.stale_consent_version),
       'X-Excluded-Claimed-By-Account': String(out.excluded.claimed_by_account),
+      'X-Excluded-Test-Participant':   String(out.excluded.test_participant),
     },
   });
 }
