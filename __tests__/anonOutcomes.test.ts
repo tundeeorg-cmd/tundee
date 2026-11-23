@@ -10,7 +10,8 @@ import { createHash } from 'node:crypto';
 import { buildAnonCovariates, cleanUtm, hasAnonCovariates, UTM_MAX_LENGTH } from '@/lib/research/anonCovariates';
 import { bindAnonOutcome, PRIMARY_WINDOW_DAYS, type AnonFacts } from '@/lib/research/outcomeBinding';
 import { buildAnonImpressionRows } from '@/lib/research/anonImpressions';
-import { buildAnonExport, pseudonymiseAnon } from '@/lib/research/anonExport';
+import { buildAnonExport, pseudonymiseAnon, anonExclusion, TEST_ANON_IDS } from '@/lib/research/anonExport';
+import { readFileSync } from 'node:fs';
 import { summarizeAnonHealth } from '@/lib/research/anonHealth';
 import { parsePreviewOffset, PREVIEW_MAX_OFFSET } from '@/lib/preview/types';
 import { CURRENT_CONSENT_VERSION } from '@/lib/research/consentGate';
@@ -286,7 +287,41 @@ describe('anonymous export (task 3)', () => {
 
   it('a claimed participant is emitted once — under the account, not here — and stale consent is out; both counted', () => {
     expect(out.participants).toBe(1);
-    expect(out.excluded).toEqual({ stale_consent_version: 1, claimed_by_account: 1 });
+    expect(out.excluded).toEqual({ test_participant: 0, stale_consent_version: 1, claimed_by_account: 1 });
+  });
+});
+
+describe('test participants are left out of the anonymous extract (2026-11-23)', () => {
+  const TEST = '7dfb9dbc-995d-4dd0-aa27-e5314b053e30';
+  const REAL = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const part = (anon_id: string) => ({
+    anon_id, ranking_variant: 'baseline', ranking_assigned_at: '2026-11-23T02:14:37Z',
+    assignment_algorithm_version: 'v2', stratum: 'northeast|2', fairness_eligible: true,
+    research_consent_version: CURRENT_CONSENT_VERSION, research_consented_at: '2026-11-23T02:14:37Z', claimed_by: null,
+  });
+  const imp = (anon_id: string) => ({ anon_id, scholarship_id: 'TD-0251', rank: 1, fairness_mode: 'off', variant: 'anonymous-baseline', broadened: false, served_at: '2026-11-23T02:14:40Z' });
+  const out = buildAnonExport({
+    participants: [part(TEST), part(REAL)] as never,
+    impressions: [imp(TEST), imp(REAL)],
+    clicks: [],
+    currentConsentVersion: CURRENT_CONSENT_VERSION,
+  });
+
+  it('the walkthrough participant is listed', () => {
+    expect(TEST_ANON_IDS.has(TEST)).toBe(true);
+    expect(anonExclusion(part(TEST), CURRENT_CONSENT_VERSION)).toBe('test_participant');
+    expect(anonExclusion(part(REAL), CURRENT_CONSENT_VERSION)).toBeNull();
+  });
+
+  it('neither it nor its impressions are emitted, and it is counted', () => {
+    expect(out.participants).toBe(1);
+    expect(out.excluded.test_participant).toBe(1);
+    expect(out.lines.join('\n')).not.toContain(pseudonymiseAnon(TEST));
+    expect(out.lines.map((l) => JSON.parse(l).pseudo_anon_id)).toEqual([pseudonymiseAnon(REAL), pseudonymiseAnon(REAL)]);
+  });
+
+  it('the export route reports the count in a header', () => {
+    expect(readFileSync('app/api/research/export/route.ts', 'utf8')).toContain("'X-Excluded-Test-Participant':   String(out.excluded.test_participant)");
   });
 });
 

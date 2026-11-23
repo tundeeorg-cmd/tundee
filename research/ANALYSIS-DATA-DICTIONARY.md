@@ -11,6 +11,12 @@ A participant who signed in after randomization appears **only** in the accounts
 
 Consent gate (both): consent to the current wording, `CURRENT_CONSENT_VERSION` = `2026-07-v1`. Excluded participants are counted in `X-Excluded-*` response headers.
 
+**Test participants** (anonymous extract): rows the team created on production to check the pipeline are listed in `TEST_ANON_IDS` (`lib/research/anonExport.ts`) and left out of the extract with their impressions and clicks, counted in `X-Excluded-Test-Participant`. The rows stay in the database. If you query `anon_assignments`, `anon_impressions` or `apply_click` directly, exclude them yourself:
+
+| anon_id | Created | Why | Related rows |
+|---|---|---|---|
+| `7dfb9dbc-995d-4dd0-aa27-e5314b053e30` | 2026-11-23 02:14 UTC | Production walkthrough of `/start` from a signed-in browser (found the gap fixed in PR #91). | 10 `anon_impressions`; `apply_click` id 401 (bound to the account, already `excluded_from_primary`). |
+
 ## Anonymous extract (`?scope=anon`)
 
 ### `record_type = "participant"` — one per participant
