@@ -26,6 +26,7 @@ export const START_ADULT_AGE = MINOR_AGE_THRESHOLD;
 /** What the quiz_completed event records about the visitor's place in the study. */
 export type ResearchParticipation =
   | 'not_offered'          // randomization is off
+  | 'signed_in'            // switch on, but the visitor has an account (see below)
   | 'age_not_answered'
   | 'ineligible_minor'
   | 'declined'
@@ -33,9 +34,12 @@ export type ResearchParticipation =
 
 export function researchParticipation(input: {
   offered: boolean;
+  /** Signed in when /start rendered: not offered the anonymous study (see below). */
+  signedIn?: boolean;
   adult: boolean | null;
   consented: boolean;
 }): ResearchParticipation {
+  if (input.signedIn) return 'signed_in';
   if (!input.offered) return 'not_offered';
   if (input.adult === null) return 'age_not_answered';
   if (input.adult === false) return 'ineligible_minor';
@@ -49,4 +53,18 @@ export function mayBeRandomized(input: { adult: unknown; consent: unknown }): 'o
   if (input.adult !== true) return 'ineligible_minor';
   if (input.consent !== true) return 'no_consent';
   return 'ok';
+}
+
+/**
+ * A signed-in visitor is never offered the anonymous study, nor randomized into it.
+ *
+ * They already have an account, and the account is the unit of the account-level
+ * study. Giving them an anonymous assignment as well put one person in two records:
+ * the ranking served came from the anonymous arm, while /api/apply-click (which
+ * checks the session first) bound their clicks to the account. The anonymous record
+ * then showed impressions and no clicks — a false zero on the primary outcome. Found
+ * in the production walkthrough of 23 Nov 2026 (a test participant, since excluded).
+ */
+export function anonStudyOffered(input: { enabled: boolean; signedIn: boolean }): boolean {
+  return input.enabled && !input.signedIn;
 }

@@ -17,6 +17,10 @@
  *
  * - No consent, no assignment, no cookie, no row: the visitor simply gets the
  *   baseline ranking and is not in the study (PART 2 step 6).
+ * - Signed in, no assignment either: an account holder is in the account-level study
+ *   already, and a second, anonymous record splits their outcome (anonStudyOffered in
+ *   lib/research/startEligibility.ts). /start does not offer them the consent; this
+ *   is the server's half of that rule.
  * - Idempotent: the same anon_id always gets the same arm, however often the quiz
  *   is resubmitted and with whatever answers (the first stratum is the one used).
  * - The arm is NEVER returned. Participants are not told which arm they are in
@@ -35,6 +39,7 @@ import { anonRandomizationEnabled, buildAnonAssignment, anonLogTag } from '@/lib
 import { ANON_CONSENT_VERSION, saveAnonAssignment } from '@/lib/research/anonStore';
 import { anonIdFromRequest, mintAnonId, setAnonCookie } from '@/lib/research/anonRequest';
 import { mayBeRandomized } from '@/lib/research/startEligibility';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { buildAnonCovariates, type AnonAttribution } from '@/lib/research/anonCovariates';
 
 export async function POST(request: NextRequest) {
@@ -53,6 +58,17 @@ export async function POST(request: NextRequest) {
   const may = mayBeRandomized({ adult: body?.adult, consent: body?.consent });
   if (may !== 'ok') {
     return NextResponse.json({ randomized: false, reason: may });
+  }
+
+  // Signed in: no assignment, no cookie, no row. A failed session read is an error,
+  // not a guess either way — randomizing an account holder is the bug this prevents.
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) return NextResponse.json({ randomized: false, reason: 'signed_in' });
+  } catch (err) {
+    console.error('[anon] randomize: session check failed:', (err as Error).message);
+    return NextResponse.json({ error: 'randomization_unavailable' }, { status: 503 });
   }
 
   const admin = createAdminClient();

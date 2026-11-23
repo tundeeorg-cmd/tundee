@@ -69,10 +69,13 @@ export default function PreviewMatcher({
   scholarshipCount,
   funderCount,
   researchConsentOffered = false,
+  signedIn = false,
   attribution,
 }: {
   /** True only when ANON_RANDOMIZATION is on; otherwise no consent block and no extra request. */
   researchConsentOffered?: boolean;
+  /** Had a session when /start rendered — recorded as research_participation 'signed_in'. */
+  signedIn?: boolean;
   /** UTMs and landing variant, forwarded to /api/start/randomize as covariates. */
   attribution?: StartAttribution;
   signupHref: string;
@@ -188,7 +191,7 @@ export default function PreviewMatcher({
         income_bracket: input.income,
         gave_gpa:       input.gpa !== null,
         // Where the visitor stands in the study. Counts only; nothing about the person is stored.
-        research_participation: researchParticipation({ offered: researchConsentOffered, adult, consented: researchConsent }),
+        research_participation: researchParticipation({ offered: researchConsentOffered, signedIn, adult, consented: researchConsent }),
       },
     });
 

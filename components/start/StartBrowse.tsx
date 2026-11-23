@@ -82,6 +82,7 @@ export default function StartBrowse({
   initialCards,
   listOk,
   researchConsentOffered = false,
+  signedIn = false,
   attribution,
   signupHref,
   registeredCount,
@@ -93,6 +94,8 @@ export default function StartBrowse({
   listOk: boolean;
   /** True only when ANON_RANDOMIZATION is on. */
   researchConsentOffered?: boolean;
+  /** Had a session when /start rendered: the anonymous study is not offered. */
+  signedIn?: boolean;
   /** UTMs and landing variant for the anonymous assignment's covariates. */
   attribution?: StartAttribution;
   signupHref: string;
@@ -191,6 +194,7 @@ export default function StartBrowse({
             scholarshipCount={scholarshipCount}
             funderCount={funderCount}
             researchConsentOffered={researchConsentOffered}
+          signedIn={signedIn}
             attribution={attribution}
           />
         </div>

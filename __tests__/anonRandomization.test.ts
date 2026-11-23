@@ -137,9 +137,21 @@ const store = vi.hoisted(() => ({
   saveError: null as string | null,
   existing: null as Record<string, unknown> | null,
   admin: true,
+  // The session the randomize route reads: null = signed out, 'throw' = the read fails.
+  user: null as { id: string } | null | 'throw',
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => (store.admin ? { fake: true } : null) }));
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: async () => ({
+    auth: {
+      getUser: async () => {
+        if (store.user === 'throw') throw new Error('auth down');
+        return { data: { user: store.user } };
+      },
+    },
+  }),
+}));
 vi.mock('@/lib/research/anonStore', async (orig) => {
   const real = await orig<typeof import('@/lib/research/anonStore')>();
   return {
@@ -174,7 +186,24 @@ describe('POST /api/start/randomize', () => {
   });
 
   describe('with the switch on', () => {
-    beforeEach(() => { process.env.ANON_RANDOMIZATION = 'on'; });
+    beforeEach(() => { process.env.ANON_RANDOMIZATION = 'on'; store.user = null; });
+
+    it('signed in: no assignment, no row, no cookie — an account holder is never randomized anonymously', async () => {
+      store.user = { id: '2c33485b-0000-4000-8000-000000000000' };
+      const res = await call({ answers: ANSWERS, adult: true, consent: true });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ randomized: false, reason: 'signed_in' });
+      expect(res.headers.get('set-cookie')).toBeNull();
+      expect(store.saved).toHaveLength(0);
+    });
+
+    it('a failed session read is an error, not a guess: 503 and nothing stored', async () => {
+      store.user = 'throw';
+      const res = await call({ answers: ANSWERS, adult: true, consent: true });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('set-cookie')).toBeNull();
+      expect(store.saved).toHaveLength(0);
+    });
 
     it('without consent: no assignment, no row, no cookie', async () => {
       for (const consent of [false, undefined, 'true', 1, null]) {
@@ -278,7 +307,7 @@ describe('everything is inert with the switch off', () => {
     expect(src).toContain('useState<ResearchChoice>(null)');    // the study choice starts unchosen (v38)
     expect(src).toMatch(/researchConsentOffered && \(/);
     expect(src).toContain('researchConsentOffered && adult === true && researchConsent');   // age first (startAgeGate.test.ts)
-    expect(read('app/start/page.tsx')).toContain('researchConsentOffered={anonRandomizationEnabled()}');
+    expect(read('app/start/page.tsx')).toContain('researchConsentOffered={anonStudyOffered({ enabled: anonRandomizationEnabled(), signedIn })}');
   });
 
   it('the consent wording is in one reviewable file and marked as a draft', () => {

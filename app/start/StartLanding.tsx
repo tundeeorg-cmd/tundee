@@ -76,6 +76,7 @@ export default function StartLanding({
   initialCards,
   listOk,
   researchConsentOffered = false,
+  signedIn = false,
 }: {
   adParams: AdParams;
   /** Live count from lib/scholarships/counts.ts; null when the query failed. */
@@ -92,6 +93,8 @@ export default function StartLanding({
   listOk: boolean;
   /** True only when ANON_RANDOMIZATION is on: the matcher then asks for research consent. */
   researchConsentOffered?: boolean;
+  /** Had a session when /start rendered: the anonymous study is not offered. */
+  signedIn?: boolean;
 }) {
   const ctaHref = buildSignupHref(adParams, POST_LOGIN_DESTINATION);
   const copy    = landingCopy(landingVariant);
@@ -167,6 +170,7 @@ export default function StartLanding({
           initialCards={initialCards}
           listOk={listOk}
           researchConsentOffered={researchConsentOffered}
+          signedIn={signedIn}
           attribution={{
             utm_source:      adParams.utm_source,
             utm_medium:      adParams.utm_medium,
