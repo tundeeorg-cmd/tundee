@@ -16,6 +16,7 @@ Consent gate (both): consent to the current wording, `CURRENT_CONSENT_VERSION` =
 | anon_id | Created | Why | Related rows |
 |---|---|---|---|
 | `7dfb9dbc-995d-4dd0-aa27-e5314b053e30` | 2026-11-23 02:14 UTC | Production walkthrough of `/start` from a signed-in browser (found the gap fixed in PR #91). | 10 `anon_impressions`; `apply_click` id 401 (bound to the account, already `excluded_from_primary`). |
+| `d6bb94cf-ba67-4711-995d-0955b19337de` | 2026-11-23 03:15 UTC | Signed-out walkthrough (same requests as the page) to check the anonymous click binding. | 10 `anon_impressions`; `apply_click` id 404 (`anon_id` set, `user_id` NULL, `excluded_from_primary = false`: **drop it yourself** if you count anonymous clicks from the table). |
 
 ## Anonymous extract (`?scope=anon`)
 

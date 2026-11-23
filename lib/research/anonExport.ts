@@ -86,6 +86,9 @@ export const TEST_ANON_IDS: ReadonlySet<string> = new Set([
   // 2026-11-23 production walkthrough of /start (signed-in browser; found the
   // signed-in randomization gap fixed in PR #91). Its click is apply_click id 401.
   '7dfb9dbc-995d-4dd0-aa27-e5314b053e30',
+  // 2026-11-23 signed-out walkthrough (API-level, same requests as the page): checked
+  // the anonymous click binding. Its click is apply_click id 404.
+  'd6bb94cf-ba67-4711-995d-0955b19337de',
 ]);
 
 export function anonExclusion(p: Pick<AnonParticipantRow, 'anon_id' | 'research_consent_version' | 'claimed_by'>, currentVersion: string): AnonExclusion | null {
