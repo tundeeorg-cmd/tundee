@@ -137,6 +137,10 @@ const GRADUATE_TEXT = new RegExp([
   "\\bmaster'?s?\\b", '\\bm\\.?sc\\b', '\\bmba\\b', '\\bll\\.?m\\b', '\\bm\\.?phil\\b',
   '\\bph\\.?\\s?d\\b', '\\bdoctoral\\b', '\\bdoctorate\\b', '\\bpostgraduate\\b', '\\bpost-graduate\\b',
   '\\bpost-?doc', '\\bgraduate (study|studies|school|program|programme|research)',
+  // "Graduate Scholarship(s) / Fellowship(s) / Award(s)" — e.g. Oxford-Pershing Square
+  // Graduate Scholarships (MBA + one-year master's), shown to a ป.ตรี profile on
+  // 2026-11-23. \b keeps "Undergraduate Scholarships" out: no boundary inside the word.
+  '\\bgraduate (scholarships?|fellowships?|awards?|bursar(y|ies)|studentships?)',
   'ปริญญาโท', 'ป\\.\\s?โท', 'ปริญญาเอก', 'ป\\.\\s?เอก', 'บัณฑิตศึกษา', 'หลังปริญญาเอก',
   // Programmes that are postgraduate by definition, whatever the row's title says.
   '\\bgates cambridge\\b', '\\bswiss government excellence', '\\bchevening\\b', '\\brhodes scholarship', '\\berasmus mundus\\b',
