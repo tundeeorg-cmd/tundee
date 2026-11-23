@@ -17,6 +17,8 @@ Consent gate (both): consent to the current wording, `CURRENT_CONSENT_VERSION` =
 |---|---|---|---|
 | `7dfb9dbc-995d-4dd0-aa27-e5314b053e30` | 2026-11-23 02:14 UTC | Production walkthrough of `/start` from a signed-in browser (found the gap fixed in PR #91). | 10 `anon_impressions`; `apply_click` id 401 (bound to the account, already `excluded_from_primary`). |
 | `d6bb94cf-ba67-4711-995d-0955b19337de` | 2026-11-23 03:15 UTC | Signed-out walkthrough (same requests as the page) to check the anonymous click binding. | 10 `anon_impressions`; `apply_click` id 404 (`anon_id` set, `user_id` NULL, `excluded_from_primary = false`: **drop it yourself** if you count anonymous clicks from the table). |
+| `3c75c8de-c9ed-49fb-a11a-3a34777e8973` | 2026-11-23 | Headless run that followed the LINE button to LINE's login page, to check the redirect chain. Never signed in. | 10 `anon_impressions`; no click. |
+| `203a2f6d-d331-466f-bd50-b888b3ca8ad1` | 2026-11-23 08:01 UTC | LINE sign-in merge test from a private window. Claimed by a team account (so it was already out of the extract as `claimed_by_account`); it is listed here so it is counted as a test instead. | 10 `anon_impressions`, `user_id` backfilled to that account; `randomization_conflicts` id `72b2453f-b7ca-489b-8747-105a10cd45ab` (anon `baseline`, account `fairness_adjusted`); no click. **Exclude that conflict row** when counting arm conflicts. |
 
 ## Anonymous extract (`?scope=anon`)
 

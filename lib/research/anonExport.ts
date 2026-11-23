@@ -89,6 +89,12 @@ export const TEST_ANON_IDS: ReadonlySet<string> = new Set([
   // 2026-11-23 signed-out walkthrough (API-level, same requests as the page): checked
   // the anonymous click binding. Its click is apply_click id 404.
   'd6bb94cf-ba67-4711-995d-0955b19337de',
+  // 2026-11-23 headless production run that stopped at the LINE login page: checked
+  // the LINE button's redirect chain. 10 impressions, no click.
+  '3c75c8de-c9ed-49fb-a11a-3a34777e8973',
+  // 2026-11-23 LINE sign-in merge test from a private window. Claimed by the team's
+  // own account; arm conflict recorded (randomization_conflicts 72b2453f). No click.
+  '203a2f6d-d331-466f-bd50-b888b3ca8ad1',
 ]);
 
 export function anonExclusion(p: Pick<AnonParticipantRow, 'anon_id' | 'research_consent_version' | 'claimed_by'>, currentVersion: string): AnonExclusion | null {
