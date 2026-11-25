@@ -306,13 +306,16 @@ export function trackViewContent(input: {
  * them for Meta to learn from (it wants roughly 50 a week per ad set); account
  * creation, at ~16 per fortnight, is too sparse to optimize on.
  *
- * It must fire at most once per session (lib/adTracking.ts's
- * trackScholarshipOpened guards this) and from nowhere else. It used to fire when
- * the 3-question form's results were shown; that moment is now `Personalized`.
+ * It must fire at most once per session, from lib/adTracking.ts only: when a
+ * scholarship's detail page is opened (trackScholarshipOpened) or when the /start
+ * matcher is completed (trackMatcherCompleted, since 25 Nov 2026). Both share one
+ * session guard; content_category says which it was.
  */
-export function trackLead(input: { scholarshipId: string; browser?: BrowserContext }): void {
+export type LeadSource = 'scholarship_detail_opened' | 'matcher_completed';
+
+export function trackLead(input: { scholarshipId: string; source?: LeadSource; browser?: BrowserContext }): void {
   send('Lead', {
-    content_category: 'scholarship_detail_opened',
+    content_category: input.source ?? 'scholarship_detail_opened',
     content_type:     'scholarship',
     content_ids:      [input.scholarshipId],
     ...browserParams(input.browser),

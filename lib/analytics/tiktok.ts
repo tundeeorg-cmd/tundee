@@ -98,9 +98,9 @@ export function trackViewContent(input: {
 }
 
 /** Mirrors meta.trackLead — fires once per session, when a scholarship's detail page is opened. */
-export function trackLead(input: { scholarshipId: string; browser?: BrowserContext }): void {
+export function trackLead(input: { scholarshipId: string; source?: 'scholarship_detail_opened' | 'matcher_completed'; browser?: BrowserContext }): void {
   track('SubmitForm', {
-    content_type: 'scholarship_detail_opened',
+    content_type: input.source ?? 'scholarship_detail_opened',
     content_id:   input.scholarshipId,
     ...browserParams(input.browser),
   });

@@ -113,7 +113,26 @@ function firstThisSession(key: string): boolean {
 export function trackScholarshipOpened(scholarshipId: string) {
   if (!scholarshipId) return;
   if (!firstThisSession(LEAD_FIRED_KEY)) return;
-  analytics.lead({ scholarshipId });
+  analytics.lead({ scholarshipId, source: 'scholarship_detail_opened' });
+}
+
+/**
+ * The visitor finished the /start matcher and is looking at matched results.
+ *
+ * Since 25 Nov 2026 this ALSO fires Lead (content_category 'matcher_completed').
+ * The paid campaign exists to collect research data, and a completed matcher is
+ * exactly one enrolled participant. The /start results link to funders, not to
+ * TunDee detail pages, so a Lead that needed a detail-page open almost never
+ * fired from paid traffic: 2 Leads from ~76 landing-page views, 23-25 Nov.
+ *
+ * Shares LEAD_FIRED_KEY with trackScholarshipOpened, so a session still counts
+ * as ONE Lead whichever happens first. Personalized keeps firing as before so
+ * existing reports and audiences are unaffected.
+ */
+export function trackMatcherCompleted(matchCount: number, scholarshipIds: string[]) {
+  trackPersonalized(matchCount);
+  if (!firstThisSession(LEAD_FIRED_KEY)) return;
+  analytics.lead({ scholarshipId: scholarshipIds[0] ?? 'none', source: 'matcher_completed' });
 }
 
 /**

@@ -57,10 +57,11 @@ export function trackViewContent(input: { contentIds?: string[]; contentName?: s
 /** Mirrors meta.trackLead — fires once per session, when a scholarship's detail page is opened. */
 export function trackLead(input: {
   scholarshipId: string;
+  source?: 'scholarship_detail_opened' | 'matcher_completed';
   browser?: { inWebview: boolean; app: string | null };
 }): void {
   send('generate_lead', {
-    content_category: 'scholarship_detail_opened',
+    content_category: input.source ?? 'scholarship_detail_opened',
     item_id:          input.scholarshipId,
     ...(input.browser
       ? { in_app_browser: input.browser.inWebview, in_app_app: input.browser.app ?? 'none' }

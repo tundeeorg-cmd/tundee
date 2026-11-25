@@ -18,7 +18,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { formatUserDate } from '@/lib/formatDate';
 import { getDeadlineInfo } from '@/lib/deadline';
-import { trackPersonalized, trackPreviewResults } from '@/lib/adTracking';
+import { trackMatcherCompleted, trackPreviewResults } from '@/lib/adTracking';
 import { WhyFreeCondensed } from '@/components/trust/WhyTunDeeIsFree';
 import TrustStrip from '@/components/trust/TrustStrip';
 import { logFunnelEvent } from '@/lib/research/funnel';
@@ -183,12 +183,11 @@ export default function PreviewResults({
     if (tracked.current) return;
     tracked.current = true;
     trackPreviewResults(results.total, results.preview.map(c => c.scholarship_id));
-    // Lead — the event ad delivery optimizes against — fires here: the
-    // visitor answered the matcher's questions and is now looking at real
-    // matched scholarships. trackPersonalized's own sessionStorage guard
-    // is the one that actually matters for "once per session"; this ref only
-    // stops a same-mount re-render from calling it twice.
-    trackPersonalized(results.total);
+    // Personalized + Lead (once per session) — the visitor answered the
+    // matcher's questions and is now looking at real matched scholarships.
+    // The sessionStorage guards in lib/adTracking.ts decide "once per session";
+    // this ref only stops a same-mount re-render from calling it twice.
+    trackMatcherCompleted(results.total, results.preview.map(c => c.scholarship_id));
 
     // results_viewed — the funnel step where the visitor has actually SEEN
     // value. total and locked_count are recorded so the gate can be evaluated

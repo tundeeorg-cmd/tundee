@@ -33,7 +33,7 @@
 import * as meta from './meta';
 import * as tiktok from './tiktok';
 import * as ga from './ga';
-import { hasAnalyticsConsent } from './consent';
+import { getConsent, hasAnalyticsConsent, subscribeConsent } from './consent';
 import { detectInAppBrowser } from '@/lib/browser/inAppBrowser';
 
 export { gpaBand, signupMethodFrom } from './meta';
@@ -63,6 +63,60 @@ function browserContext(): meta.BrowserContext {
  */
 function allowed(): boolean {
   return typeof window !== 'undefined' && hasAnalyticsConsent();
+}
+
+// ─── Conversions held until the cookie banner is answered ────────────────────
+//
+// Most paid visitors finish the /start matcher before they touch the cookie
+// banner. Until 25 Nov 2026 their Lead was simply dropped (allowed() was false
+// at that moment, and the once-per-session guard was already spent), so Meta
+// saw 2 Leads from ~76 landing-page views and had nothing to optimize on.
+//
+// PDPA is unchanged: nothing is sent, stored or set while the visitor is
+// undecided. The call is held IN MEMORY for this page only. If they tap ยอมรับ it
+// is delivered (once the pixel script has loaded); if they tap ปฏิเสธ, leave, or
+// reload, it is discarded. Only conversions are held — never PageView or Search.
+
+const MAX_HELD = 10;
+const PIXEL_WAIT_MS = 6000;
+let held: Array<() => void> = [];
+let unsubscribeHold: (() => void) | null = null;
+
+function waitForPixel(): Promise<void> {
+  return new Promise(resolve => {
+    const started = Date.now();
+    const tick = () => {
+      const w = window as unknown as { fbq?: unknown };
+      if (typeof w.fbq === 'function' || Date.now() - started > PIXEL_WAIT_MS) resolve();
+      else setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+/** Run now if consented; hold in memory if the banner is unanswered; drop if rejected. */
+function whenConsented(run: () => void): void {
+  if (typeof window === 'undefined') return;
+  if (hasAnalyticsConsent()) { run(); return; }
+  if (getConsent() !== null) return; // rejected — never held, never sent
+  if (held.length >= MAX_HELD) return;
+  held.push(run);
+  if (unsubscribeHold) return;
+  unsubscribeHold = subscribeConsent(choice => {
+    if (choice === 'accepted') {
+      const toRun = held; held = [];
+      void waitForPixel().then(() => toRun.forEach(fn => { try { fn(); } catch { /* analytics never throws to UI */ } }));
+    } else if (choice === 'rejected') {
+      held = [];
+    }
+  });
+}
+
+/** Test-only: reset the in-memory hold. */
+export function __resetHeldConversionsForTests(): void {
+  held = [];
+  unsubscribeHold?.();
+  unsubscribeHold = null;
 }
 
 /** Fired on first load by each base script, and on every client-side route change. */
@@ -112,21 +166,23 @@ export function viewContent(input: {
  * optimizes against — call it at most once per session (lib/adTracking.ts's
  * trackScholarshipOpened guards this) and from nowhere else.
  */
-export function lead(input: { scholarshipId: string }): void {
-  if (!allowed()) return;
-  const browser = browserContext();
-  meta.trackLead({ ...input, browser });
-  tiktok.trackLead({ ...input, browser });
-  ga.trackLead({ ...input, browser });
+export function lead(input: { scholarshipId: string; source?: 'scholarship_detail_opened' | 'matcher_completed' }): void {
+  whenConsented(() => {
+    const browser = browserContext();
+    meta.trackLead({ ...input, browser });
+    tiktok.trackLead({ ...input, browser });
+    ga.trackLead({ ...input, browser });
+  });
 }
 
 /** The visitor answered the matcher's questions and saw matched scholarships. */
 export function personalized(input: { matchCount: number }): void {
-  if (!allowed()) return;
-  const browser = browserContext();
-  meta.trackPersonalized({ ...input, browser });
-  tiktok.trackPersonalized({ ...input, browser });
-  ga.trackPersonalized({ ...input, browser });
+  whenConsented(() => {
+    const browser = browserContext();
+    meta.trackPersonalized({ ...input, browser });
+    tiktok.trackPersonalized({ ...input, browser });
+    ga.trackPersonalized({ ...input, browser });
+  });
 }
 
 /** The visitor reached the login/signup screen. */
