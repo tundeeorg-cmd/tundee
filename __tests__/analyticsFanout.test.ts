@@ -43,7 +43,7 @@ beforeEach(() => {
   setConsent('accepted');
 });
 
-afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
+afterEach(() => { analytics.__resetHeldConversionsForTests(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe('every event reaches every platform', () => {
   it('pageView', () => {
@@ -169,5 +169,51 @@ describe('GPA is bucketed before it leaves the browser', () => {
       expect(p.gpa_band).toBe('3.00_3.49');
       expect(JSON.stringify(p)).not.toContain('3.27');
     }
+  });
+});
+
+
+describe('conversions held while the cookie banner is unanswered', () => {
+  function undecided() {
+    window.localStorage.removeItem('tundee_cookie_consent');
+    analytics.__resetHeldConversionsForTests();
+  }
+
+  it('sends nothing while undecided', () => {
+    undecided();
+    analytics.lead({ scholarshipId: 'TD-0001', source: 'matcher_completed' });
+    analytics.personalized({ matchCount: 4 });
+    expect(fbq).not.toHaveBeenCalled();
+    expect(ttqTrack).not.toHaveBeenCalled();
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('delivers the held Lead once the visitor accepts', async () => {
+    undecided();
+    analytics.lead({ scholarshipId: 'TD-0001', source: 'matcher_completed' });
+    expect(fbq).not.toHaveBeenCalled();
+    setConsent('accepted');
+    await vi.waitFor(() => expect(fbqEvents()).toContain('Lead'));
+    const call = fbq.mock.calls.find(c => c[0] === 'track' && c[1] === 'Lead')!;
+    expect(call[2]).toMatchObject({ content_category: 'matcher_completed' });
+    expect(fbqEvents().filter(e => e === 'Lead')).toHaveLength(1);
+  });
+
+  it('drops the held Lead if the visitor rejects', async () => {
+    undecided();
+    analytics.lead({ scholarshipId: 'TD-0001', source: 'matcher_completed' });
+    setConsent('rejected');
+    setConsent('accepted'); // a later change of mind does not resurrect it
+    await new Promise(r => setTimeout(r, 50));
+    expect(fbqEvents()).not.toContain('Lead');
+  });
+
+  it('never holds anything once the visitor has rejected', async () => {
+    analytics.__resetHeldConversionsForTests();
+    setConsent('rejected');
+    analytics.lead({ scholarshipId: 'TD-0001' });
+    setConsent('accepted');
+    await new Promise(r => setTimeout(r, 50));
+    expect(fbqEvents()).not.toContain('Lead');
   });
 });

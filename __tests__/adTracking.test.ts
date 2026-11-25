@@ -30,6 +30,7 @@ import {
   trackStartPageView,
   trackScholarshipOpened,
   trackPersonalized,
+  trackMatcherCompleted,
   trackAuthPageView,
   trackSignupComplete,
 } from '@/lib/adTracking';
@@ -66,7 +67,7 @@ describe('trackStartPageView', () => {
 describe('trackScholarshipOpened — Lead', () => {
   it('fires Lead with the scholarship that was opened', () => {
     trackScholarshipOpened('TD-0001');
-    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0001' });
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0001', source: 'scholarship_detail_opened' });
   });
 
   it('fires only once per session, whichever scholarships are opened next', () => {
@@ -89,7 +90,7 @@ describe('trackScholarshipOpened — Lead', () => {
       },
     });
     expect(() => trackScholarshipOpened('TD-0003')).not.toThrow();
-    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0003' });
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0003', source: 'scholarship_detail_opened' });
   });
 });
 
@@ -130,5 +131,34 @@ describe('trackSignupComplete', () => {
   it('passes google/line/password through unchanged', () => {
     trackSignupComplete({ method: 'line', inWebview: false, app: null });
     expect(completeRegistration).toHaveBeenCalledWith('line', { inWebview: false, app: null });
+  });
+});
+
+
+describe('trackMatcherCompleted — Lead for a finished /start matcher', () => {
+  it('fires Personalized and one matcher_completed Lead with the top result', () => {
+    trackMatcherCompleted(12, ['TD-0100', 'TD-0101']);
+    expect(personalized).toHaveBeenCalledTimes(1);
+    expect(lead).toHaveBeenCalledTimes(1);
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0100', source: 'matcher_completed' });
+  });
+
+  it('is once per session, and shares the Lead guard with a detail-page open', () => {
+    trackMatcherCompleted(12, ['TD-0100']);
+    trackMatcherCompleted(12, ['TD-0100']);
+    trackScholarshipOpened('TD-0200');
+    expect(lead).toHaveBeenCalledTimes(1);
+  });
+
+  it('a detail-page Lead earlier in the session means the matcher adds none', () => {
+    trackScholarshipOpened('TD-0200');
+    trackMatcherCompleted(3, ['TD-0100']);
+    expect(lead).toHaveBeenCalledTimes(1);
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'TD-0200', source: 'scholarship_detail_opened' });
+  });
+
+  it('copes with an empty result list', () => {
+    trackMatcherCompleted(0, []);
+    expect(lead).toHaveBeenCalledWith({ scholarshipId: 'none', source: 'matcher_completed' });
   });
 });
