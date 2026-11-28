@@ -14,6 +14,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
+import { isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 function makeAdminClient() {
@@ -106,6 +107,9 @@ export async function PATCH(request: NextRequest) {
         deadline_date: row.deadline_date as string | null,
         status:        (update.status ?? row.status) as string,
         last_verified: (update.last_verified ?? row.last_verified) as string | null,
+        // Same rolling rule as the importer and the cron, or a bulk verify would
+        // hide every blank-status rolling scholarship it touched.
+        rolling_open:  isUnqualifiedRolling(row.deadline_raw as string | null),
       },
       todayBkk,
     );

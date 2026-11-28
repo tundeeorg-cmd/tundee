@@ -123,3 +123,26 @@ describe('a job that reloads rows must re-derive rolling_open', () => {
     expect(isDisplayable(withFlag as never, today).is_displayed).toBe(false);
   });
 });
+
+describe('every writer of the display gate derives rolling_open', () => {
+  // 2026-11-28: the Admin edit and bulk routes called isDisplayable without the flag,
+  // so saving any field on a blank-status rolling scholarship (or bulk-verifying it)
+  // hid it until the nightly cron re-showed it.
+  const { readFileSync, readdirSync, statSync } = require('node:fs') as typeof import('node:fs');
+  const { join } = require('node:path') as typeof import('node:path');
+  const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f);
+    return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(f) ? [p] : [];
+  });
+  const writers = walk('app').filter((p) => /isDisplayable\(/.test(readFileSync(p, 'utf8')));
+
+  it('finds the import, cron, edit and bulk routes', () => {
+    expect(writers.length).toBeGreaterThanOrEqual(4);
+    expect(writers.some((p) => p.includes('td-scholarships/[id]'))).toBe(true);
+    expect(writers.some((p) => p.includes('td-scholarships/bulk'))).toBe(true);
+  });
+
+  it.each(writers)('%s passes rolling_open from isUnqualifiedRolling', (p) => {
+    expect(readFileSync(p, 'utf8')).toMatch(/rolling_open:\s*isUnqualifiedRolling\(/);
+  });
+});
