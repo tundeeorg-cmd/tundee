@@ -24,6 +24,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { TdScholarship } from './types';
 import { PUBLIC_STATUSES } from '@/lib/scholarships/publicRule';
 import { SCHOLARSHIP_STATS_TAG } from '@/lib/scholarships/counts';
+import { FEATURED_CACHE_TAG } from '@/lib/scholarships/featured';
+import { START_BROWSE_TAG } from '@/lib/scholarships/startBrowse';
 
 // The column list and the browser timeout live in browseColumns.ts, which has no
 // server imports, so the client half can use them without pulling next/cache in.
@@ -76,6 +78,8 @@ export async function getBrowseList(): Promise<TdScholarship[]> {
  * Clears every cached copy of the public catalogue and its counts:
  *   - the /scholarships list (BROWSE_LIST_TAG);
  *   - the counts (SCHOLARSHIP_STATS_TAG) behind the hero, stats bar, /about and /start;
+ *   - the homepage featured cards (FEATURED_CACHE_TAG) and the /start cards
+ *     (START_BROWSE_TAG), so a scholarship closed by an import leaves them now;
  *   - every ISR page under the root layout. The layout's generateMetadata puts the
  *     count in each page's meta description, so all of them carry it, not just `/`.
  *     Before this, the v18 import (2026-11-28) left the homepage at 233 while the
@@ -85,6 +89,8 @@ export function revalidateBrowseList(): void {
   try {
     revalidateTag(BROWSE_LIST_TAG);
     revalidateTag(SCHOLARSHIP_STATS_TAG);
+    revalidateTag(FEATURED_CACHE_TAG);
+    revalidateTag(START_BROWSE_TAG);
     revalidatePath('/', 'layout');
   } catch {
     // Outside a request (a script, a test): nothing cached to clear.

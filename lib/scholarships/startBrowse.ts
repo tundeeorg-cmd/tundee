@@ -59,9 +59,11 @@ async function fetchStartCards(): Promise<TdScholarship[]> {
   return cards;
 }
 
+export const START_BROWSE_TAG = 'start-browse';
+
 const cached = unstable_cache(fetchStartCards, ['start-browse-cards'], {
   revalidate: 300,
-  tags: ['start-browse'],
+  tags: [START_BROWSE_TAG],
 });
 
 /** Never throws: /start must render, with or without the list. */

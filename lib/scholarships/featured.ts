@@ -42,7 +42,8 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
-const CACHE_TAG = 'featured-scholarships';
+export const FEATURED_CACHE_TAG = 'featured-scholarships';
+const CACHE_TAG = FEATURED_CACHE_TAG;
 const REVALIDATE_SECONDS = 60 * 60;
 export const FEATURED_COUNT = 6;
 
