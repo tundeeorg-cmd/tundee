@@ -146,3 +146,36 @@ describe('every writer of the display gate derives rolling_open', () => {
     expect(readFileSync(p, 'utf8')).toMatch(/rolling_open:\s*isUnqualifiedRolling\(/);
   });
 });
+
+describe('a passed deadline closes the scholarship, whatever the sheet says', () => {
+  // 2026-11-28: TD-0308 (Open, 31 Aug), TD-0304 (Open, 6 Oct) and TD-0684
+  // (Closing Soon, 27 Nov) were public after their deadlines because, with no open
+  // date, the stored status won outright.
+  const today = bangkokMidnight(new Date('2026-11-28T00:00:00Z'));
+  const row = (status: string | null, deadline_date: string | null) =>
+    ({ open_date: null, deadline_date, status, last_verified: null });
+
+  it.each([
+    ['Open', '2026-08-31'],
+    ['Open', '2026-10-06'],
+    ['Closing Soon', '2026-11-27'],
+    ['Opening Soon', '2026-11-27'],
+    [null, '2026-11-27'],
+  ])('%s with deadline %s → Closed and hidden', (status, deadline) => {
+    expect(computeStatusEffective(row(status, deadline), today)).toBe('Closed');
+    expect(isDisplayable(row(status, deadline), today).is_displayed).toBe(false);
+  });
+
+  it('a deadline of today is still open', () => {
+    expect(computeStatusEffective(row('Closing Soon', '2026-11-28'), today)).toBe('Closing Soon');
+  });
+
+  it('a future deadline still defers to the stored status', () => {
+    expect(computeStatusEffective(row('Open', '2027-03-01'), today)).toBe('Open');
+    expect(computeStatusEffective(row('Closed', '2027-03-01'), today)).toBe('Closed');
+  });
+
+  it('a rolling row (no parsed deadline) is unaffected', () => {
+    expect(computeStatusEffective({ ...row(null, null), rolling_open: true }, today)).toBe('Open');
+  });
+});

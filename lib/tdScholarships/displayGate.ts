@@ -68,6 +68,7 @@ export function statusFromDates(
 /**
  * The status the site actually uses.
  * - Both open_date and deadline_date are real dates → derive from dates (keeps day-to-day accuracy).
+ * - deadline_date in the past → "Closed", whatever the stored status says.
  * - Otherwise → trust the normalized uploaded/stored `status` (rolling/prose-deadline rows).
  */
 export function computeStatusEffective(
@@ -86,6 +87,17 @@ export function computeStatusEffective(
   if (row.open_date && row.deadline_date) {
     return statusFromDates(row.open_date, row.deadline_date, todayBkk);
   }
+
+  /*
+   * A deadline that has passed closes the scholarship, whatever the sheet says.
+   *
+   * Without an open date the stored status used to win outright, so a row the sheet
+   * last marked Open or Closing Soon stayed public after its deadline. On 2026-11-28
+   * three were: TD-0308 (Open, deadline 31 Aug), TD-0304 (Open, 6 Oct) and TD-0684
+   * (Closing Soon, 27 Nov). A past date is a fact, not a judgement, so it outranks the
+   * sheet. Only this one rule: a future deadline still defers to the stored status.
+   */
+  if (row.deadline_date && row.deadline_date < ymd(todayBkk)) return 'Closed';
 
   const stored = normalizeStatusValue(row.status);
   if (stored) return stored;
