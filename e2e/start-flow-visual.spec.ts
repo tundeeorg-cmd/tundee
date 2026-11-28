@@ -4,8 +4,9 @@
  *   viewports  390×844 · 820×1180 · 1180×820 · 1440×900
  *   themes     light · dark  (localStorage.tundee_theme, read by app/layout.tsx)
  *   steps      1 landing · 2 matcher · 3 loading · 4 results · 5 /auth (email open)
- *              · 7 /scholarships as a guest. Step 6 (/profile/setup) and the
- *              signed-in /scholarships need a session and are skipped without one.
+ *              · 6 /profile/setup?prefill=1 signed in · 7 /scholarships as a guest
+ *              · 7b /scholarships signed in. Signed-in steps use a fake user served by
+ *              e2e/fake-supabase.mjs; no real account is involved.
  *
  * Each state must have: no horizontal scroll, zero axe `color-contrast` violations,
  * the right thing in view (the first question on arrival, the results heading after
@@ -22,6 +23,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { previewPage } from './fixtures/make-preview';
+import { signInAsE2EUser, setPreviewCookie } from './fixtures/session';
 
 const VIEWPORTS = [
   { name: 'mobile-390', width: 390, height: 844 },
@@ -263,9 +265,34 @@ for (const vp of VIEWPORTS) {
         await shot(page, `${tag}-7-scholarships-guest`);
       });
 
-      test('step 6: /profile/setup?prefill=1 (needs a signed-in session)', async () => {
-        test.skip(!process.env.E2E_STORAGE_STATE,
-          'No signed-in test session: set E2E_STORAGE_STATE to a Playwright storage-state file for a test account to run step 6 and the signed-in /scholarships.');
+      test('step 6: /profile/setup?prefill=1 signed in, arriving from the preview', async ({ page, context }) => {
+        test.skip(!!process.env.BASE_URL, 'Signed-in steps need the local fake Supabase; not available against BASE_URL.');
+        await isolate(page);
+        await setTheme(page, theme);
+        await signInAsE2EUser(context);
+        await setPreviewCookie(context, { level: 'M4-M6', gpa: 3.2, province: 'ขอนแก่น', income: 2 });
+        await page.goto('/profile/setup?prefill=1');
+        // Signed in: the wizard opens on consent (never skipped), not a bounce to /auth.
+        await expect(page.getByRole('heading', { name: 'ก่อนเริ่มต้น' })).toBeVisible();
+        expect(new URL(page.url()).pathname).toBe('/profile/setup');
+        await expectNoHorizontalScroll(page, '/profile/setup');
+        await expectContrastOk(page, '/profile/setup');
+        await shot(page, `${tag}-6-profile-setup`);
+      });
+
+      test('step 7b: /scholarships signed in', async ({ page, context }) => {
+        test.skip(!!process.env.BASE_URL, 'Signed-in steps need the local fake Supabase; not available against BASE_URL.');
+        await isolate(page);
+        await setTheme(page, theme);
+        await signInAsE2EUser(context);
+        await page.goto('/scholarships');
+        await page.waitForLoadState('networkidle').catch(() => {});
+        const reject = page.getByRole('button', { name: 'ปฏิเสธ' });
+        if (await reject.isVisible().catch(() => false)) await reject.click();
+        expect(new URL(page.url()).pathname).toBe('/scholarships');
+        await expectNoHorizontalScroll(page, '/scholarships signed in');
+        await expectContrastOk(page, '/scholarships signed in');
+        await shot(page, `${tag}-7b-scholarships-signed-in`);
       });
     });
   }

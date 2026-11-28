@@ -200,7 +200,7 @@ function WizardContainer({
           {step > 0 && onBack && (
             <button
               onClick={onBack}
-              className="text-sm text-[#6e6e73] dark:text-[#8e8e93] hover:text-[#1D1D1F] dark:hover:text-white mb-4 flex items-center gap-1 transition-colors"
+              className="text-sm text-[#6e6e73] dark:text-[#a1a1a6] hover:text-[#1D1D1F] dark:hover:text-white mb-4 flex items-center gap-1 transition-colors"
             >
               ← {lang === 'th' ? 'ย้อนกลับ' : 'Back'}
             </button>
@@ -997,7 +997,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ก่อนเริ่มต้น' : 'Before we begin'}
           </h1>
-          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+          <p className="text-sm text-[#6e6e73] dark:text-[#a1a1a6]" style={{ fontFamily: font }}>
             {lang === 'th'
               ? 'กรุณาอ่านและยืนยันการยินยอมด้านล่าง'
               : 'Please read and confirm the items below'}
@@ -1014,9 +1014,9 @@ export default function ProfileSetupPage() {
           />
           <span className="text-sm text-[#1D1D1F] dark:text-[#F5F5F7] leading-relaxed" style={{ fontFamily: font }}>
             {lang === 'th' ? (
-              <>ฉันยอมรับ <a href="/terms" target="_blank" className="text-[#2E6BE6] underline">ข้อกำหนดการใช้งาน</a> และ <a href="/privacy" target="_blank" className="text-[#2E6BE6] underline">นโยบายความเป็นส่วนตัว</a> และยินยอมให้ทุนดีเก็บข้อมูลโปรไฟล์เพื่อจับคู่ทุนการศึกษา <span className="text-red-500">*</span></>
+              <>ฉันยอมรับ <a href="/terms" target="_blank" className="text-[#2E6BE6] dark:text-[#8FB4FF] underline">ข้อกำหนดการใช้งาน</a> และ <a href="/privacy" target="_blank" className="text-[#2E6BE6] dark:text-[#8FB4FF] underline">นโยบายความเป็นส่วนตัว</a> และยินยอมให้ทุนดีเก็บข้อมูลโปรไฟล์เพื่อจับคู่ทุนการศึกษา <span className="text-red-500">*</span></>
             ) : (
-              <>I accept the <a href="/terms" target="_blank" className="text-[#2E6BE6] underline">Terms of Use</a> and <a href="/privacy" target="_blank" className="text-[#2E6BE6] underline">Privacy Policy</a>, and consent to TunDee storing my profile to match scholarships. <span className="text-red-500">*</span></>
+              <>I accept the <a href="/terms" target="_blank" className="text-[#2E6BE6] dark:text-[#8FB4FF] underline">Terms of Use</a> and <a href="/privacy" target="_blank" className="text-[#2E6BE6] dark:text-[#8FB4FF] underline">Privacy Policy</a>, and consent to TunDee storing my profile to match scholarships. <span className="text-red-500">*</span></>
             )}
           </span>
         </label>
@@ -1039,7 +1039,7 @@ export default function ProfileSetupPage() {
                 <br />
                 เราเก็บข้อมูลการใช้งานแบบไม่ระบุตัวตน เพื่อศึกษาว่านักเรียนต่างจังหวัดเข้าถึงทุนได้ยากกว่าจริงหรือไม่ ข้อมูลของคุณจะไม่ถูกเปิดเผยเป็นรายบุคคล
                 <br />
-                <span className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">ไม่ยินยอมก็ใช้งานได้ทุกฟีเจอร์ตามปกติ</span>
+                <span className="text-xs text-[#6e6e73] dark:text-[#a1a1a6]">ไม่ยินยอมก็ใช้งานได้ทุกฟีเจอร์ตามปกติ</span>
               </>
             ) : (
               <>
@@ -1047,7 +1047,7 @@ export default function ProfileSetupPage() {
                 <br />
                 We collect anonymized usage data to study whether students outside Bangkok have less access to scholarships. Your individual data is never published.
                 <br />
-                <span className="text-xs text-[#6e6e73] dark:text-[#8e8e93]">You can decline and still use every feature normally.</span>
+                <span className="text-xs text-[#6e6e73] dark:text-[#a1a1a6]">You can decline and still use every feature normally.</span>
               </>
             )}
           </span>
@@ -1096,7 +1096,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'คุณชื่ออะไร?' : "What's your name?"}
           </h1>
-          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+          <p className="text-sm text-[#6e6e73] dark:text-[#a1a1a6]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ชื่อที่ใช้แสดงในโปรไฟล์' : 'This will appear on your profile'}
           </p>
         </div>
@@ -1143,7 +1143,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {PRIOR_KNOWLEDGE_QUESTION_HISTORY[PRIOR_KNOWLEDGE_QUESTION_VERSION][lang === 'th' ? 'th' : 'en']}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-1" style={{ fontFamily: font }}>
+          <p className="text-xs text-[#6e6e73] dark:text-[#a1a1a6] mt-1" style={{ fontFamily: font }}>
             {lang === 'th'
               ? 'ข้อมูลนี้ใช้เพื่องานวิจัยเท่านั้น ไม่กระทบการจับคู่ทุน'
               : 'For research purposes only — does not affect matching'}
@@ -1316,7 +1316,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'เกรดเฉลี่ยของคุณคือเท่าไหร่?' : 'What is your GPA?'}
           </h1>
-          <p className="text-sm text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+          <p className="text-sm text-[#6e6e73] dark:text-[#a1a1a6]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ใช้สำหรับกรองทุนที่มีเงื่อนไขเกรด' : 'Used to match scholarships with GPA requirements'}
           </p>
         </div>
@@ -1435,7 +1435,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
             {lang === 'th' ? 'รายได้ครัวเรือนต่อเดือน' : 'Monthly household income'}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+          <p className="text-xs text-[#6e6e73] dark:text-[#a1a1a6]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'ใช้กรองทุนที่มีเงื่อนไขรายได้' : 'Used to match income-restricted scholarships'}
           </p>
         </div>
@@ -1463,7 +1463,7 @@ export default function ProfileSetupPage() {
             <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]" style={{ fontFamily: font }}>
               {lang === 'th' ? 'บัตรสวัสดิการแห่งรัฐ' : 'State Welfare Card'}
             </p>
-            <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-0.5" style={{ fontFamily: font }}>
+            <p className="text-xs text-[#6e6e73] dark:text-[#a1a1a6] mt-0.5" style={{ fontFamily: font }}>
               {lang === 'th' ? 'มีบัตรสวัสดิการแห่งรัฐ' : 'I have a state welfare card'}
             </p>
           </div>
@@ -1505,7 +1505,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1" style={{ fontFamily: font }}>
             {lang === 'th' ? 'สนใจเรียนด้านไหน?' : 'What do you want to study?'}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93]" style={{ fontFamily: font }}>
+          <p className="text-xs text-[#6e6e73] dark:text-[#a1a1a6]" style={{ fontFamily: font }}>
             {lang === 'th' ? 'เลือกได้หลายอย่าง' : 'Select all that apply'}
           </p>
         </div>
@@ -1558,7 +1558,7 @@ export default function ProfileSetupPage() {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2" style={{ fontFamily: font }}>
             {lang === 'th' ? 'คุณรู้จักทุนดีจากที่ไหน?' : 'How did you hear about TunDee?'}
           </h1>
-          <p className="text-xs text-[#6e6e73] dark:text-[#8e8e93] mt-1" style={{ fontFamily: font }}>
+          <p className="text-xs text-[#6e6e73] dark:text-[#a1a1a6] mt-1" style={{ fontFamily: font }}>
             {lang === 'th'
               ? 'ข้อมูลนี้ใช้เพื่องานวิจัยเท่านั้น ไม่กระทบการจับคู่ทุน'
               : 'For research purposes only — does not affect matching'}

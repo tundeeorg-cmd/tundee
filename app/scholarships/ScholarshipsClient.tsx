@@ -858,7 +858,8 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                 className={`px-5 py-2 text-sm font-medium rounded-[8px] transition-all duration-200 ${
                   activeTab === t
                     ? 'bg-white dark:bg-[#0A1628] text-[#1D1D1F] dark:text-white shadow-sm'
-                    : 'text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1D1D1F] dark:hover:text-white'
+                    // ≥ 4.5:1 on the #EAEAEC / #232B3E track (was 4.22 / 4.33:1).
+                    : 'text-[#5E5E63] dark:text-[#A1A1A6] hover:text-[#1D1D1F] dark:hover:text-white'
                 }`}
                 style={{ fontFamily: font }}
               >
@@ -1199,7 +1200,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                         tdSortBy === opt.key
                           ? 'bg-[#1B3A6B] text-white'
-                          : 'bg-[#F5F7FA] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#8E8E93] hover:text-[#1B3A6B] hover:bg-[#E8EFFF]'
+                          : 'bg-[#F5F7FA] dark:bg-[#232B3E] text-[#6E6E73] dark:text-[#A1A1A6] hover:text-[#1B3A6B] hover:bg-[#E8EFFF]'
                       }`}
                       style={{ fontFamily: font }}
                     >
