@@ -42,8 +42,6 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import type { TdScholarship } from '@/lib/tdScholarships/types';
-import { PUBLIC_SCHOLARSHIP_FILTER } from './counts';
-
 const CACHE_TAG = 'featured-scholarships';
 const REVALIDATE_SECONDS = 60 * 60;
 export const FEATURED_COUNT = 6;
@@ -116,7 +114,6 @@ async function fetchFeatured(): Promise<TdScholarship[]> {
   const { data, error } = await db
     .from('td_scholarships')
     .select(COLUMNS)
-    .eq(PUBLIC_SCHOLARSHIP_FILTER.column, PUBLIC_SCHOLARSHIP_FILTER.value)
     .eq('verification_status', 'verified')
     .in('status_effective', ['Open', 'Closing Soon'])
     // A lapsed deadline must not be featured as urgent. `or` rather than a plain filter

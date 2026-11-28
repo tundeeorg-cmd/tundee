@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { isPubliclyDisplayed } from '@/lib/scholarships/publicRule';
 import { useRouter } from 'next/navigation';
 import {
   OUTCOME_STATUSES, STATUS_LABELS, SOURCE_LABELS, formatAwardRate,
@@ -790,8 +791,9 @@ export default function AdminPage() {
 
   // Summary cards now reflect the TD table (the live source of truth)
   const tdTotalCount    = tdRows.length;
-  const tdDisplayedCount = tdRows.filter(r => r.is_displayed).length;
-  const tdHiddenCount   = tdRows.filter(r => !r.is_displayed).length;
+  // Same rule as the homepage and Browse (lib/scholarships/publicRule.ts).
+  const tdDisplayedCount = tdRows.filter(r => isPubliclyDisplayed(r.status_effective)).length;
+  const tdHiddenCount   = tdTotalCount - tdDisplayedCount;
 
   // Client-side filtered rows for TD list (used for selection + display)
   const visibleTdRows = tdRows.filter(r => {

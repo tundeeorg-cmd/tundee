@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { PUBLIC_STATUSES } from '@/lib/scholarships/publicRule';
 import Link from 'next/link';
 import { useLang } from '@/lib/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
@@ -442,7 +443,7 @@ export default function ScholarshipsClient({ initialScholarships }: { initialSch
       const { data, error } = await supabase
         .from('td_scholarships')
         .select(TD_BROWSE_COLUMNS.join(', '))
-        .eq('is_displayed', true)
+        .in('status_effective', [...PUBLIC_STATUSES])
         .order('scholarship_name_en')
         .abortSignal(timeout.signal);
       if (error || !data?.length) throw error ?? new Error('empty');

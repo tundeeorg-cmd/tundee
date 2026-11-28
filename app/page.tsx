@@ -12,7 +12,7 @@ import HomeContent from './HomeContent';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
 import { getFeaturedScholarships } from '@/lib/scholarships/featured';
 
-export const revalidate = 3600;
+export const revalidate = 1800;
 
 export default async function HomePage() {
   const [stats, featured] = await Promise.all([

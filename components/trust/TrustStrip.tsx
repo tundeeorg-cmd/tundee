@@ -1,13 +1,15 @@
 'use client';
 
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
+
 /**
  * The scale of the catalogue, stated in one line, at the two moments doubt shows up:
  * before answering the questions and before handing over an email.
  *
  * Every segment is a number read from the database at request time, or a claim that can
- * be checked against it. A segment whose number is unavailable is dropped rather than
- * guessed — the line simply gets shorter, which is why it is assembled from a filtered
- * array instead of a template string.
+ * be checked against it. The scholarship count falls back to the floor ("กว่า 200
+ * ทุน") when unavailable; the funder segment is dropped, which is why the line is
+ * assembled from a filtered array instead of a template string.
  *
  * Two segments from the brief are deliberately absent:
  *
@@ -34,15 +36,12 @@ export default function TrustStrip({ scholarships, funders, lang, className = ''
   const n = (v: number) => v.toLocaleString(th ? 'th-TH' : 'en-US');
 
   const segments = [
-    scholarships !== null ? (th ? `${n(scholarships)} ทุน` : `${n(scholarships)} scholarships`) : null,
+    // Never dropped: falls back to the floor ("กว่า 200 ทุน") when the count is unavailable.
+    th ? `${scholarshipCountLabel(scholarships, 'th')} ทุน` : `${scholarshipCountLabel(scholarships, 'en')} scholarships`,
     funders !== null ? (th ? `${n(funders)} ผู้ให้ทุน` : `${n(funders)} funders`) : null,
     th ? 'ฟรีตลอด' : 'Always free',
     th ? 'ตรวจสอบโดยทีมงาน' : 'Checked by our team',
   ].filter(Boolean) as string[];
-
-  // Both counts missing leaves only the two static claims, which is a weaker line than
-  // no line: the point of the strip is the scale, not the adjectives.
-  if (scholarships === null && funders === null) return null;
 
   return (
     <p

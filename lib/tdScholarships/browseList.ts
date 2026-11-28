@@ -22,6 +22,8 @@
 import { unstable_cache, revalidatePath, revalidateTag } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import type { TdScholarship } from './types';
+import { PUBLIC_STATUSES } from '@/lib/scholarships/publicRule';
+import { SCHOLARSHIP_STATS_TAG } from '@/lib/scholarships/counts';
 
 // The column list and the browser timeout live in browseColumns.ts, which has no
 // server imports, so the client half can use them without pulling next/cache in.
@@ -29,7 +31,7 @@ export { TD_BROWSE_COLUMNS, BROWSE_FETCH_TIMEOUT_MS } from './browseColumns';
 import { TD_BROWSE_COLUMNS } from './browseColumns';
 
 export const BROWSE_LIST_TAG = 'browse-scholarships';
-export const BROWSE_REVALIDATE_SECONDS = 60 * 60;
+export const BROWSE_REVALIDATE_SECONDS = 30 * 60;
 
 async function fetchBrowseList(): Promise<TdScholarship[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -41,7 +43,7 @@ async function fetchBrowseList(): Promise<TdScholarship[]> {
   const { data, error } = await db
     .from('td_scholarships')
     .select(TD_BROWSE_COLUMNS.join(', '))
-    .eq('is_displayed', true)
+    .in('status_effective', [...PUBLIC_STATUSES])
     .order('scholarship_name_en');
   // Throwing keeps a failed fetch OUT of the cache, so the next request retries
   // instead of serving an empty list for an hour.
@@ -67,11 +69,23 @@ export async function getBrowseList(): Promise<TdScholarship[]> {
   }
 }
 
-/** Call after anything changes which scholarships are displayed, or what they say. */
+/**
+ * Call after anything changes which scholarships are displayed, or what they say:
+ * the importer, the nightly status recompute and the admin edit/bulk routes.
+ *
+ * Clears every cached copy of the public catalogue and its counts:
+ *   - the /scholarships list (BROWSE_LIST_TAG);
+ *   - the counts (SCHOLARSHIP_STATS_TAG) behind the hero, stats bar, /about and /start;
+ *   - every ISR page under the root layout. The layout's generateMetadata puts the
+ *     count in each page's meta description, so all of them carry it, not just `/`.
+ *     Before this, the v18 import (2026-11-28) left the homepage at 233 while the
+ *     database and Admin said 404.
+ */
 export function revalidateBrowseList(): void {
   try {
     revalidateTag(BROWSE_LIST_TAG);
-    revalidatePath('/scholarships');
+    revalidateTag(SCHOLARSHIP_STATS_TAG);
+    revalidatePath('/', 'layout');
   } catch {
     // Outside a request (a script, a test): nothing cached to clear.
   }

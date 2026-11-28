@@ -1,3 +1,5 @@
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
+
 /**
  * Landing-page headline variants, selected by /start?v=<key>.
  *
@@ -30,7 +32,7 @@ export interface LandingCopy {
   /**
    * Trust line. Takes the live scholarship count so the number can never be a
    * literal — it is rendered from the same query the rest of the page uses,
-   * and the count segment is omitted entirely when that query failed.
+   * and falls back to "ทุนกว่า 200 รายการ" when that query failed (never 0).
    */
   trust: (count: number | null) => string;
 }
@@ -43,7 +45,8 @@ const DEFAULT_COPY: LandingCopy = {
   cta:   'เริ่มเลย ฟรี',
   trust: (count) =>
     [
-      count !== null ? `ทุน ${count.toLocaleString('th-TH')} รายการ` : null,
+      // "ทุน 404 รายการ", or "ทุนกว่า 200 รายการ" when the count is unavailable.
+      count && count > 0 ? `ทุน ${scholarshipCountLabel(count, 'th')} รายการ` : `ทุน${scholarshipCountLabel(null, 'th')} รายการ`,
       'ตรวจสอบแหล่งที่มาทุกทุน',
       'ไม่มีค่าใช้จ่าย',
     ].filter(Boolean).join(' · '),
