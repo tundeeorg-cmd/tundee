@@ -37,16 +37,16 @@ describe('the column list did not change when it moved', () => {
   it('server and browser fallback use the same list, filter and order', () => {
     for (const src of [LIB, CLIENT]) {
       expect(src).toContain(".select(TD_BROWSE_COLUMNS.join(', '))");
-      expect(src).toContain(".eq('is_displayed', true)");
+      expect(src).toContain(".in('status_effective', [...PUBLIC_STATUSES])");
       expect(src).toContain(".order('scholarship_name_en')");
     }
   });
 });
 
 describe('the server page', () => {
-  it('is a server component that passes the list in, cached for an hour', () => {
+  it('is a server component that passes the list in, cached for 30 min', () => {
     expect(PAGE).not.toContain("'use client'");
-    expect(PAGE).toContain('export const revalidate = 3600;');
+    expect(PAGE).toContain('export const revalidate = 1800;');
     expect(PAGE).toContain('<ScholarshipsClient initialScholarships={scholarships} />');
     expect(LIB).toContain('unstable_cache(fetchBrowseList');
   });

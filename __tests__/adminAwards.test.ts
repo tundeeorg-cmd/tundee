@@ -45,17 +45,18 @@ describe('profileCompletionRate', () => {
 });
 
 describe('countDistinctFunders', () => {
-  it('prefers the Thai name and falls back through the other columns', () => {
+  it('keys on Funder EN, falling back to Funder TH, then the legacy column', () => {
     expect(countDistinctFunders([
-      { funder_th: 'มูลนิธิ ก', funder: 'Foundation A' },
-      { funder_th: null, funder: 'Foundation A' },
-      { funder_th: '', funder: null, funder_en: 'Foundation B' },
+      { funder_en: 'Foundation A', funder_th: 'มูลนิธิ ก' },
+      { funder_en: null, funder_th: 'มูลนิธิ ก' },
+      { funder_en: '', funder_th: null, funder: 'Foundation B' },
     ])).toBe(3);
   });
 
-  it('collapses repeats and ignores blank funders', () => {
+  it('is trimmed and case-insensitive, and ignores blank funders', () => {
     expect(countDistinctFunders([
-      { funder_th: 'มูลนิธิ ก' }, { funder_th: 'มูลนิธิ ก' }, { funder_th: '  ' }, {},
+      { funder_en: 'Foundation A' }, { funder_en: ' foundation a ' }, { funder_en: 'FOUNDATION A' },
+      { funder_en: '  ' }, {},
     ])).toBe(1);
   });
 });

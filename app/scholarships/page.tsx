@@ -11,9 +11,9 @@
 import ScholarshipsClient from './ScholarshipsClient';
 import { getBrowseList } from '@/lib/tdScholarships/browseList';
 
-// Same hour as BROWSE_REVALIDATE_SECONDS. A literal, because Next reads route
+// Same 30 min as BROWSE_REVALIDATE_SECONDS. A literal, because Next reads route
 // segment config statically and will not follow an import.
-export const revalidate = 3600;
+export const revalidate = 1800;
 
 export default async function ScholarshipsPage() {
   const scholarships = await getBrowseList();

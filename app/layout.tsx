@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
 import { Lato } from 'next/font/google';
 import './globals.css';
 import ChromeGate from '@/components/ChromeGate';
@@ -29,16 +30,14 @@ const lato = Lato({
  */
 export async function generateMetadata(): Promise<Metadata> {
   const stats = await getScholarshipStats();
-  const count = stats.ok ? stats.scholarships.toLocaleString('en-US') : null;
+  const n = stats.ok ? stats.scholarships : null;
   return {
   metadataBase: new URL('https://www.tundee.org'),
   title: {
     default: 'ทุนดี (TunDee) ค้นหาทุนการศึกษาไทย',
     template: '%s | TunDee ทุนดี',
   },
-  description: count
-    ? `ทุนดีรวบรวมทุนการศึกษาไทย ${count} ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates ${count} real Thai scholarships, AI-powered matching, free, bilingual.`
-    : 'ทุนดีรวบรวมทุนการศึกษาไทย จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates real Thai scholarships, AI-powered matching, free, bilingual.',
+  description: `ทุนดีรวบรวมทุนการศึกษาไทย ${scholarshipCountLabel(n, 'th')} ทุน จับคู่อัตโนมัติด้วย AI ฟรีตลอด | TunDee aggregates ${scholarshipCountLabel(n, 'en')} real Thai scholarships, AI-powered matching, free, bilingual.`,
   keywords: [
     'ทุนการศึกษา', 'scholarship', 'Thailand', 'thai scholarship', 'ทุนดี', 'tundee',
     'ทุนการศึกษาไทย', 'ทุนม.6', 'ทุนนักเรียน', 'Thai student scholarship',

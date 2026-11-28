@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
 import { useLang } from '@/lib/LanguageContext';
 
 interface Props {
@@ -53,16 +54,11 @@ export default function HeroSection({ scholarshipCount }: Props) {
             className="mt-5 text-[17px] text-[#6E7A8A] leading-relaxed max-w-[520px]"
             style={{ fontFamily: th ? "'Sarabun', sans-serif" : "var(--font-lato), Lato, sans-serif" }}
           >
-            {/* The count is live. When the query fails we drop the number rather than
-                fall back to a literal — a stale hardcoded figure is the exact failure
-                this platform exists to correct. */}
-            {scholarshipCount === null
-              ? (th
-                  ? 'จับคู่ทุนการศึกษาไทยตรงตามโปรไฟล์ของคุณ ฟรีตลอด'
-                  : 'Thai scholarships matched to your profile. Always free.')
-              : (th
-                  ? `รวมทุนการศึกษาไทย ${scholarshipCount.toLocaleString('th-TH')} ทุน จับคู่ตรงตามโปรไฟล์ของคุณ ฟรีตลอด`
-                  : `${scholarshipCount.toLocaleString('en-US')} Thai scholarships, matched to your profile. Always free.`)}
+            {/* Live count (lib/scholarships/counts.ts). When it is unavailable the
+                label falls back to the floor ("กว่า 200"), never 0 or an old figure. */}
+            {th
+              ? `รวมทุนการศึกษาไทย ${scholarshipCountLabel(scholarshipCount, 'th')} ทุน จับคู่ตรงตามโปรไฟล์ของคุณ ฟรีตลอด`
+              : `${scholarshipCountLabel(scholarshipCount, 'en')} Thai scholarships, matched to your profile. Always free.`}
           </p>
 
           {/* CTAs */}

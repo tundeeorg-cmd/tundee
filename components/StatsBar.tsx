@@ -1,6 +1,7 @@
 'use client';
 
 import { useLang } from '@/lib/LanguageContext';
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
 import type { ScholarshipStats } from '@/lib/scholarships/counts';
 
 interface Props {
@@ -25,20 +26,19 @@ export default function StatsBar({ stats }: Props) {
   const { lang } = useLang();
   const th = lang === 'th';
 
-  // A failed query hides the band. Showing zeros would read as "no scholarships".
-  if (!stats.ok) return null;
-
+  // A failed query shows the floor ("กว่า 200" / "200+") and drops the funder tile.
+  // Never zeros, which would read as "no scholarships".
   const tiles = [
     {
-      value:   stats.scholarships.toLocaleString(th ? 'th-TH' : 'en-US'),
+      value:   scholarshipCountLabel(stats.ok ? stats.scholarships : null, th ? 'th' : 'en'),
       thLabel: 'ทุนการศึกษา',
       enLabel: 'Scholarships',
     },
-    {
+    ...(stats.ok && stats.funders > 0 ? [{
       value:   stats.funders.toLocaleString(th ? 'th-TH' : 'en-US'),
       thLabel: 'ผู้ให้ทุน',
       enLabel: 'Funders',
-    },
+    }] : []),
     {
       value:   th ? 'ฟรี' : 'Free',
       thLabel: 'ตลอด',
@@ -49,7 +49,7 @@ export default function StatsBar({ stats }: Props) {
   return (
     <div className="bg-white border-t border-b border-[#E8ECF2] dark:bg-[#0A1628] dark:border-[#1A2E4A]">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-3 divide-x divide-[#E8ECF2] dark:divide-[#1A2E4A]">
+        <div className={`grid ${tiles.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} divide-x divide-[#E8ECF2] dark:divide-[#1A2E4A]`}>
           {tiles.map((tile, i) => (
             <div key={i} className="py-5 px-4 text-center">
               <div

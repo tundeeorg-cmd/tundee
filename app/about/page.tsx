@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import AboutContent from './AboutContent';
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
 import { getScholarshipStats } from '@/lib/scholarships/counts';
 
-export const revalidate = 3600;
+export const revalidate = 1800;
 
 /**
  * The description is what Google prints under the result, so it is held to the same
@@ -11,15 +12,13 @@ export const revalidate = 3600;
  */
 export async function generateMetadata(): Promise<Metadata> {
   const stats = await getScholarshipStats();
-  const count = stats.ok ? stats.scholarships.toLocaleString('en-US') : null;
+  const n = stats.ok ? stats.scholarships : null;
   return {
     title: 'เกี่ยวกับ TunDee ทุนดี',
-    description: count
-      ? `TunDee รวมทุนการศึกษาไทย ${count} ทุน ` +
-        'กรอกข้อมูลของคุณและรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย | ' +
-        `TunDee aggregates ${count} Thai scholarships and matches them to your profile. Free.`
-      : 'TunDee รวมทุนการศึกษาไทย กรอกข้อมูลของคุณและรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย | ' +
-        'TunDee aggregates Thai scholarships and matches them to your profile. Free.',
+    description:
+      `TunDee รวมทุนการศึกษาไทย ${scholarshipCountLabel(n, 'th')} ทุน ` +
+      'กรอกข้อมูลของคุณและรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย | ' +
+      `TunDee aggregates ${scholarshipCountLabel(n, 'en')} Thai scholarships and matches them to your profile. Free.`,
   };
 }
 

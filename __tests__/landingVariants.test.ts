@@ -78,11 +78,9 @@ describe('landingCopy', () => {
     expect(copy.trust(518)).toContain('518');
   });
 
-  it('omits the count entirely when the query failed — never invents one', () => {
-    // A landing page that claims a scholarship total it could not read would
-    // be fabricating a number shown to students.
+  it('falls back to the floor when the query failed — never 0, never an old figure', () => {
     const line = landingCopy(DEFAULT_LANDING_VARIANT).trust(null);
-    expect(line).not.toMatch(/\d/);
-    expect(line.length).toBeGreaterThan(0);
+    expect(line).toContain('ทุนกว่า 200 รายการ');
+    expect(landingCopy(DEFAULT_LANDING_VARIANT).trust(0)).not.toMatch(/\b0\b/);
   });
 });

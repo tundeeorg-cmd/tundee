@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { scholarshipCountLabel } from '@/lib/scholarships/publicRule';
 import { useLang } from '@/lib/LanguageContext';
 import WhyTunDeeIsFree from '@/components/trust/WhyTunDeeIsFree';
 import VerificationProcess from '@/components/trust/VerificationProcess';
@@ -19,7 +20,8 @@ export default function AboutContent({ scholarshipCount }: Props) {
   // browsable — so the figure described nothing a visitor could reach. The count now
   // comes from the same place as every other count, and carries no "+": the exact
   // number is known, and "+" claims more than the database can show.
-  const countLabel = scholarshipCount !== null ? scholarshipCount.toLocaleString('en-US') : null;
+  // Falls back to the floor ("กว่า 200" / "200+") when the live count is unavailable.
+  const countLabel = scholarshipCountLabel(scholarshipCount, th ? 'th' : 'en');
 
   return (
     <div className="bg-white dark:bg-[#07111F] min-h-screen">
@@ -59,12 +61,8 @@ export default function AboutContent({ scholarshipCount }: Props) {
             className="mb-10 text-[#6E7A8A] dark:text-[#7A8FA8]"
           >
             {th
-              ? (countLabel
-                  ? `รวมทุนการศึกษาไทย ${countLabel} ทุน กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย`
-                  : 'รวมทุนการศึกษาไทยไว้ในที่เดียว กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย')
-              : (countLabel
-                  ? `${countLabel} Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.`
-                  : 'Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.')}
+              ? `รวมทุนการศึกษาไทย ${countLabel} ทุน กรอกข้อมูลของคุณ แล้วรับรายชื่อทุนที่เหมาะกับคุณ ฟรี ไม่มีค่าใช้จ่าย`
+              : `${countLabel} Thai scholarships in one place. Tell us about yourself and get a list of scholarships matched to you. Free.`}
           </p>
 
           <Link
