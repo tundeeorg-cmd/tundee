@@ -43,7 +43,15 @@ describe('freshness', () => {
     const src = read('lib/tdScholarships/browseList.ts');
     expect(src).toContain('revalidateTag(BROWSE_LIST_TAG)');
     expect(src).toContain('revalidateTag(SCHOLARSHIP_STATS_TAG)');
+    expect(src).toContain('revalidateTag(FEATURED_CACHE_TAG)');
+    expect(src).toContain('revalidateTag(START_BROWSE_TAG)');
     expect(src).toContain("revalidatePath('/', 'layout')");
+  });
+
+  it('every cached public scholarship query is a tag revalidateBrowseList clears', () => {
+    expect(read('lib/scholarships/featured.ts')).toContain('tags: [CACHE_TAG]');
+    expect(read('lib/scholarships/featured.ts')).toContain('const CACHE_TAG = FEATURED_CACHE_TAG;');
+    expect(read('lib/scholarships/startBrowse.ts')).toContain('tags: [START_BROWSE_TAG]');
   });
 
   it.each([
