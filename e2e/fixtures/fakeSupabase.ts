@@ -1,0 +1,2 @@
+/** Where e2e/fake-supabase.mjs listens. Shared by the Playwright config and fixtures. */
+export const FAKE_SUPABASE_URL = 'http://127.0.0.1:54329';
