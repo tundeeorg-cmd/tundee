@@ -18,6 +18,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseDeadline } from '@/lib/tdScholarships/deadlineParser';
 import { isDisplayable, bangkokMidnight } from '@/lib/tdScholarships/displayGate';
+import { isUnqualifiedRolling } from '@/lib/tdScholarships/deadlineParser';
 import { revalidateBrowseList } from '@/lib/tdScholarships/browseList';
 
 export async function PATCH(
@@ -93,6 +94,12 @@ export async function PATCH(
       deadline_date: (update.deadline_date !== undefined ? update.deadline_date : existing.deadline_date) as string | null,
       status:        (update.status ?? existing.status) as string,
       last_verified: existing.last_verified as string | null,
+      // Same as the importer and the nightly cron: an unqualified "Rolling" deadline
+      // with a blank status is Open. Without it, saving any field on such a row
+      // hid it, and the cron re-showed it that night.
+      rolling_open:  isUnqualifiedRolling(
+        ('deadline_raw' in update ? update.deadline_raw : existing.deadline_raw) as string | null,
+      ),
     },
     bangkokMidnight(),
   );
